@@ -1201,7 +1201,7 @@
   background: var(--surface-command);
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin: 8px 0;
+  margin: 8px 0 14px;
   width: 100%;
   max-width: 100%;
 }
@@ -1259,7 +1259,7 @@
 }
 
 .message .markdown-codeblock-single {
-  margin: 8px 0;
+  margin: 8px 0 14px;
   padding: 10px 12px 18px;
   border: 1px solid var(--border-stronger);
   border-radius: 10px;
