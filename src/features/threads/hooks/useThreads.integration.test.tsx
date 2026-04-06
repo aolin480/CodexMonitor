@@ -1954,6 +1954,94 @@ describe("useThreads UX integration", () => {
     expect(unpinnedRows.map((row) => row.thread.id)).toEqual(["thread-b"]);
   });
 
+  it("prefers synced thread names from thread list responses", async () => {
+    vi.mocked(listThreads).mockResolvedValue({
+      result: {
+        data: [
+          {
+            id: "thread-sync",
+            name: "Renamed from desktop",
+            preview: "Old preview",
+            updated_at: 3000,
+            cwd: workspace.path,
+          },
+        ],
+        nextCursor: null,
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useThreads({
+        activeWorkspace: workspace,
+        onWorkspaceConnected: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.listThreadsForWorkspace(workspace);
+    });
+
+    expect(result.current.threadsByWorkspace["ws-1"]).toEqual([
+      expect.objectContaining({
+        id: "thread-sync",
+        name: "Renamed from desktop",
+      }),
+    ]);
+  });
+
+  it("prefers synced thread names from resume responses", async () => {
+    vi.mocked(listThreads).mockResolvedValue({
+      result: {
+        data: [
+          {
+            id: "thread-sync",
+            preview: "Old preview",
+            updated_at: 2000,
+            cwd: workspace.path,
+          },
+        ],
+        nextCursor: null,
+      },
+    });
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-sync",
+          name: "Renamed from desktop",
+          preview: "Old preview",
+          updated_at: 4000,
+          turns: [],
+        },
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useThreads({
+        activeWorkspace: workspace,
+        onWorkspaceConnected: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.listThreadsForWorkspace(workspace);
+    });
+
+    act(() => {
+      result.current.setActiveThreadId("thread-sync");
+    });
+
+    await waitFor(() => {
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-sync");
+    });
+
+    expect(result.current.threadsByWorkspace["ws-1"]).toEqual([
+      expect.objectContaining({
+        id: "thread-sync",
+        name: "Renamed from desktop",
+      }),
+    ]);
+  });
+
   it("keeps parent rows anchored when refresh only returns subagent children", async () => {
     vi.mocked(listThreads)
       .mockResolvedValueOnce({

@@ -13,6 +13,7 @@ import {
   previewThreadName,
 } from "@utils/threadItems";
 import { asString, normalizeRootPath } from "./threadNormalize";
+import { resolveSyncedThreadName } from "./threadNaming";
 import { getResumedTurnState } from "./threadRpc";
 
 function isWithinWorkspaceRoot(path: string, workspaceRoot: string) {
@@ -175,9 +176,10 @@ export function buildResumeHydrationPlan({
           : mergeThreadItems(items, localItems)
       : localItems;
   const preview = asString(thread.preview ?? "");
+  const syncedName = resolveSyncedThreadName(asString(thread.name ?? ""));
   const customName = getCustomName(workspaceId, threadId);
   const threadName =
-    !customName && preview ? previewThreadName(preview, "New Agent") : null;
+    !customName ? syncedName ?? (preview ? previewThreadName(preview, "New Agent") : null) : null;
   const lastAgentMessage = [...mergedItems]
     .reverse()
     .find(
