@@ -11,6 +11,7 @@ import { useCollaborationModes } from "@/features/collaboration/hooks/useCollabo
 import { useCollaborationModeSelection } from "@/features/collaboration/hooks/useCollaborationModeSelection";
 import { useSkills } from "@/features/skills/hooks/useSkills";
 import { useApps } from "@/features/apps/hooks/useApps";
+import { useMcpServerStatus } from "@/features/mcp/hooks/useMcpServerStatus";
 import { useCustomPrompts } from "@/features/prompts/hooks/useCustomPrompts";
 import { useBranchSwitcherShortcut } from "@/features/git/hooks/useBranchSwitcherShortcut";
 import { useRenameWorktreePrompt } from "@/features/workspaces/hooks/useRenameWorktreePrompt";
@@ -662,6 +663,9 @@ export default function MainApp() {
     enabled: appSettings.experimentalAppsEnabled,
     onDebug: addDebugEntry,
   });
+  const mcpStatus = useMcpServerStatus(
+    activeWorkspace?.connected ? activeWorkspace.id : null,
+  );
 
   useThreadCodexSyncOrchestration({
     activeWorkspaceId,
@@ -1714,6 +1718,7 @@ export default function MainApp() {
     onSelectAccessMode: handleSelectAccessMode,
     skills,
     apps,
+    mcpStatus,
     prompts,
     composerInputRef,
     composerEditorSettings,

@@ -99,6 +99,7 @@ These arrive on the same frontend event stream but are not Codex v2
 - `item/tool/requestUserInput` (a Codex v2 server request, not a notification)
 - `codex/backgroundThread` (CodexMonitor synthetic bridge event)
 - `codex/connected` (CodexMonitor synthetic bridge event)
+- `codex/stderr` (CodexMonitor synthetic bridge event for app-server stderr lines)
 - `codex/event/skills_update_available` (handled via
   `isSkillsUpdateAvailableEvent(...)` in `useSkills.ts`)
 

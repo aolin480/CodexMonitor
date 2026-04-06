@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import { BrainCog, SlidersHorizontal, Zap } from "lucide-react";
 import type { AccessMode, ServiceTier, ThreadTokenUsage } from "../../../types";
 import type { CodexArgsOption } from "../../threads/utils/codexArgsProfiles";
+import { McpStatusControl } from "../../mcp/components/McpStatusControl";
+import type { McpStatusController } from "../../mcp/types";
 
 type ComposerMetaBarProps = {
   disabled: boolean;
@@ -22,6 +24,8 @@ type ComposerMetaBarProps = {
   selectedCodexArgsOverride?: string | null;
   onSelectCodexArgsOverride?: (value: string | null) => void;
   contextUsage?: ThreadTokenUsage | null;
+  isPhone?: boolean;
+  mcpStatus?: McpStatusController | null;
 };
 
 export function ComposerMetaBar({
@@ -43,6 +47,8 @@ export function ComposerMetaBar({
   selectedCodexArgsOverride = null,
   onSelectCodexArgsOverride,
   contextUsage = null,
+  isPhone = false,
+  mcpStatus = null,
 }: ComposerMetaBarProps) {
   const selectedModel =
     models.find((model) => model.id === selectedModelId) ?? null;
@@ -271,6 +277,13 @@ export function ComposerMetaBar({
             <option value="full-access">Full access</option>
           </select>
         </div>
+        {mcpStatus ? (
+          <McpStatusControl
+            disabled={disabled}
+            isPhone={isPhone}
+            status={mcpStatus}
+          />
+        ) : null}
       </div>
       <div className="composer-context">
         <div

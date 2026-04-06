@@ -18,6 +18,7 @@ import {
   getOpenAppIcon,
   listThreads,
   listMcpServerStatus,
+  mcpServerOAuthLogin,
   readThread,
   readGlobalAgentsMd,
   readGlobalCodexConfigToml,
@@ -301,6 +302,18 @@ describe("tauri invoke wrappers", () => {
       workspaceId: "ws-10",
       cursor: "cursor-1",
       limit: 25,
+    });
+  });
+
+  it("maps workspaceId/serverName for mcp_server_oauth_login", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({ authUrl: "https://example.com/oauth" });
+
+    await mcpServerOAuthLogin("ws-10", "figma_mcp");
+
+    expect(invokeMock).toHaveBeenCalledWith("mcp_server_oauth_login", {
+      workspaceId: "ws-10",
+      serverName: "figma_mcp",
     });
   });
 

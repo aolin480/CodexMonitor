@@ -1060,6 +1060,16 @@ export async function listMcpServerStatus(
   return invoke<any>("list_mcp_server_status", { workspaceId, cursor, limit });
 }
 
+export async function mcpServerOAuthLogin(
+  workspaceId: string,
+  serverName: string,
+): Promise<{ authUrl: string; raw?: unknown }> {
+  return invoke<{ authUrl: string; raw?: unknown }>("mcp_server_oauth_login", {
+    workspaceId,
+    serverName,
+  });
+}
+
 export async function resumeThread(workspaceId: string, threadId: string) {
   return invoke<any>("resume_thread", { workspaceId, threadId });
 }

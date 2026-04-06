@@ -754,6 +754,374 @@
   width: max-content;
 }
 
+.composer-mcp-menu {
+  position: relative;
+}
+
+.composer-mcp-trigger {
+  border: 1px solid var(--cm-border-emphasis);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.composer-mcp-trigger:hover:not(:disabled),
+.composer-mcp-trigger.is-open {
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+
+.composer-mcp-trigger .composer-icon--mcp .composer-mcp-sync-icon.spinning {
+  animation: composer-mcp-spin 900ms linear infinite;
+}
+
+.composer-mcp-trigger-label {
+  font-size: 12px;
+  color: inherit;
+}
+
+.composer-mcp-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(62vh, 560px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+  border-radius: 14px;
+  z-index: 40;
+}
+
+.composer-mcp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.composer-mcp-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-stronger);
+}
+
+.composer-mcp-subtitle {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.composer-mcp-refresh {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--cm-border-emphasis);
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.composer-mcp-refresh:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+
+.composer-mcp-refresh .is-spinning {
+  animation: composer-mcp-spin 900ms linear infinite;
+}
+
+.composer-mcp-state {
+  padding: 14px 10px;
+  border-radius: 10px;
+  background: var(--cm-surface-panel-strong);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.composer-mcp-state--error {
+  color: var(--text-danger, #ff8f8f);
+}
+
+.composer-mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.composer-mcp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  border-radius: 10px;
+  background: var(--cm-surface-panel-strong);
+  border: 1px solid var(--cm-border-default);
+}
+
+.composer-mcp-row-button {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-mcp-row-button:hover {
+  background: color-mix(in srgb, var(--cm-surface-panel-solid) 45%, transparent);
+}
+
+.composer-mcp-row-button.is-static {
+  cursor: default;
+}
+
+.composer-mcp-row-button.is-static:hover {
+  background: transparent;
+}
+
+.composer-mcp-row-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.composer-mcp-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.composer-mcp-row-chevron,
+.composer-mcp-row-expand-slot,
+.composer-mcp-row-expand-placeholder,
+.composer-mcp-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.composer-mcp-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.composer-mcp-row-expand-slot {
+  width: 14px;
+  height: 14px;
+}
+
+.composer-mcp-row-expand-placeholder {
+  width: 14px;
+  height: 14px;
+}
+
+.composer-mcp-row-name {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-stronger);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-mcp-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.composer-mcp-auth,
+.composer-mcp-resources {
+  white-space: nowrap;
+}
+
+.composer-mcp-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--cm-surface-panel-solid);
+  border: 1px solid var(--cm-border-emphasis);
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.composer-mcp-count-secondary {
+  color: var(--text-fainter);
+}
+
+.composer-mcp-count--starting {
+  position: relative;
+  overflow: hidden;
+  color: var(--text-strong);
+  border-color: color-mix(in srgb, var(--accent-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--accent-primary) 8%, var(--cm-surface-panel-solid));
+}
+
+.composer-mcp-count--starting > * {
+  position: relative;
+  z-index: 1;
+}
+
+.composer-mcp-count--starting::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--composer-mcp-start-progress, 0%);
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-primary) 72%, transparent);
+}
+
+.composer-mcp-count--error {
+  color: var(--status-error);
+  border-color: color-mix(in srgb, var(--status-error) 45%, transparent);
+  background: color-mix(in srgb, var(--status-error) 12%, transparent);
+}
+
+.composer-mcp-count--warning {
+  color: var(--status-warning, #e0b85c);
+  border-color: color-mix(in srgb, var(--status-warning, #e0b85c) 45%, transparent);
+  background: color-mix(in srgb, var(--status-warning, #e0b85c) 12%, transparent);
+}
+
+.composer-mcp-count--action {
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 34%, transparent);
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  color: var(--text-strong);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.composer-mcp-count--action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent-primary) 52%, transparent);
+  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+}
+
+.composer-mcp-count--action:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.composer-mcp-count--error[data-tooltip]::after,
+.composer-mcp-count--warning[data-tooltip]::after {
+  width: min(280px, 36vw);
+  white-space: normal;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.composer-mcp-count--error[data-tooltip][data-tooltip-align="end"]::after,
+.composer-mcp-count--warning[data-tooltip][data-tooltip-align="end"]::after {
+  right: -8px;
+}
+
+.composer-mcp-tools--error {
+  padding-top: 0;
+}
+
+.composer-mcp-tools-error {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--status-error) 8%, var(--cm-surface-panel-solid));
+  border: 1px solid color-mix(in srgb, var(--status-error) 24%, transparent);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.composer-mcp-tools-error p {
+  margin: 0;
+}
+
+.composer-mcp-tools-error code {
+  font-size: 10px;
+  white-space: normal;
+}
+
+.composer-mcp-tools {
+  padding: 0 10px 10px;
+}
+
+.composer-mcp-tools-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-fainter);
+  margin-bottom: 8px;
+}
+
+.composer-mcp-tool-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.composer-mcp-tool-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--cm-surface-panel-solid);
+  border: 1px solid var(--cm-border-emphasis);
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+.composer-mcp-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--text-fainter);
+  flex: 0 0 auto;
+}
+
+.composer-mcp-backdrop {
+  position: fixed;
+  inset: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.36);
+  z-index: 49;
+}
+
+@keyframes composer-mcp-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .composer-select-wrap:has(.composer-select)::after {
   content: "";
   position: absolute;
@@ -1009,6 +1377,24 @@
   .app.layout-phone .composer-select-wrap {
     gap: 4px;
     padding: 2px 5px;
+  }
+
+  .app.layout-phone .composer-mcp-trigger {
+    padding-inline: 8px;
+  }
+
+  .app.layout-phone .composer-mcp-backdrop {
+    display: block;
+  }
+
+  .app.layout-phone .composer-mcp-popover {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: auto;
+    max-height: min(68vh, 520px);
+    z-index: 50;
   }
 
   .app.layout-phone .composer-select {

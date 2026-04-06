@@ -119,6 +119,17 @@ pub(super) async fn try_handle(
                     .await,
             )
         }
+        "mcp_server_oauth_login" => {
+            let workspace_id = match parse_string(params, "workspaceId") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            let server_name = match parse_string(params, "serverName") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            Some(state.mcp_server_oauth_login(workspace_id, server_name).await)
+        }
         "archive_thread" => {
             let workspace_id = match parse_string(params, "workspaceId") {
                 Ok(value) => value,

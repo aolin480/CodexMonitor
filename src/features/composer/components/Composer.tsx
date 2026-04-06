@@ -18,6 +18,7 @@ import type {
   ServiceTier,
   ThreadTokenUsage,
 } from "../../../types";
+import type { McpStatusController } from "../../mcp/types";
 import type {
   ReviewPromptState,
   ReviewPromptStep,
@@ -81,6 +82,8 @@ type ComposerProps = {
   prompts: CustomPromptOption[];
   files: string[];
   contextUsage?: ThreadTokenUsage | null;
+  isPhone?: boolean;
+  mcpStatus?: McpStatusController | null;
   queuedMessages?: QueuedMessage[];
   queuePausedReason?: string | null;
   onEditQueued?: (item: QueuedMessage) => void;
@@ -190,6 +193,8 @@ export const Composer = memo(function Composer({
   prompts,
   files,
   contextUsage = null,
+  isPhone = false,
+  mcpStatus = null,
   queuedMessages = [],
   queuePausedReason = null,
   onEditQueued,
@@ -693,6 +698,8 @@ export const Composer = memo(function Composer({
         accessMode={accessMode}
         onSelectAccessMode={onSelectAccessMode}
         contextUsage={contextUsage}
+        isPhone={isPhone}
+        mcpStatus={mcpStatus}
       />
     </footer>
   );
