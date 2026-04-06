@@ -22,6 +22,7 @@ describe("normalizeMcpServerStatus", () => {
     ).toEqual([
       {
         name: "github",
+        hasMatchingConfigBlock: null,
         authStatusCode: "connected",
         authStatus: "connected",
         toolNames: ["issues", "pull_requests"],
@@ -62,6 +63,7 @@ describe("normalizeMcpServerStatus", () => {
     ).toEqual([
       {
         name: "duckduckgo-mcp-server",
+        hasMatchingConfigBlock: null,
         authStatusCode: "oAuth",
         authStatus: "OAuth",
         toolNames: [],
@@ -92,6 +94,7 @@ describe("normalizeMcpServerStatus", () => {
     ).toEqual([
       {
         name: "example-server",
+        hasMatchingConfigBlock: null,
         authStatusCode: null,
         authStatus: null,
         toolNames: [],

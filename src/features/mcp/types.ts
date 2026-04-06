@@ -12,6 +12,7 @@ export type McpServerStartupPhase =
 
 export type McpServerStatusVm = {
   name: string;
+  hasMatchingConfigBlock: boolean | null;
   authStatusCode: string | null;
   authStatus: string | null;
   toolNames: string[];

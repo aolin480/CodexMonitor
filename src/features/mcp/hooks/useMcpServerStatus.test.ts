@@ -60,6 +60,15 @@ describe("useMcpServerStatus", () => {
   });
 
   it("loads and normalizes MCP status for the active workspace", async () => {
+    readGlobalCodexConfigTomlMock.mockResolvedValue({
+      exists: true,
+      content: `
+[mcp_servers.filesystem]
+command = "node"
+`,
+      truncated: false,
+    });
+
     listMcpServerStatusMock.mockResolvedValue({
       result: {
         data: [
@@ -88,12 +97,13 @@ describe("useMcpServerStatus", () => {
       expect(result.current.totalServers).toBe(1);
       expect(result.current.totalTools).toBe(2);
       expect(result.current.configPath).toBe("/Users/me/.codex/config.toml");
-      expect(result.current.servers[0]).toEqual(
-        expect.objectContaining({
-          name: "filesystem",
-          startupPhase: "ready",
-          authStatus: "connected",
-          toolNames: ["read", "write"],
+        expect(result.current.servers[0]).toEqual(
+          expect.objectContaining({
+            name: "filesystem",
+            hasMatchingConfigBlock: true,
+            startupPhase: "ready",
+            authStatus: "connected",
+            toolNames: ["read", "write"],
           templateCount: 1,
         }),
       );

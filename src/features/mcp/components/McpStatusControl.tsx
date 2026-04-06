@@ -55,11 +55,66 @@ function buildStartupMessage(
   return `Server is starting. Waiting up to ${timeoutSeconds}s for tools from ${serverName}.`;
 }
 
-function buildZeroToolsMessage(startupMessage: string | null): string | null {
+function buildConfigBlockHeader(serverName: string): string {
+  return `[mcp_servers.${serverName}]`;
+}
+
+function buildSuggestedConfigName(serverName: string): string | null {
+  if (!serverName.includes("-")) {
+    return null;
+  }
+  return serverName.replace(/-/g, "_");
+}
+
+function buildZeroToolsMessage(
+  server: {
+    name: string;
+    hasMatchingConfigBlock: boolean | null;
+  },
+  startupMessage: string | null,
+  configPath: string | null,
+): string | null {
   if (!startupMessage) {
     return null;
   }
-  return startupMessage;
+
+  const resolvedPath = configPath ?? FALLBACK_CONFIG_PATH;
+  const guidance = [startupMessage];
+
+  if (server.hasMatchingConfigBlock) {
+    guidance.push(
+      `The configured block header already matches this server: ${buildConfigBlockHeader(server.name)}`,
+      `If this server requires authentication, run \`codex mcp login ${server.name}\` in Terminal. Otherwise, the server may be misconfigured or failing to report tools.`,
+      `Config path: ${resolvedPath}`,
+    );
+    return guidance.join(" ");
+  }
+
+  if (server.hasMatchingConfigBlock === false) {
+    const suggestedConfigName = buildSuggestedConfigName(server.name);
+    guidance.push(
+      "If this server should expose tools, rename the actual MCP config block header so it matches the server's MCP namespace exactly.",
+      `Expected block header: ${buildConfigBlockHeader(server.name)}`,
+    );
+    if (suggestedConfigName && suggestedConfigName !== server.name) {
+      guidance.push(
+        `Suggested block header: ${buildConfigBlockHeader(suggestedConfigName)}`,
+      );
+    }
+    guidance.push(
+      "Update the block header itself in config.toml, not the command or directory path.",
+      `Config path: ${resolvedPath}`,
+    );
+    return guidance.join(" ");
+  }
+
+  guidance.push(
+    `Check the MCP config block header for this server in config.toml: ${buildConfigBlockHeader(server.name)}`,
+    `If that block header already matches, try \`codex mcp login ${server.name}\` or verify the server configuration.`,
+    `Config path: ${resolvedPath}`,
+  );
+
+  return guidance.join(" ");
 }
 
 export function McpStatusControl({
@@ -175,7 +230,11 @@ export function McpStatusControl({
                   const isStarting = server.startupPhase === "starting";
                   const canExpand = server.startupPhase === "ready";
                   const toolsPanelId = `mcp-tools-${server.name}`;
-                  const zeroToolsMessage = buildZeroToolsMessage(server.startupMessage);
+                  const zeroToolsMessage = buildZeroToolsMessage(
+                    server,
+                    server.startupMessage,
+                    status.configPath,
+                  );
                   const startupChipStyle = {
                     "--composer-mcp-start-progress": `${Math.round(
                       (server.startupProgress ?? 0) * 100,

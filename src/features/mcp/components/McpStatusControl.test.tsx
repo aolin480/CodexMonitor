@@ -9,6 +9,7 @@ function buildStatus(overrides?: Partial<McpStatusController>): McpStatusControl
     servers: [
       {
         name: "github",
+        hasMatchingConfigBlock: true,
         authStatusCode: "connected",
         authStatus: "connected",
         toolNames: ["search_repositories", "create_pull_request"],
@@ -24,6 +25,7 @@ function buildStatus(overrides?: Partial<McpStatusController>): McpStatusControl
       },
       {
         name: "filesystem",
+        hasMatchingConfigBlock: true,
         authStatusCode: "local",
         authStatus: "local",
         toolNames: ["read_file"],
@@ -98,6 +100,7 @@ describe("McpStatusControl", () => {
           servers: [
             {
               name: "duckduckgo-mcp-server",
+              hasMatchingConfigBlock: false,
               authStatusCode: "oAuth",
               authStatus: "OAuth",
               toolNames: [],
@@ -164,6 +167,7 @@ describe("McpStatusControl", () => {
           servers: [
             {
               name: "figma_mcp",
+              hasMatchingConfigBlock: true,
               authStatusCode: "notLoggedIn",
               authStatus: "Not Logged In",
               toolNames: [],
@@ -209,6 +213,7 @@ describe("McpStatusControl", () => {
           servers: [
             {
               name: "xdebug",
+              hasMatchingConfigBlock: true,
               authStatusCode: null,
               authStatus: null,
               toolNames: [],
@@ -248,6 +253,7 @@ describe("McpStatusControl", () => {
           servers: [
             {
               name: "xdebug",
+              hasMatchingConfigBlock: true,
               authStatusCode: null,
               authStatus: null,
               toolNames: [],
@@ -279,6 +285,64 @@ describe("McpStatusControl", () => {
     expect(warningChip).not.toBeNull();
     expect(warningChip?.getAttribute("data-tooltip")).toContain(
       "MCP client for `xdebug` timed out after 60 seconds.",
+    );
+    expect(warningChip?.getAttribute("data-tooltip")).toContain(
+      "configured block header already matches this server",
+    );
+    expect(warningChip?.getAttribute("data-tooltip")).toContain(
+      "[mcp_servers.xdebug]",
+    );
+    expect(warningChip?.getAttribute("data-tooltip")).toContain(
+      "codex mcp login xdebug",
+    );
+    expect(warningChip?.getAttribute("data-tooltip")).toContain(
+      "/Users/aaronolin/.codex/config.toml",
+    );
+  });
+
+  it("shows a suggested block header when a zero-tool warning row uses a hyphenated name", () => {
+    const { container } = render(
+      <McpStatusControl
+        disabled={false}
+        isPhone={false}
+        status={buildStatus({
+          servers: [
+            {
+              name: "duckduckgo-mcp-server",
+              hasMatchingConfigBlock: false,
+              authStatusCode: "oAuth",
+              authStatus: "OAuth",
+              toolNames: [],
+              toolCount: 0,
+              resourceCount: 0,
+              templateCount: 0,
+              toolError: null,
+              startupPhase: "zero",
+              startupTimeoutMs: 10_000,
+              startupProgress: 1,
+              startupRemainingSeconds: 0,
+              startupMessage:
+                "Server finished starting but still returned 0 tools.",
+            },
+          ],
+          totalServers: 1,
+          totalTools: 0,
+        })}
+      />,
+    );
+
+    const mcpButtons = screen.getAllByRole("button", { name: "MCP servers" });
+    fireEvent.click(mcpButtons[mcpButtons.length - 1]!);
+
+    const warningChip = container.querySelector(
+      ".composer-mcp-count--warning",
+    ) as HTMLElement | null;
+    expect(warningChip).not.toBeNull();
+    expect(warningChip?.getAttribute("data-tooltip")).toContain(
+      "Expected block header: [mcp_servers.duckduckgo-mcp-server]",
+    );
+    expect(warningChip?.getAttribute("data-tooltip")).toContain(
+      "Suggested block header: [mcp_servers.duckduckgo_mcp_server]",
     );
   });
 });

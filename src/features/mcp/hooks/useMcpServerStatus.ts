@@ -11,6 +11,7 @@ import { getAppServerParams, getAppServerRawMethod } from "../../../utils/appSer
 import type { McpServerStatusVm, McpStatusState } from "../types";
 import { normalizeMcpServerStatus } from "../utils/normalizeMcpServerStatus";
 import {
+  parseConfiguredMcpServerNames,
   parseMcpStartupTimeouts,
   resolveMcpStartupTimeoutMs,
 } from "../utils/parseMcpStartupTimeouts";
@@ -89,6 +90,25 @@ function isWarmupCandidate(server: McpServerStatusVm): boolean {
     server.authStatusCode !== "notLoggedIn" &&
     server.toolError === null
   );
+}
+
+function toConfiguredServerNameMap(
+  serverNames: readonly string[],
+): Record<string, true> {
+  return Object.fromEntries(serverNames.map((serverName) => [serverName, true]));
+}
+
+function applyConfiguredServerNames(
+  servers: readonly McpServerStatusVm[],
+  configuredServerNames: Record<string, true> | null,
+): McpServerStatusVm[] {
+  return servers.map((server) => ({
+    ...server,
+    hasMatchingConfigBlock:
+      configuredServerNames === null
+        ? null
+        : Boolean(configuredServerNames[server.name]),
+  }));
 }
 
 function buildServerViewModels(
@@ -242,6 +262,7 @@ export function useMcpServerStatus(
   const [state, setState] = useState<McpStatusState>(EMPTY_STATE);
   const warmupDeadlineByServerRef = useRef<Record<string, number>>({});
   const startupTimeoutsByServerRef = useRef<Record<string, number>>({});
+  const configuredServerNamesRef = useRef<Record<string, true> | null>(null);
   const startupMessagesByServerRef = useRef<Record<string, string>>({});
   const workspaceIdRef = useRef<string | null>(workspaceId);
   const enabledRef = useRef(enabled);
@@ -261,6 +282,7 @@ export function useMcpServerStatus(
     if (!enabled || !workspaceId) {
       startupTimeoutsByServerRef.current = {};
       warmupDeadlineByServerRef.current = {};
+      configuredServerNamesRef.current = null;
       startupMessagesByServerRef.current = {};
       setState(EMPTY_STATE);
       return;
@@ -303,15 +325,22 @@ export function useMcpServerStatus(
         startupTimeoutsByServerRef.current = configToml.exists
           ? parseMcpStartupTimeouts(configToml.content)
           : {};
+        configuredServerNamesRef.current = configToml.exists
+          ? toConfiguredServerNameMap(parseConfiguredMcpServerNames(configToml.content))
+          : {};
         setState((current) => {
           if (current.servers.length === 0) {
             return current;
           }
 
           const now = Date.now();
+          const configuredServers = applyConfiguredServerNames(
+            current.servers,
+            configuredServerNamesRef.current,
+          );
           const { servers, hasStartingServers, warmupDeadlineByServer } =
             buildServerViewModels(
-              current.servers,
+              configuredServers,
               startupTimeoutsByServerRef.current,
               warmupDeadlineByServerRef.current,
               startupMessagesByServerRef.current,
@@ -333,6 +362,7 @@ export function useMcpServerStatus(
         }
 
         startupTimeoutsByServerRef.current = {};
+        configuredServerNamesRef.current = null;
       });
 
     return () => {
@@ -348,6 +378,7 @@ export function useMcpServerStatus(
       if (!requestWorkspaceId || !enabledRef.current) {
         if (!requestWorkspaceId || !enabledRef.current) {
           warmupDeadlineByServerRef.current = {};
+          configuredServerNamesRef.current = null;
           setState(EMPTY_STATE);
         }
         return;
@@ -375,7 +406,10 @@ export function useMcpServerStatus(
           return;
         }
 
-        const normalizedServers = normalizeMcpServerStatus(getResponseData(response));
+        const normalizedServers = applyConfiguredServerNames(
+          normalizeMcpServerStatus(getResponseData(response)),
+          configuredServerNamesRef.current,
+        );
         const now = Date.now();
         const {
           servers,

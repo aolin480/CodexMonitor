@@ -1,5 +1,24 @@
 export const DEFAULT_MCP_STARTUP_TIMEOUT_MS = 10_000;
 
+export function parseConfiguredMcpServerNames(content: string): string[] {
+  const serverNames = new Set<string>();
+
+  for (const line of content.split(/\r?\n/)) {
+    if (/^\s*#/.test(line)) {
+      continue;
+    }
+
+    const sectionMatch = line.match(/^\s*\[mcp_servers\.([^\]\s.]+)\]\s*$/);
+    if (!sectionMatch?.[1]) {
+      continue;
+    }
+
+    serverNames.add(sectionMatch[1]);
+  }
+
+  return [...serverNames].sort((left, right) => left.localeCompare(right));
+}
+
 export function parseMcpStartupTimeouts(
   content: string,
 ): Record<string, number> {
@@ -11,7 +30,7 @@ export function parseMcpStartupTimeouts(
       continue;
     }
 
-    const sectionMatch = line.match(/^\s*\[mcp_servers\.([^\]\s]+)\]\s*$/);
+    const sectionMatch = line.match(/^\s*\[mcp_servers\.([^\]\s.]+)\]\s*$/);
     if (sectionMatch) {
       currentServerName = sectionMatch[1] ?? null;
       continue;

@@ -125,6 +125,7 @@ export function normalizeMcpServerStatus(
 
       servers.push({
         name,
+        hasMatchingConfigBlock: null,
         authStatusCode,
         authStatus,
         toolNames,

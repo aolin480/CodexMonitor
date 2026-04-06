@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MCP_STARTUP_TIMEOUT_MS,
+  parseConfiguredMcpServerNames,
   parseMcpStartupTimeouts,
   resolveMcpStartupTimeoutMs,
 } from "./parseMcpStartupTimeouts";
@@ -26,6 +27,27 @@ startup_timeout_sec = 2.5
       xdebug: 60_000,
       code_graph_context: 2_500,
     });
+  });
+
+  it("reads active MCP server block headers and ignores commented sections", () => {
+    const content = `
+[mcp_servers.xdebug]
+command = "node"
+
+# [mcp_servers.mongodb]
+# command = "mongo"
+
+[mcp_servers.duckduckgo_mcp_server]
+url = "https://example.com"
+
+[mcp_servers.code_graph_context.env]
+FOO = "bar"
+`;
+
+    expect(parseConfiguredMcpServerNames(content)).toEqual([
+      "duckduckgo_mcp_server",
+      "xdebug",
+    ]);
   });
 
   it("falls back to the default timeout when a server has no explicit value", () => {
