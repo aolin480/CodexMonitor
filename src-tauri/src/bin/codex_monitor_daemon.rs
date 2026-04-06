@@ -82,7 +82,7 @@ use shared::process_core::kill_child_process_tree;
 use shared::prompts_core::{self, CustomPromptEntry};
 use shared::{
     agents_config_core, codex_aux_core, codex_core, files_core, git_core, git_ui_core,
-    local_usage_core, settings_core, workspaces_core, worktree_core,
+    local_usage_core, settings_core, thread_name_registry_core, workspaces_core, worktree_core,
 };
 use storage::{read_settings, read_workspaces};
 use types::{
@@ -689,15 +689,27 @@ impl DaemonState {
         workspace_id: String,
         thread_id: String,
     ) -> Result<Value, String> {
-        codex_core::resume_thread_core(&self.sessions, workspace_id, thread_id).await
+        let mut response =
+            codex_core::resume_thread_core(&self.sessions, workspace_id.clone(), thread_id).await?;
+        thread_name_registry_core::apply_thread_name_overlays(
+            &self.data_dir,
+            &workspace_id,
+            &mut response,
+        )
+        .await?;
+        Ok(response)
     }
 
-    async fn read_thread(
-        &self,
-        workspace_id: String,
-        thread_id: String,
-    ) -> Result<Value, String> {
-        codex_core::read_thread_core(&self.sessions, workspace_id, thread_id).await
+    async fn read_thread(&self, workspace_id: String, thread_id: String) -> Result<Value, String> {
+        let mut response =
+            codex_core::read_thread_core(&self.sessions, workspace_id.clone(), thread_id).await?;
+        thread_name_registry_core::apply_thread_name_overlays(
+            &self.data_dir,
+            &workspace_id,
+            &mut response,
+        )
+        .await?;
+        Ok(response)
     }
 
     async fn thread_live_subscribe(
@@ -765,8 +777,21 @@ impl DaemonState {
         limit: Option<u32>,
         sort_key: Option<String>,
     ) -> Result<Value, String> {
-        codex_core::list_threads_core(&self.sessions, workspace_id, cursor, limit, sort_key)
-            .await
+        let mut response = codex_core::list_threads_core(
+            &self.sessions,
+            workspace_id.clone(),
+            cursor,
+            limit,
+            sort_key,
+        )
+        .await?;
+        thread_name_registry_core::apply_thread_name_overlays(
+            &self.data_dir,
+            &workspace_id,
+            &mut response,
+        )
+        .await?;
+        Ok(response)
     }
 
     async fn list_mcp_server_status(
@@ -800,7 +825,27 @@ impl DaemonState {
         thread_id: String,
         name: String,
     ) -> Result<Value, String> {
-        codex_core::set_thread_name_core(&self.sessions, workspace_id, thread_id, name).await
+        let mut response = codex_core::set_thread_name_core(
+            &self.sessions,
+            workspace_id.clone(),
+            thread_id.clone(),
+            name.clone(),
+        )
+        .await?;
+        thread_name_registry_core::save_thread_name(
+            &self.data_dir,
+            &workspace_id,
+            &thread_id,
+            &name,
+        )
+        .await?;
+        thread_name_registry_core::apply_thread_name_overlays(
+            &self.data_dir,
+            &workspace_id,
+            &mut response,
+        )
+        .await?;
+        Ok(response)
     }
 
     async fn send_user_message(

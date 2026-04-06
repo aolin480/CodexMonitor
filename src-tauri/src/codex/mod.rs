@@ -15,6 +15,7 @@ use crate::event_sink::TauriEventSink;
 use crate::remote_backend;
 use crate::shared::agents_config_core;
 use crate::shared::codex_core::{self, insert_optional_nullable_string};
+use crate::shared::thread_name_registry_core;
 use crate::state::AppState;
 use crate::types::WorkspaceEntry;
 
@@ -49,6 +50,13 @@ pub(crate) async fn spawn_workspace_session(
         event_sink,
     )
     .await
+}
+
+fn app_data_dir(state: &AppState) -> Result<&std::path::Path, String> {
+    state
+        .settings_path
+        .parent()
+        .ok_or_else(|| "Unable to resolve app data directory".to_string())
 }
 
 #[tauri::command]
@@ -107,7 +115,15 @@ pub(crate) async fn resume_thread(
         .await;
     }
 
-    codex_core::resume_thread_core(&state.sessions, workspace_id, thread_id).await
+    let mut response =
+        codex_core::resume_thread_core(&state.sessions, workspace_id.clone(), thread_id).await?;
+    thread_name_registry_core::apply_thread_name_overlays(
+        app_data_dir(&state)?,
+        &workspace_id,
+        &mut response,
+    )
+    .await?;
+    Ok(response)
 }
 
 #[tauri::command]
@@ -127,7 +143,15 @@ pub(crate) async fn read_thread(
         .await;
     }
 
-    codex_core::read_thread_core(&state.sessions, workspace_id, thread_id).await
+    let mut response =
+        codex_core::read_thread_core(&state.sessions, workspace_id.clone(), thread_id).await?;
+    thread_name_registry_core::apply_thread_name_overlays(
+        app_data_dir(&state)?,
+        &workspace_id,
+        &mut response,
+    )
+    .await?;
+    Ok(response)
 }
 
 #[tauri::command]
@@ -250,7 +274,21 @@ pub(crate) async fn list_threads(
         .await;
     }
 
-    codex_core::list_threads_core(&state.sessions, workspace_id, cursor, limit, sort_key).await
+    let mut response = codex_core::list_threads_core(
+        &state.sessions,
+        workspace_id.clone(),
+        cursor,
+        limit,
+        sort_key,
+    )
+    .await?;
+    thread_name_registry_core::apply_thread_name_overlays(
+        app_data_dir(&state)?,
+        &workspace_id,
+        &mut response,
+    )
+    .await?;
+    Ok(response)
 }
 
 #[tauri::command]
@@ -332,7 +370,27 @@ pub(crate) async fn set_thread_name(
         .await;
     }
 
-    codex_core::set_thread_name_core(&state.sessions, workspace_id, thread_id, name).await
+    let mut response = codex_core::set_thread_name_core(
+        &state.sessions,
+        workspace_id.clone(),
+        thread_id.clone(),
+        name.clone(),
+    )
+    .await?;
+    thread_name_registry_core::save_thread_name(
+        app_data_dir(&state)?,
+        &workspace_id,
+        &thread_id,
+        &name,
+    )
+    .await?;
+    thread_name_registry_core::apply_thread_name_overlays(
+        app_data_dir(&state)?,
+        &workspace_id,
+        &mut response,
+    )
+    .await?;
+    Ok(response)
 }
 
 #[tauri::command]
