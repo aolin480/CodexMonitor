@@ -278,11 +278,10 @@ export function useMcpServerStatus(
       return;
     }
 
-    setState((current) => ({
+    setState({
       ...EMPTY_STATE,
-      configPath: configSummary.configPath,
       isLoading: true,
-    }));
+    });
   }, [enabled, workspaceId]);
 
   useEffect(() => {

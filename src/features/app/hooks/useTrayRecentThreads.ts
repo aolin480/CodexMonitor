@@ -84,7 +84,6 @@ export function useTrayRecentThreads({
     [isSubagentThread, threadsByWorkspace, workspaces],
   );
   const serializedEntries = useMemo(() => JSON.stringify(entries), [entries]);
-  const syncEntries = useMemo(() => entries, [serializedEntries]);
   const lastSyncedEntriesRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -102,7 +101,7 @@ export function useTrayRecentThreads({
     const scheduleSync = () => {
       timeoutId = window.setTimeout(() => {
         timeoutId = null;
-        void setTrayRecentThreads(syncEntries)
+        void setTrayRecentThreads(entries)
           .then(() => {
             if (cancelled) {
               return;
@@ -127,5 +126,5 @@ export function useTrayRecentThreads({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [serializedEntries, syncEntries]);
+  }, [entries, serializedEntries]);
 }
