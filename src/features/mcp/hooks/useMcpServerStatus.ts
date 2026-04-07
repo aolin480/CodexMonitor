@@ -2,19 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { subscribeAppServerEvents } from "@services/events";
 import {
-  getCodexConfigPath,
   listMcpServerStatus,
   mcpServerOAuthLogin,
-  readGlobalCodexConfigToml,
 } from "@services/tauri";
 import { getAppServerParams, getAppServerRawMethod } from "../../../utils/appServerEvents";
 import type { McpServerStatusVm, McpStatusState } from "../types";
+import { useMcpConfigSummary } from "./useMcpConfigSummary";
 import { normalizeMcpServerStatus } from "../utils/normalizeMcpServerStatus";
-import {
-  parseConfiguredMcpServerNames,
-  parseMcpStartupTimeouts,
-  resolveMcpStartupTimeoutMs,
-} from "../utils/parseMcpStartupTimeouts";
+import { resolveMcpStartupTimeoutMs } from "../utils/parseMcpStartupTimeouts";
 
 const EMPTY_STATE: McpStatusState = {
   servers: [],
@@ -90,12 +85,6 @@ function isWarmupCandidate(server: McpServerStatusVm): boolean {
     server.authStatusCode !== "notLoggedIn" &&
     server.toolError === null
   );
-}
-
-function toConfiguredServerNameMap(
-  serverNames: readonly string[],
-): Record<string, true> {
-  return Object.fromEntries(serverNames.map((serverName) => [serverName, true]));
 }
 
 function applyConfiguredServerNames(
@@ -260,6 +249,7 @@ export function useMcpServerStatus(
   enabled = true,
 ) {
   const [state, setState] = useState<McpStatusState>(EMPTY_STATE);
+  const configSummary = useMcpConfigSummary(workspaceId, enabled);
   const warmupDeadlineByServerRef = useRef<Record<string, number>>({});
   const startupTimeoutsByServerRef = useRef<Record<string, number>>({});
   const configuredServerNamesRef = useRef<Record<string, true> | null>(null);
@@ -288,87 +278,58 @@ export function useMcpServerStatus(
       return;
     }
 
-    let isCancelled = false;
-
     setState((current) => ({
       ...EMPTY_STATE,
-      configPath: current.configPath,
+      configPath: configSummary.configPath,
       isLoading: true,
     }));
-
-    void getCodexConfigPath()
-      .then((configPath) => {
-        if (isCancelled) {
-          return;
-        }
-
-        const trimmedPath = configPath.trim();
-        setState((current) => ({
-          ...current,
-          configPath: trimmedPath.length > 0 ? trimmedPath : null,
-        }));
-      })
-      .catch(() => {
-        if (isCancelled) {
-          return;
-        }
-
-        setState((current) => ({ ...current, configPath: null }));
-      });
-
-    void readGlobalCodexConfigToml()
-      .then((configToml) => {
-        if (isCancelled) {
-          return;
-        }
-
-        startupTimeoutsByServerRef.current = configToml.exists
-          ? parseMcpStartupTimeouts(configToml.content)
-          : {};
-        configuredServerNamesRef.current = configToml.exists
-          ? toConfiguredServerNameMap(parseConfiguredMcpServerNames(configToml.content))
-          : {};
-        setState((current) => {
-          if (current.servers.length === 0) {
-            return current;
-          }
-
-          const now = Date.now();
-          const configuredServers = applyConfiguredServerNames(
-            current.servers,
-            configuredServerNamesRef.current,
-          );
-          const { servers, hasStartingServers, warmupDeadlineByServer } =
-            buildServerViewModels(
-              configuredServers,
-              startupTimeoutsByServerRef.current,
-              warmupDeadlineByServerRef.current,
-              startupMessagesByServerRef.current,
-              now,
-              true,
-            );
-          warmupDeadlineByServerRef.current = warmupDeadlineByServer;
-
-          return {
-            ...current,
-            servers,
-            isSettling: hasStartingServers,
-          };
-        });
-      })
-      .catch(() => {
-        if (isCancelled) {
-          return;
-        }
-
-        startupTimeoutsByServerRef.current = {};
-        configuredServerNamesRef.current = null;
-      });
-
-    return () => {
-      isCancelled = true;
-    };
   }, [enabled, workspaceId]);
+
+  useEffect(() => {
+    startupTimeoutsByServerRef.current = configSummary.startupTimeoutsByServer;
+    configuredServerNamesRef.current = configSummary.configuredServerNames;
+
+    setState((current) => {
+      const configPathChanged = current.configPath !== configSummary.configPath;
+      if (current.servers.length === 0) {
+        return configPathChanged
+          ? {
+              ...current,
+              configPath: configSummary.configPath,
+            }
+          : current;
+      }
+
+      const now = Date.now();
+      const configuredServers = applyConfiguredServerNames(
+        current.servers,
+        configuredServerNamesRef.current,
+      );
+      const { servers, hasStartingServers, warmupDeadlineByServer } =
+        buildServerViewModels(
+          configuredServers,
+          startupTimeoutsByServerRef.current,
+          warmupDeadlineByServerRef.current,
+          startupMessagesByServerRef.current,
+          now,
+          true,
+        );
+
+      const displayChanged = didStartupDisplayChange(current.servers, servers);
+      if (!configPathChanged && !displayChanged) {
+        return current;
+      }
+
+      warmupDeadlineByServerRef.current = warmupDeadlineByServer;
+
+      return {
+        ...current,
+        configPath: configSummary.configPath,
+        servers,
+        isSettling: hasStartingServers,
+      };
+    });
+  }, [configSummary]);
 
   const refreshInternal = useCallback(
     async ({ background = false, restartWarmup = false }: RefreshOptions = {}) => {

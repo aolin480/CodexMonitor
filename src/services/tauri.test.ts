@@ -22,6 +22,7 @@ import {
   readThread,
   readGlobalAgentsMd,
   readGlobalCodexConfigToml,
+  readGlobalMcpConfigSummary,
   listWorkspaces,
   openWorkspaceIn,
   readAgentMd,
@@ -570,6 +571,18 @@ describe("tauri invoke wrappers", () => {
       kind: "config",
       workspaceId: undefined,
     });
+  });
+
+  it("reads the global MCP config summary", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({
+      configuredServerNames: ["acme.server"],
+      startupTimeoutsMs: { "acme.server": 12_500 },
+    });
+
+    await readGlobalMcpConfigSummary();
+
+    expect(invokeMock).toHaveBeenCalledWith("read_global_mcp_config_summary");
   });
 
   it("writes global config.toml", async () => {

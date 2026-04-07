@@ -7,7 +7,7 @@ import {
   getCodexConfigPath,
   listMcpServerStatus,
   mcpServerOAuthLogin,
-  readGlobalCodexConfigToml,
+  readGlobalMcpConfigSummary,
 } from "@services/tauri";
 import type { AppServerEvent } from "../../../types";
 import { useMcpServerStatus } from "./useMcpServerStatus";
@@ -16,7 +16,7 @@ vi.mock("@services/tauri", () => ({
   getCodexConfigPath: vi.fn(),
   listMcpServerStatus: vi.fn(),
   mcpServerOAuthLogin: vi.fn(),
-  readGlobalCodexConfigToml: vi.fn(),
+  readGlobalMcpConfigSummary: vi.fn(),
 }));
 
 vi.mock("@services/events", () => ({
@@ -30,7 +30,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 const getCodexConfigPathMock = vi.mocked(getCodexConfigPath);
 const listMcpServerStatusMock = vi.mocked(listMcpServerStatus);
 const mcpServerOAuthLoginMock = vi.mocked(mcpServerOAuthLogin);
-const readGlobalCodexConfigTomlMock = vi.mocked(readGlobalCodexConfigToml);
+const readGlobalMcpConfigSummaryMock = vi.mocked(readGlobalMcpConfigSummary);
 const subscribeAppServerEventsMock = vi.mocked(subscribeAppServerEvents);
 const openUrlMock = vi.mocked(openUrl);
 
@@ -41,10 +41,9 @@ describe("useMcpServerStatus", () => {
     vi.clearAllMocks();
     listener = null;
     getCodexConfigPathMock.mockResolvedValue("/Users/me/.codex/config.toml");
-    readGlobalCodexConfigTomlMock.mockResolvedValue({
-      exists: true,
-      content: "",
-      truncated: false,
+    readGlobalMcpConfigSummaryMock.mockResolvedValue({
+      configuredServerNames: [],
+      startupTimeoutsMs: {},
     });
     mcpServerOAuthLoginMock.mockResolvedValue({
       authUrl: "https://example.com/oauth",
@@ -60,13 +59,9 @@ describe("useMcpServerStatus", () => {
   });
 
   it("loads and normalizes MCP status for the active workspace", async () => {
-    readGlobalCodexConfigTomlMock.mockResolvedValue({
-      exists: true,
-      content: `
-[mcp_servers.filesystem]
-command = "node"
-`,
-      truncated: false,
+    readGlobalMcpConfigSummaryMock.mockResolvedValue({
+      configuredServerNames: ["filesystem"],
+      startupTimeoutsMs: {},
     });
 
     listMcpServerStatusMock.mockResolvedValue({
@@ -97,13 +92,13 @@ command = "node"
       expect(result.current.totalServers).toBe(1);
       expect(result.current.totalTools).toBe(2);
       expect(result.current.configPath).toBe("/Users/me/.codex/config.toml");
-        expect(result.current.servers[0]).toEqual(
-          expect.objectContaining({
-            name: "filesystem",
-            hasMatchingConfigBlock: true,
-            startupPhase: "ready",
-            authStatus: "connected",
-            toolNames: ["read", "write"],
+      expect(result.current.servers[0]).toEqual(
+        expect.objectContaining({
+          name: "filesystem",
+          hasMatchingConfigBlock: true,
+          startupPhase: "ready",
+          authStatus: "connected",
+          toolNames: ["read", "write"],
           templateCount: 1,
         }),
       );
@@ -301,10 +296,9 @@ command = "node"
   });
 
   it("keeps zero-tool servers in a startup phase and polls until tools arrive", async () => {
-    readGlobalCodexConfigTomlMock.mockResolvedValue({
-      exists: true,
-      content: "[mcp_servers.xdebug]\nstartup_timeout_sec = 1.0\n",
-      truncated: false,
+    readGlobalMcpConfigSummaryMock.mockResolvedValue({
+      configuredServerNames: ["xdebug"],
+      startupTimeoutsMs: { xdebug: 1_000 },
     });
     listMcpServerStatusMock
       .mockResolvedValueOnce({
@@ -349,10 +343,9 @@ command = "node"
   it("updates startup countdown while the next status poll is still pending", async () => {
     vi.useFakeTimers();
 
-    readGlobalCodexConfigTomlMock.mockResolvedValue({
-      exists: true,
-      content: "[mcp_servers.xdebug]\nstartup_timeout_sec = 60.0\n",
-      truncated: false,
+    readGlobalMcpConfigSummaryMock.mockResolvedValue({
+      configuredServerNames: ["xdebug"],
+      startupTimeoutsMs: { xdebug: 60_000 },
     });
 
     let resolveSecondStatus:
@@ -420,7 +413,7 @@ command = "node"
   }, 10000);
 
   it("does not block the first MCP status load when config.toml reading stalls", async () => {
-    readGlobalCodexConfigTomlMock.mockImplementation(
+    readGlobalMcpConfigSummaryMock.mockImplementation(
       () =>
         new Promise(() => {
           // Intentionally unresolved to simulate a stalled config read.

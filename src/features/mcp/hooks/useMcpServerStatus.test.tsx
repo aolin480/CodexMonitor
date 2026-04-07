@@ -6,7 +6,7 @@ import {
   getCodexConfigPath,
   listMcpServerStatus,
   mcpServerOAuthLogin,
-  readGlobalCodexConfigToml,
+  readGlobalMcpConfigSummary,
 } from "@services/tauri";
 import { useMcpServerStatus } from "./useMcpServerStatus";
 
@@ -14,7 +14,7 @@ vi.mock("@services/tauri", () => ({
   getCodexConfigPath: vi.fn(),
   listMcpServerStatus: vi.fn(),
   mcpServerOAuthLogin: vi.fn(),
-  readGlobalCodexConfigToml: vi.fn(),
+  readGlobalMcpConfigSummary: vi.fn(),
 }));
 
 vi.mock("@services/events", () => ({
@@ -28,17 +28,16 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 const getCodexConfigPathMock = vi.mocked(getCodexConfigPath);
 const listMcpServerStatusMock = vi.mocked(listMcpServerStatus);
 const mcpServerOAuthLoginMock = vi.mocked(mcpServerOAuthLogin);
-const readGlobalCodexConfigTomlMock = vi.mocked(readGlobalCodexConfigToml);
+const readGlobalMcpConfigSummaryMock = vi.mocked(readGlobalMcpConfigSummary);
 const subscribeAppServerEventsMock = vi.mocked(subscribeAppServerEvents);
 
 describe("useMcpServerStatus", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getCodexConfigPathMock.mockResolvedValue("/Users/me/.codex/config.toml");
-    readGlobalCodexConfigTomlMock.mockResolvedValue({
-      exists: true,
-      content: "",
-      truncated: false,
+    readGlobalMcpConfigSummaryMock.mockResolvedValue({
+      configuredServerNames: [],
+      startupTimeoutsMs: {},
     });
     mcpServerOAuthLoginMock.mockResolvedValue({
       authUrl: "https://example.com/oauth",

@@ -183,6 +183,7 @@ pub fn run() {
             settings::get_app_settings,
             settings::update_app_settings,
             settings::get_codex_config_path,
+            settings::read_global_mcp_config_summary,
             files::file_read,
             files::file_write,
             files::read_image_as_data_url,

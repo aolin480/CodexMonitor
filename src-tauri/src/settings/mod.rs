@@ -39,6 +39,12 @@ pub(crate) async fn get_codex_config_path() -> Result<String, String> {
     get_codex_config_path_core()
 }
 
+#[tauri::command]
+pub(crate) async fn read_global_mcp_config_summary(
+) -> Result<crate::shared::mcp_config_core::McpConfigSummary, String> {
+    crate::codex::config::read_global_mcp_config_summary()
+}
+
 fn should_reset_remote_backend(previous: &AppSettings, updated: &AppSettings) -> bool {
     let backend_mode_changed = !matches!(
         (&previous.backend_mode, &updated.backend_mode),
