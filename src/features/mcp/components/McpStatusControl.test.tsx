@@ -345,4 +345,47 @@ describe("McpStatusControl", () => {
       "Suggested block header: [mcp_servers.duckduckgo_mcp_server]",
     );
   });
+
+  it("quotes dotted server names in TOML block guidance", () => {
+    const { container } = render(
+      <McpStatusControl
+        disabled={false}
+        isPhone={false}
+        status={buildStatus({
+          servers: [
+            {
+              name: "acme.server",
+              hasMatchingConfigBlock: false,
+              authStatusCode: null,
+              authStatus: null,
+              toolNames: [],
+              toolCount: 0,
+              resourceCount: 0,
+              templateCount: 0,
+              toolError: null,
+              startupPhase: "zero",
+              startupTimeoutMs: 10_000,
+              startupProgress: 1,
+              startupRemainingSeconds: 0,
+              startupMessage:
+                "Server finished starting but still returned 0 tools.",
+            },
+          ],
+          totalServers: 1,
+          totalTools: 0,
+        })}
+      />,
+    );
+
+    const mcpButtons = screen.getAllByRole("button", { name: "MCP servers" });
+    fireEvent.click(mcpButtons[mcpButtons.length - 1]!);
+
+    const warningChip = container.querySelector(
+      ".composer-mcp-count--warning",
+    ) as HTMLElement | null;
+    expect(warningChip).not.toBeNull();
+    expect(warningChip?.getAttribute("data-tooltip")).toContain(
+      'Expected block header: [mcp_servers."acme.server"]',
+    );
+  });
 });

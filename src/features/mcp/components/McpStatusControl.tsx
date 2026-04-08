@@ -19,6 +19,7 @@ type McpStatusControlProps = {
 };
 
 const FALLBACK_CONFIG_PATH = "~/.codex/config.toml";
+const TOML_BARE_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 function formatLastUpdated(lastUpdatedAt: number | null): string | null {
   if (!lastUpdatedAt) {
@@ -39,7 +40,7 @@ function buildToolErrorMessage(
   const resolvedPath = configPath ?? FALLBACK_CONFIG_PATH;
   return [
     "Codex does not support hyphenated MCP server names.",
-    `Rename this entry in config.toml using bracket syntax: [mcp_servers.${correctedName}]`,
+    `Rename this entry in config.toml using bracket syntax: ${buildConfigBlockHeader(correctedName)}`,
     `Config path: ${resolvedPath}`,
   ].join(" ");
 }
@@ -56,7 +57,10 @@ function buildStartupMessage(
 }
 
 function buildConfigBlockHeader(serverName: string): string {
-  return `[mcp_servers.${serverName}]`;
+  const key = TOML_BARE_KEY_PATTERN.test(serverName)
+    ? serverName
+    : JSON.stringify(serverName);
+  return `[mcp_servers.${key}]`;
 }
 
 function buildSuggestedConfigName(serverName: string): string | null {
