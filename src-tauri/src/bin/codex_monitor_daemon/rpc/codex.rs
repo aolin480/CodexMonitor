@@ -23,6 +23,17 @@ pub(super) async fn try_handle(
             };
             Some(Ok(Value::String(path)))
         }
+        "read_global_mcp_config_summary" => {
+            let summary = match crate::codex::config::read_global_mcp_config_summary() {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            let value = match serde_json::to_value(summary) {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err.to_string())),
+            };
+            Some(Ok(value))
+        }
         "get_config_model" => {
             let workspace_id = match parse_string(params, "workspaceId") {
                 Ok(value) => value,
