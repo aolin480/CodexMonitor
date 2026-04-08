@@ -488,4 +488,67 @@ describe("useMcpServerStatus", () => {
       );
     }, { timeout: 2500 });
   });
+
+  it("ignores non-terminal stderr so warmup polling can continue", async () => {
+    vi.useFakeTimers();
+
+    readGlobalMcpConfigSummaryMock.mockResolvedValue({
+      configuredServerNames: ["xdebug"],
+      startupTimeoutsMs: { xdebug: 60_000 },
+    });
+    listMcpServerStatusMock
+      .mockResolvedValueOnce({
+        result: {
+          data: [
+            {
+              name: "xdebug",
+              tools: {},
+            },
+          ],
+        },
+      } as Awaited<ReturnType<typeof listMcpServerStatus>>)
+      .mockResolvedValueOnce({
+        result: {
+          data: [
+            {
+              name: "xdebug",
+              tools: {
+                mcp__xdebug__attach: {},
+              },
+            },
+          ],
+        },
+      } as Awaited<ReturnType<typeof listMcpServerStatus>>);
+
+    const { result } = renderHook(() => useMcpServerStatus("workspace-1"));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.servers[0]?.startupPhase).toBe("starting");
+
+    act(() => {
+      listener?.({
+        workspace_id: "workspace-1",
+        message: {
+          method: "codex/stderr",
+          params: {
+            message: "MCP server xdebug is still starting and has not reported tools yet",
+          },
+        },
+      });
+    });
+
+    expect(result.current.servers[0]?.startupPhase).toBe("starting");
+    expect(result.current.servers[0]?.startupMessage).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1100);
+    });
+
+    expect(listMcpServerStatusMock).toHaveBeenCalledTimes(2);
+    expect(result.current.servers[0]?.startupPhase).toBe("ready");
+    expect(result.current.totalTools).toBe(1);
+  });
 });

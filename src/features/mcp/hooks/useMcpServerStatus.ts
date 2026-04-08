@@ -33,6 +33,10 @@ function normalizeStartupMessage(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function isTerminalStartupMessage(value: string): boolean {
+  return /\b(failed to start|timed out|timeout|exited|crashed)\b/i.test(value);
+}
+
 function buildTimeoutStartupMessage(
   serverName: string,
   startupTimeoutMs: number,
@@ -572,7 +576,7 @@ export function useMcpServerStatus(
         setState((current) => {
           const serverNames = current.servers.map((server) => server.name);
           const serverName = findMentionedServerName(rawMessage, serverNames);
-          if (!serverName) {
+          if (!serverName || !isTerminalStartupMessage(rawMessage)) {
             return current;
           }
 
