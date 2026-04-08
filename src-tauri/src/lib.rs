@@ -226,6 +226,7 @@ pub fn run() {
             codex::fork_thread,
             codex::list_threads,
             codex::list_mcp_server_status,
+            codex::reload_mcp_server_config,
             codex::mcp_server_oauth_login,
             codex::archive_thread,
             codex::compact_thread,

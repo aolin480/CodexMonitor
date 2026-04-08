@@ -778,6 +778,10 @@ impl DaemonState {
         codex_core::list_mcp_server_status_core(&self.sessions, workspace_id, cursor, limit).await
     }
 
+    async fn reload_mcp_server_config(&self, workspace_id: String) -> Result<Value, String> {
+        codex_core::reload_mcp_server_config_core(&self.sessions, workspace_id).await
+    }
+
     async fn mcp_server_oauth_login(
         &self,
         workspace_id: String,

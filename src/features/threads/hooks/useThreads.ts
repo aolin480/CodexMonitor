@@ -27,6 +27,7 @@ import { useDetachedReviewTracking } from "./useDetachedReviewTracking";
 import {
   archiveThread as archiveThreadService,
   readThread as readThreadService,
+  reloadMcpServerConfig as reloadMcpServerConfigService,
   setThreadName as setThreadNameService,
 } from "@services/tauri";
 import {
@@ -586,6 +587,9 @@ export function useThreads({
     updateThreadParent,
     onSubagentThreadDetected,
     onThreadCodexMetadataDetected,
+    reloadMcpServerConfig: async (workspaceId: string) => {
+      await reloadMcpServerConfigService(workspaceId);
+    },
   });
 
   const ensureWorkspaceRuntimeCodexArgsBestEffort = useCallback(

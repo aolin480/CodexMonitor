@@ -130,6 +130,13 @@ pub(super) async fn try_handle(
                     .await,
             )
         }
+        "reload_mcp_server_config" => {
+            let workspace_id = match parse_string(params, "workspaceId") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            Some(state.reload_mcp_server_config(workspace_id).await)
+        }
         "mcp_server_oauth_login" => {
             let workspace_id = match parse_string(params, "workspaceId") {
                 Ok(value) => value,

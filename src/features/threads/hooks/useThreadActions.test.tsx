@@ -27,6 +27,7 @@ vi.mock("@services/tauri", () => ({
   resumeThread: vi.fn(),
   listThreads: vi.fn(),
   listWorkspaces: vi.fn(),
+  reloadMcpServerConfig: vi.fn(),
   archiveThread: vi.fn(),
 }));
 
@@ -77,6 +78,7 @@ describe("useThreadActions", () => {
     const applyCollabThreadLinksFromThread = vi.fn();
     const updateThreadParent = vi.fn();
     const onSubagentThreadDetected = vi.fn();
+    const reloadMcpServerConfig = vi.fn().mockResolvedValue(undefined);
 
     const args: Parameters<typeof useThreadActions>[0] = {
       dispatch,
@@ -95,6 +97,7 @@ describe("useThreadActions", () => {
       applyCollabThreadLinksFromThread,
       updateThreadParent,
       onSubagentThreadDetected,
+      reloadMcpServerConfig,
       ...overrides,
     };
 
@@ -109,6 +112,7 @@ describe("useThreadActions", () => {
       applyCollabThreadLinksFromThread: args.applyCollabThreadLinksFromThread,
       updateThreadParent: args.updateThreadParent,
       onSubagentThreadDetected: args.onSubagentThreadDetected,
+      reloadMcpServerConfig: args.reloadMcpServerConfig,
       ...utils,
     };
   }
@@ -319,6 +323,24 @@ describe("useThreadActions", () => {
       text: "Hello!",
       timestamp: 999,
     });
+  });
+
+  it("queues MCP reload after resuming an unloaded thread", async () => {
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: { id: "thread-2", updated_at: 555 },
+      },
+    });
+    vi.mocked(buildItemsFromThread).mockReturnValue([]);
+    vi.mocked(isReviewingFromThread).mockReturnValue(false);
+
+    const { result, reloadMcpServerConfig } = renderActions();
+
+    await act(async () => {
+      await result.current.resumeThreadForWorkspace("ws-1", "thread-2");
+    });
+
+    expect(reloadMcpServerConfig).toHaveBeenCalledWith("ws-1");
   });
 
   it("links resumed spawn subagent to its parent from thread source", async () => {

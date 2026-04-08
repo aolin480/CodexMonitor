@@ -360,6 +360,16 @@ pub(crate) async fn list_mcp_server_status_core(
         .await
 }
 
+pub(crate) async fn reload_mcp_server_config_core(
+    sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
+    workspace_id: String,
+) -> Result<Value, String> {
+    let session = get_session_clone(sessions, &workspace_id).await?;
+    session
+        .send_request_for_workspace(&workspace_id, "config/mcpServer/reload", json!({}))
+        .await
+}
+
 pub(crate) async fn mcp_server_oauth_login_core(
     sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
     workspace_id: String,

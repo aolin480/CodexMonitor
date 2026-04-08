@@ -19,6 +19,7 @@ import {
   listThreads,
   listMcpServerStatus,
   mcpServerOAuthLogin,
+  reloadMcpServerConfig,
   readThread,
   readGlobalAgentsMd,
   readGlobalCodexConfigToml,
@@ -303,6 +304,17 @@ describe("tauri invoke wrappers", () => {
       workspaceId: "ws-10",
       cursor: "cursor-1",
       limit: 25,
+    });
+  });
+
+  it("maps workspaceId for reload_mcp_server_config", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await reloadMcpServerConfig("ws-10");
+
+    expect(invokeMock).toHaveBeenCalledWith("reload_mcp_server_config", {
+      workspaceId: "ws-10",
     });
   });
 

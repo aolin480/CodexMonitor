@@ -1069,6 +1069,10 @@ export async function listMcpServerStatus(
   return invoke<any>("list_mcp_server_status", { workspaceId, cursor, limit });
 }
 
+export async function reloadMcpServerConfig(workspaceId: string): Promise<void> {
+  await invoke("reload_mcp_server_config", { workspaceId });
+}
+
 export async function mcpServerOAuthLogin(
   workspaceId: string,
   serverName: string,

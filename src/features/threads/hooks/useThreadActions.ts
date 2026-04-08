@@ -70,6 +70,7 @@ type UseThreadActionsOptions = {
     threadId: string,
     metadata: { modelId: string | null; effort: string | null },
   ) => void;
+  reloadMcpServerConfig?: (workspaceId: string) => Promise<void>;
 };
 
 export function useThreadActions({
@@ -91,6 +92,7 @@ export function useThreadActions({
   updateThreadParent,
   onSubagentThreadDetected,
   onThreadCodexMetadataDetected,
+  reloadMcpServerConfig,
 }: UseThreadActionsOptions) {
   const resumeInFlightByThreadRef = useRef<Record<string, number>>({});
   const threadStatusByIdRef = useRef(threadStatusById);
@@ -211,6 +213,7 @@ export function useThreadActions({
         });
         return threadId;
       }
+      const shouldReloadMcpAfterResume = !loadedThreadsRef.current[threadId];
       onDebug?.({
         id: `${Date.now()}-client-thread-resume`,
         timestamp: Date.now(),
@@ -314,6 +317,19 @@ export function useThreadActions({
             );
           }
         }
+        if (shouldReloadMcpAfterResume && reloadMcpServerConfig) {
+          try {
+            await reloadMcpServerConfig(workspaceId);
+          } catch (error) {
+            onDebug?.({
+              id: `${Date.now()}-client-mcp-reload-error`,
+              timestamp: Date.now(),
+              source: "error",
+              label: "config/mcpServer/reload error",
+              payload: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
         loadedThreadsRef.current[threadId] = true;
         return threadId;
       } catch (error) {
@@ -347,6 +363,7 @@ export function useThreadActions({
       itemsByThread,
       loadedThreadsRef,
       onDebug,
+      reloadMcpServerConfig,
       replaceOnResumeRef,
     ],
   );
