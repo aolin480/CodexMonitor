@@ -85,6 +85,9 @@ export function useTrayRecentThreads({
   );
   const serializedEntries = useMemo(() => JSON.stringify(entries), [entries]);
   const lastSyncedEntriesRef = useRef<string | null>(null);
+  const latestEntriesRef = useRef(entries);
+
+  latestEntriesRef.current = entries;
 
   useEffect(() => {
     if (!isTauri()) {
@@ -101,7 +104,7 @@ export function useTrayRecentThreads({
     const scheduleSync = () => {
       timeoutId = window.setTimeout(() => {
         timeoutId = null;
-        void setTrayRecentThreads(entries)
+        void setTrayRecentThreads(latestEntriesRef.current)
           .then(() => {
             if (cancelled) {
               return;
@@ -126,5 +129,5 @@ export function useTrayRecentThreads({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [entries, serializedEntries]);
+  }, [serializedEntries]);
 }
