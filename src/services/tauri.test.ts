@@ -18,9 +18,12 @@ import {
   getOpenAppIcon,
   listThreads,
   listMcpServerStatus,
+  mcpServerOAuthLogin,
+  reloadMcpServerConfig,
   readThread,
   readGlobalAgentsMd,
   readGlobalCodexConfigToml,
+  readGlobalMcpConfigSummary,
   listWorkspaces,
   openWorkspaceIn,
   readAgentMd,
@@ -304,6 +307,29 @@ describe("tauri invoke wrappers", () => {
     });
   });
 
+  it("maps workspaceId for reload_mcp_server_config", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await reloadMcpServerConfig("ws-10");
+
+    expect(invokeMock).toHaveBeenCalledWith("reload_mcp_server_config", {
+      workspaceId: "ws-10",
+    });
+  });
+
+  it("maps workspaceId/serverName for mcp_server_oauth_login", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({ authUrl: "https://example.com/oauth" });
+
+    await mcpServerOAuthLogin("ws-10", "figma_mcp");
+
+    expect(invokeMock).toHaveBeenCalledWith("mcp_server_oauth_login", {
+      workspaceId: "ws-10",
+      serverName: "figma_mcp",
+    });
+  });
+
   it("maps workspaceId/cursor/limit/sortKey for list_threads", async () => {
     const invokeMock = vi.mocked(invoke);
     invokeMock.mockResolvedValueOnce({});
@@ -557,6 +583,18 @@ describe("tauri invoke wrappers", () => {
       kind: "config",
       workspaceId: undefined,
     });
+  });
+
+  it("reads the global MCP config summary", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({
+      configuredServerNames: ["acme.server"],
+      startupTimeoutsMs: { "acme.server": 12_500 },
+    });
+
+    await readGlobalMcpConfigSummary();
+
+    expect(invokeMock).toHaveBeenCalledWith("read_global_mcp_config_summary");
   });
 
   it("writes global config.toml", async () => {

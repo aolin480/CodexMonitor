@@ -167,6 +167,8 @@ fn can_retry_after_disconnect(method: &str) -> bool {
             | "is_workspace_path_dir"
             | "list_git_branches"
             | "list_git_roots"
+            | "mcp_server_oauth_login"
+            | "reload_mcp_server_config"
             | "list_mcp_server_status"
             | "list_threads"
             | "local_usage_snapshot"

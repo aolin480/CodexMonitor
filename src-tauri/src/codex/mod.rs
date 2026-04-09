@@ -275,6 +275,45 @@ pub(crate) async fn list_mcp_server_status(
 }
 
 #[tauri::command]
+pub(crate) async fn reload_mcp_server_config(
+    workspace_id: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Value, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        return remote_backend::call_remote(
+            &*state,
+            app,
+            "reload_mcp_server_config",
+            json!({ "workspaceId": workspace_id }),
+        )
+        .await;
+    }
+
+    codex_core::reload_mcp_server_config_core(&state.sessions, workspace_id).await
+}
+
+#[tauri::command]
+pub(crate) async fn mcp_server_oauth_login(
+    workspace_id: String,
+    server_name: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Value, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        return remote_backend::call_remote(
+            &*state,
+            app,
+            "mcp_server_oauth_login",
+            json!({ "workspaceId": workspace_id, "serverName": server_name }),
+        )
+        .await;
+    }
+
+    codex_core::mcp_server_oauth_login_core(&state.sessions, workspace_id, server_name).await
+}
+
+#[tauri::command]
 pub(crate) async fn archive_thread(
     workspace_id: String,
     thread_id: String,

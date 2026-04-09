@@ -23,6 +23,17 @@ pub(super) async fn try_handle(
             };
             Some(Ok(Value::String(path)))
         }
+        "read_global_mcp_config_summary" => {
+            let summary = match crate::codex::config::read_global_mcp_config_summary() {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            let value = match serde_json::to_value(summary) {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err.to_string())),
+            };
+            Some(Ok(value))
+        }
         "get_config_model" => {
             let workspace_id = match parse_string(params, "workspaceId") {
                 Ok(value) => value,
@@ -118,6 +129,24 @@ pub(super) async fn try_handle(
                     .list_mcp_server_status(workspace_id, cursor, limit)
                     .await,
             )
+        }
+        "reload_mcp_server_config" => {
+            let workspace_id = match parse_string(params, "workspaceId") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            Some(state.reload_mcp_server_config(workspace_id).await)
+        }
+        "mcp_server_oauth_login" => {
+            let workspace_id = match parse_string(params, "workspaceId") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            let server_name = match parse_string(params, "serverName") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            Some(state.mcp_server_oauth_login(workspace_id, server_name).await)
         }
         "archive_thread" => {
             let workspace_id = match parse_string(params, "workspaceId") {

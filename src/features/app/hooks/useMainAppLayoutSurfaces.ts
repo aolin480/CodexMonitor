@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import type { AppSettings, ComposerEditorSettings, WorkspaceInfo } from "@/types";
+import type { McpStatusController } from "@/features/mcp/types";
 import type { ThreadState } from "@/features/threads/hooks/useThreadsReducer";
 import type { WorkspaceLaunchScriptsState } from "@app/hooks/useWorkspaceLaunchScripts";
 import { REMOTE_THREAD_POLL_INTERVAL_MS } from "@app/hooks/useRemoteThreadRefreshOnFocus";
@@ -161,6 +162,7 @@ type UseMainAppLayoutSurfacesArgs = {
   onSelectAccessMode: ComposerProps["onSelectAccessMode"];
   skills: ComposerProps["skills"];
   apps: ComposerProps["apps"];
+  mcpStatus: McpStatusController | null;
   prompts: ComposerProps["prompts"];
   composerInputRef: RefObject<HTMLTextAreaElement | null>;
   composerEditorSettings: ComposerEditorSettings;
@@ -323,6 +325,7 @@ function buildPrimarySurface({
   onSelectAccessMode,
   skills,
   apps,
+  mcpStatus,
   prompts,
   composerInputRef,
   composerEditorSettings,
@@ -360,6 +363,7 @@ function buildPrimarySurface({
   interruptTurn,
   terminalOpen,
   isCompact,
+  isPhone,
   activeTab,
   setActiveTab,
   tabletTab,
@@ -520,9 +524,11 @@ function buildPrimarySurface({
           skills,
           appsEnabled: appSettings.experimentalAppsEnabled,
           apps,
+          mcpStatus,
           prompts,
           files: composerWorkspaceState.files,
           textareaRef: composerInputRef,
+          isPhone,
           historyKey: activeWorkspace?.id ?? null,
           editorSettings: composerEditorSettings,
           editorExpanded: composerEditorExpanded,
@@ -1034,6 +1040,7 @@ export function useMainAppLayoutSurfaces({
   onSelectAccessMode,
   skills,
   apps,
+  mcpStatus,
   prompts,
   composerInputRef,
   composerEditorSettings,
@@ -1196,6 +1203,7 @@ export function useMainAppLayoutSurfaces({
     onSelectAccessMode,
     skills,
     apps,
+    mcpStatus,
     prompts,
     composerInputRef,
     composerEditorSettings,

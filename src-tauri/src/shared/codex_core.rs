@@ -360,6 +360,44 @@ pub(crate) async fn list_mcp_server_status_core(
         .await
 }
 
+pub(crate) async fn reload_mcp_server_config_core(
+    sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
+    workspace_id: String,
+) -> Result<Value, String> {
+    let session = get_session_clone(sessions, &workspace_id).await?;
+    session
+        .send_request_for_workspace(&workspace_id, "config/mcpServer/reload", json!({}))
+        .await
+}
+
+pub(crate) async fn mcp_server_oauth_login_core(
+    sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
+    workspace_id: String,
+    server_name: String,
+) -> Result<Value, String> {
+    let session = get_session_clone(sessions, &workspace_id).await?;
+    let response = session
+        .send_request_for_workspace(
+            &workspace_id,
+            "mcpServer/oauth/login",
+            json!({ "name": server_name }),
+        )
+        .await?;
+
+    let payload = response.get("result").unwrap_or(&response);
+    let auth_url = payload
+        .get("authorizationUrl")
+        .or_else(|| payload.get("authorization_url"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| "missing authorization url in mcpServer/oauth/login response".to_string())?;
+
+    Ok(json!({
+        "authUrl": auth_url,
+        "raw": response,
+    }))
+}
+
 pub(crate) async fn archive_thread_core(
     sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
     workspace_id: String,

@@ -274,6 +274,7 @@ button.window-caption-control:focus-visible,
   .sidebar-account-spinner,
   .settings-agents-generate-loader,
   .composer-action-spinner,
+  .composer-mcp-sync-icon.spinning,
   .compact-codex-refresh-icon.spinning,
   .home-usage-refresh-icon.spinning {
     animation-duration: var(--ds-spinner-dur) !important;

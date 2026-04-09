@@ -6,6 +6,10 @@ import type {
   ReviewTarget,
   ServiceTier,
 } from "@/types";
+import {
+  normalizeMcpAuthStatusLabel,
+  normalizeMcpServerStatus,
+} from "../../mcp/utils/normalizeMcpServerStatus";
 import { clampThreadName } from "@threads/utils/threadNaming";
 import { formatRelativeTime } from "@utils/time";
 
@@ -279,44 +283,20 @@ export function buildMcpStatusLines(
     return lines;
   }
 
-  const servers = [...data].sort((a, b) =>
-    String(a.name ?? "").localeCompare(String(b.name ?? "")),
-  );
+  const servers = normalizeMcpServerStatus(data);
   for (const server of servers) {
-    const name = String(server.name ?? "unknown");
-    const authStatus = server.authStatus ?? server.auth_status ?? null;
-    const authLabel =
-      typeof authStatus === "string"
-        ? authStatus
-        : authStatus && typeof authStatus === "object" && "status" in authStatus
-          ? String((authStatus as { status?: unknown }).status ?? "")
-          : "";
-    lines.push(`- ${name}${authLabel ? ` (auth: ${authLabel})` : ""}`);
-
-    const toolsRecord =
-      server.tools && typeof server.tools === "object"
-        ? (server.tools as Record<string, unknown>)
-        : {};
-    const prefix = `mcp__${name}__`;
-    const toolNames = Object.keys(toolsRecord)
-      .map((toolName) =>
-        toolName.startsWith(prefix) ? toolName.slice(prefix.length) : toolName,
-      )
-      .sort((a, b) => a.localeCompare(b));
+    const authLabel = normalizeMcpAuthStatusLabel(server.authStatus);
+    lines.push(`- ${server.name}${authLabel ? ` (${authLabel})` : ""}`);
     lines.push(
-      toolNames.length > 0
-        ? `  tools: ${toolNames.join(", ")}`
+      server.toolNames.length > 0
+        ? `  tools: ${server.toolNames.join(", ")}`
         : "  tools: none",
     );
 
-    const resources = Array.isArray(server.resources) ? server.resources.length : 0;
-    const templates = Array.isArray(server.resourceTemplates)
-      ? server.resourceTemplates.length
-      : Array.isArray(server.resource_templates)
-        ? server.resource_templates.length
-        : 0;
-    if (resources > 0 || templates > 0) {
-      lines.push(`  resources: ${resources}, templates: ${templates}`);
+    if (server.resourceCount > 0 || server.templateCount > 0) {
+      lines.push(
+        `  resources: ${server.resourceCount}, templates: ${server.templateCount}`,
+      );
     }
   }
 

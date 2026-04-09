@@ -211,7 +211,7 @@ export function ComposerInput({
     }
     setMobileActionsOpen(false);
     onAddAttachment();
-  }, [disabled, onAddAttachment]);
+  }, [disabled, onAddAttachment, setMobileActionsOpen]);
 
   const handleMobileExpandClick = useCallback(() => {
     if (disabled || !onToggleExpand) {
@@ -219,12 +219,12 @@ export function ComposerInput({
     }
     setMobileActionsOpen(false);
     onToggleExpand();
-  }, [disabled, onToggleExpand]);
+  }, [disabled, onToggleExpand, setMobileActionsOpen]);
 
   const handleMobileDictationClick = useCallback(() => {
     setMobileActionsOpen(false);
     handleMicClick();
-  }, [handleMicClick]);
+  }, [handleMicClick, setMobileActionsOpen]);
 
   return (
     <div className={`composer-input${isPhoneLayout && isPhoneTallInput ? " is-phone-tall" : ""}`}>

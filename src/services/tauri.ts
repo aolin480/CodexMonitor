@@ -119,6 +119,10 @@ export async function getCodexConfigPath(): Promise<string> {
   return invoke<string>("get_codex_config_path");
 }
 
+export async function readGlobalMcpConfigSummary(): Promise<McpConfigSummary> {
+  return invoke<McpConfigSummary>("read_global_mcp_config_summary");
+}
+
 export type TextFileResponse = {
   exists: boolean;
   content: string;
@@ -127,6 +131,10 @@ export type TextFileResponse = {
 
 export type GlobalAgentsResponse = TextFileResponse;
 export type GlobalCodexConfigResponse = TextFileResponse;
+export type McpConfigSummary = {
+  configuredServerNames: string[];
+  startupTimeoutsMs: Record<string, number>;
+};
 export type AgentMdResponse = TextFileResponse;
 export type AgentSummary = {
   name: string;
@@ -209,6 +217,7 @@ export async function writeGlobalAgentsMd(content: string): Promise<void> {
 export async function readGlobalCodexConfigToml(): Promise<GlobalCodexConfigResponse> {
   return fileRead("global", "config");
 }
+
 
 export async function writeGlobalCodexConfigToml(content: string): Promise<void> {
   return fileWrite("global", "config", content);
@@ -1058,6 +1067,20 @@ export async function listMcpServerStatus(
   limit?: number | null,
 ) {
   return invoke<any>("list_mcp_server_status", { workspaceId, cursor, limit });
+}
+
+export async function reloadMcpServerConfig(workspaceId: string): Promise<void> {
+  await invoke("reload_mcp_server_config", { workspaceId });
+}
+
+export async function mcpServerOAuthLogin(
+  workspaceId: string,
+  serverName: string,
+): Promise<{ authUrl: string; raw?: unknown }> {
+  return invoke<{ authUrl: string; raw?: unknown }>("mcp_server_oauth_login", {
+    workspaceId,
+    serverName,
+  });
 }
 
 export async function resumeThread(workspaceId: string, threadId: string) {

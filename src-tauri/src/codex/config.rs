@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::shared::config_toml_core;
+use crate::shared::mcp_config_core::McpConfigSummary;
 
 pub(crate) fn read_steer_enabled() -> Result<Option<bool>, String> {
     read_feature_flag("steer")
@@ -91,6 +92,14 @@ pub(crate) fn read_config_model(codex_home: Option<PathBuf>) -> Result<Option<St
     };
     let (_, document) = config_toml_core::load_global_config_document(&root)?;
     Ok(config_toml_core::read_top_level_string(&document, "model"))
+}
+
+pub(crate) fn read_global_mcp_config_summary() -> Result<McpConfigSummary, String> {
+    let Some(root) = resolve_default_codex_home() else {
+        return Ok(McpConfigSummary::default());
+    };
+
+    crate::shared::mcp_config_core::read_global_mcp_config_summary(&root)
 }
 
 fn resolve_default_codex_home() -> Option<PathBuf> {
