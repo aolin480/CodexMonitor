@@ -31,6 +31,7 @@ import "./styles/about.css";
 import "./styles/tabbar.css";
 import "./styles/worktree-modal.css";
 import "./styles/clone-modal.css";
+import "./styles/workspace-color-modal.css";
 import "./styles/workspace-from-url-modal.css";
 import "./styles/mobile-remote-workspace-modal.css";
 import "./styles/branch-switcher-modal.css";

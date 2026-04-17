@@ -21,6 +21,7 @@ type UseSidebarLayoutActionsOptions = {
     workspaceId: string,
     patch: Partial<WorkspaceSettings>,
   ) => void | Promise<unknown>;
+  openWorkspaceColorPrompt: (workspace: WorkspaceInfo) => void;
   removeThread: (workspaceId: string, threadId: string) => void;
   clearDraftForThread: (threadId: string) => void;
   removeImagesForThread: (threadId: string) => void;
@@ -46,6 +47,7 @@ export function useSidebarLayoutActions({
   setActiveTab,
   workspacesById,
   updateWorkspaceSettings,
+  openWorkspaceColorPrompt,
   removeThread,
   clearDraftForThread,
   removeImagesForThread,
@@ -160,6 +162,17 @@ export function useSidebarLayoutActions({
     [removeWorktree],
   );
 
+  const onColorWorkspace = useCallback(
+    (workspaceId: string) => {
+      const workspace = workspacesById.get(workspaceId);
+      if (!workspace) {
+        return;
+      }
+      openWorkspaceColorPrompt(workspace);
+    },
+    [openWorkspaceColorPrompt, workspacesById],
+  );
+
   const onLoadOlderThreads = useCallback(
     (workspaceId: string) => {
       const workspace = workspacesById.get(workspaceId);
@@ -194,6 +207,7 @@ export function useSidebarLayoutActions({
     onRenameThread,
     onDeleteWorkspace,
     onDeleteWorktree,
+    onColorWorkspace,
     onLoadOlderThreads,
     onReloadWorkspaceThreads,
   };

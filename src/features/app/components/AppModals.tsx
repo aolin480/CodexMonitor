@@ -1,6 +1,6 @@
 import { lazy, memo, Suspense } from "react";
 import type { ComponentType } from "react";
-import type { BranchInfo, WorkspaceInfo } from "../../../types";
+import type { BranchInfo, WorkspaceInfo, WorkspaceThreadColor } from "../../../types";
 import type { SettingsViewProps } from "../../settings/components/SettingsView";
 import { useRenameThreadPrompt } from "../../threads/hooks/useRenameThreadPrompt";
 import { useClonePrompt } from "../../workspaces/hooks/useClonePrompt";
@@ -34,6 +34,11 @@ const MobileRemoteWorkspacePrompt = lazy(() =>
     default: module.MobileRemoteWorkspacePrompt,
   })),
 );
+const WorkspaceColorPrompt = lazy(() =>
+  import("../../workspaces/components/WorkspaceColorPrompt").then((module) => ({
+    default: module.WorkspaceColorPrompt,
+  })),
+);
 const BranchSwitcherPrompt = lazy(() =>
   import("../../git/components/BranchSwitcherPrompt").then((module) => ({
     default: module.BranchSwitcherPrompt,
@@ -57,6 +62,12 @@ type MobileRemoteWorkspacePathPromptState = {
   value: string;
   error: string | null;
   recentPaths: string[];
+} | null;
+type WorkspaceColorPromptState = {
+  workspaceName: string;
+  currentColor: WorkspaceThreadColor | null;
+  error: string | null;
+  isBusy: boolean;
 } | null;
 
 export type AppModalsProps = {
@@ -106,6 +117,9 @@ export type AppModalsProps = {
   onMobileRemoteWorkspacePathPromptRecentPathSelect: (path: string) => void;
   onMobileRemoteWorkspacePathPromptCancel: () => void;
   onMobileRemoteWorkspacePathPromptConfirm: () => void;
+  workspaceColorPrompt: WorkspaceColorPromptState;
+  onWorkspaceColorPromptCancel: () => void;
+  onWorkspaceColorPromptSelect: (color: WorkspaceThreadColor | null) => void;
   branchSwitcher: BranchSwitcherState;
   branches: BranchInfo[];
   workspaces: WorkspaceInfo[];
@@ -160,6 +174,9 @@ export const AppModals = memo(function AppModals({
   onMobileRemoteWorkspacePathPromptRecentPathSelect,
   onMobileRemoteWorkspacePathPromptCancel,
   onMobileRemoteWorkspacePathPromptConfirm,
+  workspaceColorPrompt,
+  onWorkspaceColorPromptCancel,
+  onWorkspaceColorPromptSelect,
   branchSwitcher,
   branches,
   workspaces,
@@ -278,6 +295,18 @@ export const AppModals = memo(function AppModals({
             onRecentPathSelect={onMobileRemoteWorkspacePathPromptRecentPathSelect}
             onCancel={onMobileRemoteWorkspacePathPromptCancel}
             onConfirm={onMobileRemoteWorkspacePathPromptConfirm}
+          />
+        </Suspense>
+      )}
+      {workspaceColorPrompt && (
+        <Suspense fallback={null}>
+          <WorkspaceColorPrompt
+            workspaceName={workspaceColorPrompt.workspaceName}
+            currentColor={workspaceColorPrompt.currentColor}
+            error={workspaceColorPrompt.error}
+            isBusy={workspaceColorPrompt.isBusy}
+            onCancel={onWorkspaceColorPromptCancel}
+            onSelect={onWorkspaceColorPromptSelect}
           />
         </Suspense>
       )}

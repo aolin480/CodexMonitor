@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkspaceInfo } from "../../../types";
 import { useSidebarMenus } from "./useSidebarMenus";
@@ -42,7 +42,48 @@ vi.mock("../../../services/toasts", () => ({
   pushErrorToast: vi.fn(),
 }));
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
 describe("useSidebarMenus", () => {
+  it("adds a color option for workspaces", async () => {
+    const onColorWorkspace = vi.fn();
+
+    const { result } = renderHook(() =>
+      useSidebarMenus({
+        onDeleteThread: vi.fn(),
+        onSyncThread: vi.fn(),
+        onPinThread: vi.fn(),
+        onUnpinThread: vi.fn(),
+        isThreadPinned: vi.fn(() => false),
+        onRenameThread: vi.fn(),
+        onReloadWorkspaceThreads: vi.fn(),
+        onDeleteWorkspace: vi.fn(),
+        onDeleteWorktree: vi.fn(),
+        onColorWorkspace,
+      }),
+    );
+
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clientX: 12,
+      clientY: 34,
+    } as unknown as ReactMouseEvent;
+
+    await result.current.showWorkspaceMenu(event, "workspace-1");
+
+    const menuArgs = menuNew.mock.calls[0]?.[0];
+    const colorItem = menuArgs.items.find(
+      (item: { text: string }) => item.text === "Color",
+    );
+
+    expect(colorItem).toBeDefined();
+    await colorItem.action();
+    expect(onColorWorkspace).toHaveBeenCalledWith("workspace-1");
+  });
+
   it("adds a show in file manager option for worktrees", async () => {
     const onDeleteThread = vi.fn();
     const onSyncThread = vi.fn();
@@ -53,6 +94,7 @@ describe("useSidebarMenus", () => {
     const onReloadWorkspaceThreads = vi.fn();
     const onDeleteWorkspace = vi.fn();
     const onDeleteWorktree = vi.fn();
+    const onColorWorkspace = vi.fn();
 
     const { result } = renderHook(() =>
       useSidebarMenus({
@@ -65,6 +107,7 @@ describe("useSidebarMenus", () => {
         onReloadWorkspaceThreads,
         onDeleteWorkspace,
         onDeleteWorktree,
+        onColorWorkspace,
       }),
     );
 

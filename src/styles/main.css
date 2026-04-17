@@ -928,6 +928,46 @@
   flex: 1;
   min-height: 0;
   min-width: 0;
+  isolation: isolate;
+}
+
+.chat-pane::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 0;
+  transition: opacity 160ms ease;
+}
+
+.chat-pane[data-workspace-thread-color]::before {
+  opacity: 1;
+  background:
+    radial-gradient(
+      120% 120% at 50% 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.16) 0%,
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-tint-rgb) / 0.06) 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.12) 100%
+    );
+}
+
+.app.reduced-transparency .chat-pane[data-workspace-thread-color]::before {
+  background:
+    radial-gradient(
+      120% 120% at 50% 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.18) 0%,
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-tint-rgb) / 0.1) 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.15) 100%
+    );
 }
 
 .chat-pane-messages {
@@ -935,6 +975,8 @@
   flex: 1;
   min-height: 0;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .chat-pane-composer {

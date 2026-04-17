@@ -58,6 +58,7 @@ const baseProps = {
   onRenameThread: vi.fn(),
   onDeleteWorkspace: vi.fn(),
   onDeleteWorktree: vi.fn(),
+  onColorWorkspace: vi.fn(),
   onLoadOlderThreads: vi.fn(),
   onReloadWorkspaceThreads: vi.fn(),
   workspaceDropTargetRef: createRef<HTMLElement>(),

@@ -17,6 +17,7 @@ describe("useSidebarLayoutActions", () => {
   it("keeps handlers referentially stable across unrelated rerenders", () => {
     const options = {
       openSettings: vi.fn(),
+      openWorkspaceColorPrompt: vi.fn(),
       resetPullRequestSelection: vi.fn(),
       clearDraftState: vi.fn(),
       clearDraftStateIfDifferentWorkspace: vi.fn(),
@@ -74,6 +75,7 @@ describe("useSidebarLayoutActions", () => {
     const { result } = renderHook(() =>
       useSidebarLayoutActions({
         openSettings: vi.fn(),
+        openWorkspaceColorPrompt: vi.fn(),
         resetPullRequestSelection,
         clearDraftState: vi.fn(),
         clearDraftStateIfDifferentWorkspace,
@@ -115,6 +117,7 @@ describe("useSidebarLayoutActions", () => {
     const { result } = renderHook(() =>
       useSidebarLayoutActions({
         openSettings: vi.fn(),
+        openWorkspaceColorPrompt: vi.fn(),
         resetPullRequestSelection: vi.fn(),
         clearDraftState: vi.fn(),
         clearDraftStateIfDifferentWorkspace: vi.fn(),

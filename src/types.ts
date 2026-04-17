@@ -1,3 +1,5 @@
+export type WorkspaceThreadColor = "slate" | "blue" | "green" | "amber" | "rose";
+
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;
   sortOrder?: number | null;
@@ -8,6 +10,7 @@ export type WorkspaceSettings = {
   launchScripts?: LaunchScriptEntry[] | null;
   worktreeSetupScript?: string | null;
   worktreesFolder?: string | null;
+  threadColor?: WorkspaceThreadColor | null;
 };
 
 export type LaunchScriptIconId =

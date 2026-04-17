@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import type {
   AppSettings,
@@ -8,6 +8,7 @@ import type {
   ThreadSummary,
   WorkspaceGroup,
   WorkspaceInfo,
+  WorkspaceThreadColor,
   WorkspaceSettings,
 } from "@/types";
 import { useSettingsModalState } from "@app/hooks/useSettingsModalState";
@@ -22,6 +23,13 @@ import { useWorktreePrompt } from "@/features/workspaces/hooks/useWorktreePrompt
 import { useClonePrompt } from "@/features/workspaces/hooks/useClonePrompt";
 
 type GroupedWorkspaceInfo = SettingsViewProps["groupedWorkspaces"];
+type WorkspaceColorPromptState = {
+  workspaceId: string;
+  workspaceName: string;
+  currentColor: WorkspaceThreadColor | null;
+  isSubmitting: boolean;
+  error: string | null;
+};
 
 type UseMainAppModalsArgs = {
   settingsViewComponent: ComponentType<SettingsViewProps>;
@@ -143,6 +151,7 @@ type UseMainAppModalsResult = {
     openInitGitRepoPrompt: () => void;
     openWorktreePrompt: (workspace: WorkspaceInfo) => void;
     openClonePrompt: (workspace: WorkspaceInfo) => void;
+    openWorkspaceColorPrompt: (workspace: WorkspaceInfo) => void;
     openWorkspaceFromUrlPrompt: () => void;
     openBranchSwitcher: () => void;
     closeBranchSwitcher: () => void;
@@ -246,6 +255,9 @@ type BuildAppModalsPropsArgs = {
   onMobileRemoteWorkspacePathPromptRecentPathSelect: (path: string) => void;
   onMobileRemoteWorkspacePathPromptCancel: () => void;
   onMobileRemoteWorkspacePathPromptConfirm: () => void;
+  workspaceColorPrompt: AppModalsProps["workspaceColorPrompt"];
+  onWorkspaceColorPromptCancel: () => void;
+  onWorkspaceColorPromptSelect: (color: WorkspaceThreadColor | null) => void;
   branchSwitcher: AppModalsProps["branchSwitcher"];
   branches: BranchInfo[];
   workspaces: WorkspaceInfo[];
@@ -293,6 +305,9 @@ function buildAppModalsProps({
   onMobileRemoteWorkspacePathPromptRecentPathSelect,
   onMobileRemoteWorkspacePathPromptCancel,
   onMobileRemoteWorkspacePathPromptConfirm,
+  workspaceColorPrompt,
+  onWorkspaceColorPromptCancel,
+  onWorkspaceColorPromptSelect,
   branchSwitcher,
   branches,
   workspaces,
@@ -339,6 +354,9 @@ function buildAppModalsProps({
     onMobileRemoteWorkspacePathPromptRecentPathSelect,
     onMobileRemoteWorkspacePathPromptCancel,
     onMobileRemoteWorkspacePathPromptConfirm,
+    workspaceColorPrompt,
+    onWorkspaceColorPromptCancel,
+    onWorkspaceColorPromptSelect,
     branchSwitcher,
     branches,
     workspaces,
@@ -464,6 +482,62 @@ export function useMainAppModals({
     [groupedWorkspaces, settings, ungroupedLabel, workspaceGroups],
   );
 
+  const [workspaceColorPrompt, setWorkspaceColorPrompt] =
+    useState<WorkspaceColorPromptState | null>(null);
+
+  const openWorkspaceColorPrompt = useCallback((workspace: WorkspaceInfo) => {
+    setWorkspaceColorPrompt({
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+      currentColor: workspace.settings.threadColor ?? null,
+      isSubmitting: false,
+      error: null,
+    });
+  }, []);
+
+  const handleWorkspaceColorPromptCancel = useCallback(() => {
+    setWorkspaceColorPrompt((current) => {
+      if (!current || current.isSubmitting) {
+        return current;
+      }
+      return null;
+    });
+  }, []);
+
+  const handleWorkspaceColorPromptSelect = useCallback(
+    async (color: WorkspaceThreadColor | null) => {
+      if (!workspaceColorPrompt || workspaceColorPrompt.isSubmitting) {
+        return;
+      }
+      if (workspaceColorPrompt.currentColor === color) {
+        setWorkspaceColorPrompt(null);
+        return;
+      }
+
+      const prompt = workspaceColorPrompt;
+      setWorkspaceColorPrompt((current) =>
+        current && current.workspaceId === prompt.workspaceId
+          ? { ...current, isSubmitting: true, error: null }
+          : current,
+      );
+
+      try {
+        await settings.updateWorkspaceSettings(prompt.workspaceId, {
+          threadColor: color,
+        });
+        setWorkspaceColorPrompt(null);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setWorkspaceColorPrompt((current) =>
+          current && current.workspaceId === prompt.workspaceId
+            ? { ...current, isSubmitting: false, error: message }
+            : current,
+        );
+      }
+    },
+    [settings, workspaceColorPrompt],
+  );
+
   const appModalsProps = useMemo<AppModalsProps>(
     () =>
       buildAppModalsProps({
@@ -505,6 +579,16 @@ export function useMainAppModals({
           workspacePrompts.cancelMobileRemoteWorkspacePathPrompt,
         onMobileRemoteWorkspacePathPromptConfirm:
           workspacePrompts.submitMobileRemoteWorkspacePathPrompt,
+        workspaceColorPrompt: workspaceColorPrompt
+          ? {
+              workspaceName: workspaceColorPrompt.workspaceName,
+              currentColor: workspaceColorPrompt.currentColor,
+              error: workspaceColorPrompt.error,
+              isBusy: workspaceColorPrompt.isSubmitting,
+            }
+          : null,
+        onWorkspaceColorPromptCancel: handleWorkspaceColorPromptCancel,
+        onWorkspaceColorPromptSelect: handleWorkspaceColorPromptSelect,
         branchSwitcher,
         branches,
         workspaces,
@@ -544,6 +628,8 @@ export function useMainAppModals({
       handleRenamePromptCancel,
       handleRenamePromptChange,
       handleRenamePromptConfirm,
+      handleWorkspaceColorPromptCancel,
+      handleWorkspaceColorPromptSelect,
       initGitRepoPrompt,
       renamePrompt,
       settingsOpen,
@@ -558,6 +644,7 @@ export function useMainAppModals({
       updateWorktreeSetupScript,
       useSuggestedCloneCopiesFolder,
       workspaces,
+      workspaceColorPrompt,
       worktreePrompt,
     ],
   );
@@ -571,6 +658,7 @@ export function useMainAppModals({
       openInitGitRepoPrompt,
       openWorktreePrompt,
       openClonePrompt,
+      openWorkspaceColorPrompt,
       openWorkspaceFromUrlPrompt: workspacePrompts.openWorkspaceFromUrlPrompt,
       openBranchSwitcher,
       closeBranchSwitcher,

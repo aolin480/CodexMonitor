@@ -1419,6 +1419,7 @@ export default function MainApp() {
   const sidebarMenuOrchestration = useMainAppSidebarMenuOrchestration({
     sidebarActions: {
       openSettings: modalActions.openSettings,
+      openWorkspaceColorPrompt: modalActions.openWorkspaceColorPrompt,
       resetPullRequestSelection,
       clearDraftState,
       clearDraftStateIfDifferentWorkspace,
@@ -1844,6 +1845,10 @@ export default function MainApp() {
       splitChatDiffView: appSettings.splitChatDiffView,
       hasActivePlan: hasActivePlan,
       activeWorkspace: Boolean(activeWorkspace),
+      activeWorkspaceThreadColor:
+        activeThreadId && activeWorkspace
+          ? activeWorkspace.settings.threadColor ?? null
+          : null,
       sidebarNode,
       messagesNode: mainMessagesNode,
       composerNode,

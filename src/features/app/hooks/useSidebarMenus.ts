@@ -17,6 +17,7 @@ type SidebarMenuHandlers = {
   onReloadWorkspaceThreads: (workspaceId: string) => void;
   onDeleteWorkspace: (workspaceId: string) => void;
   onDeleteWorktree: (workspaceId: string) => void;
+  onColorWorkspace: (workspaceId: string) => void;
 };
 
 export function useSidebarMenus({
@@ -29,6 +30,7 @@ export function useSidebarMenus({
   onReloadWorkspaceThreads,
   onDeleteWorkspace,
   onDeleteWorktree,
+  onColorWorkspace,
 }: SidebarMenuHandlers) {
   const showThreadMenu = useCallback(
     async (
@@ -105,12 +107,16 @@ export function useSidebarMenus({
         text: "Delete",
         action: () => onDeleteWorkspace(workspaceId),
       });
-      const menu = await Menu.new({ items: [reloadItem, deleteItem] });
+      const colorItem = await MenuItem.new({
+        text: "Color",
+        action: () => onColorWorkspace(workspaceId),
+      });
+      const menu = await Menu.new({ items: [reloadItem, deleteItem, colorItem] });
       const window = getCurrentWindow();
       const position = new LogicalPosition(event.clientX, event.clientY);
       await menu.popup(position, window);
     },
-    [onReloadWorkspaceThreads, onDeleteWorkspace],
+    [onColorWorkspace, onDeleteWorkspace, onReloadWorkspaceThreads],
   );
 
   const showWorktreeMenu = useCallback(
@@ -151,12 +157,16 @@ export function useSidebarMenus({
         text: "Delete worktree",
         action: () => onDeleteWorktree(worktree.id),
       });
-      const menu = await Menu.new({ items: [reloadItem, revealItem, deleteItem] });
+      const colorItem = await MenuItem.new({
+        text: "Color",
+        action: () => onColorWorkspace(worktree.id),
+      });
+      const menu = await Menu.new({ items: [reloadItem, revealItem, deleteItem, colorItem] });
       const window = getCurrentWindow();
       const position = new LogicalPosition(event.clientX, event.clientY);
       await menu.popup(position, window);
     },
-    [onReloadWorkspaceThreads, onDeleteWorktree],
+    [onColorWorkspace, onDeleteWorktree, onReloadWorkspaceThreads],
   );
 
   const showCloneMenu = useCallback(
@@ -197,12 +207,16 @@ export function useSidebarMenus({
         text: "Delete clone",
         action: () => onDeleteWorkspace(clone.id),
       });
-      const menu = await Menu.new({ items: [reloadItem, revealItem, deleteItem] });
+      const colorItem = await MenuItem.new({
+        text: "Color",
+        action: () => onColorWorkspace(clone.id),
+      });
+      const menu = await Menu.new({ items: [reloadItem, revealItem, deleteItem, colorItem] });
       const window = getCurrentWindow();
       const position = new LogicalPosition(event.clientX, event.clientY);
       await menu.popup(position, window);
     },
-    [onReloadWorkspaceThreads, onDeleteWorkspace],
+    [onColorWorkspace, onDeleteWorkspace, onReloadWorkspaceThreads],
   );
 
   return { showThreadMenu, showWorkspaceMenu, showWorktreeMenu, showCloneMenu };

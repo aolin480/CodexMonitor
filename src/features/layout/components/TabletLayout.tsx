@@ -1,4 +1,5 @@
 import type { MouseEvent, ReactNode } from "react";
+import type { WorkspaceThreadColor } from "../../../types";
 import { MainTopbar } from "../../app/components/MainTopbar";
 import { ChatPane } from "./ChatPane";
 
@@ -10,6 +11,7 @@ type TabletLayoutProps = {
   homeNode: ReactNode;
   showHome: boolean;
   showWorkspace: boolean;
+  activeWorkspaceThreadColor: WorkspaceThreadColor | null;
   sidebarNode: ReactNode;
   tabletTab: "projects" | "codex" | "git" | "log";
   onSidebarResizeStart: (event: MouseEvent<HTMLDivElement>) => void;
@@ -30,6 +32,7 @@ export function TabletLayout({
   homeNode,
   showHome,
   showWorkspace,
+  activeWorkspaceThreadColor,
   sidebarNode,
   tabletTab,
   onSidebarResizeStart,
@@ -66,7 +69,11 @@ export function TabletLayout({
             />
             {tabletTab === "codex" && (
               <div className="content tablet-content">
-                <ChatPane messagesNode={messagesNode} composerNode={composerNode} />
+                <ChatPane
+                  messagesNode={messagesNode}
+                  composerNode={composerNode}
+                  workspaceThreadColor={activeWorkspaceThreadColor}
+                />
               </div>
             )}
             {tabletTab === "git" && (

@@ -1,14 +1,28 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import type { WorkspaceThreadColor } from "../../../types";
+import { getWorkspaceThreadColorOption } from "../../workspaces/utils/workspaceThreadColors";
 
 type ChatPaneProps = {
   messagesNode: ReactNode;
   composerNode: ReactNode;
   className?: string;
+  workspaceThreadColor?: WorkspaceThreadColor | null;
 };
 
-export function ChatPane({ messagesNode, composerNode, className }: ChatPaneProps) {
+type ChatPaneStyle = CSSProperties & {
+  "--composer-overlay-height": string;
+  "--workspace-thread-tint-rgb"?: string;
+};
+
+export function ChatPane({
+  messagesNode,
+  composerNode,
+  className,
+  workspaceThreadColor = null,
+}: ChatPaneProps) {
   const composerRef = useRef<HTMLDivElement | null>(null);
   const [composerHeight, setComposerHeight] = useState(0);
+  const workspaceThreadColorOption = getWorkspaceThreadColorOption(workspaceThreadColor);
 
   useEffect(() => {
     if (!composerNode) {
@@ -38,15 +52,24 @@ export function ChatPane({ messagesNode, composerNode, className }: ChatPaneProp
   }, [composerNode]);
 
   const paneStyle = useMemo(
-    () =>
-      ({
-        ["--composer-overlay-height" as string]: `${composerHeight}px`,
-      }) satisfies CSSProperties,
-    [composerHeight],
+    () => {
+      const style: ChatPaneStyle = {
+        "--composer-overlay-height": `${composerHeight}px`,
+      };
+      if (workspaceThreadColorOption) {
+        style["--workspace-thread-tint-rgb"] = workspaceThreadColorOption.rgb;
+      }
+      return style;
+    },
+    [composerHeight, workspaceThreadColorOption],
   );
 
   return (
-    <div className={`chat-pane${className ? ` ${className}` : ""}`} style={paneStyle}>
+    <div
+      className={`chat-pane${className ? ` ${className}` : ""}`}
+      style={paneStyle}
+      data-workspace-thread-color={workspaceThreadColor ?? undefined}
+    >
       <div className="chat-pane-messages">{messagesNode}</div>
       {composerNode ? (
         <div className="chat-pane-composer" ref={composerRef}>

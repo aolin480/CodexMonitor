@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { WorkspaceThreadColor } from "../../../types";
 import { MainTopbar } from "../../app/components/MainTopbar";
 import { ChatPane } from "./ChatPane";
 
@@ -11,6 +12,7 @@ type PhoneLayoutProps = {
   sidebarNode: ReactNode;
   activeTab: "home" | "projects" | "codex" | "git" | "log";
   activeWorkspace: boolean;
+  activeWorkspaceThreadColor: WorkspaceThreadColor | null;
   showGitDetail: boolean;
   compactEmptyCodexNode: ReactNode;
   compactEmptyGitNode: ReactNode;
@@ -33,6 +35,7 @@ export function PhoneLayout({
   sidebarNode,
   activeTab,
   activeWorkspace,
+  activeWorkspaceThreadColor,
   showGitDetail,
   compactEmptyCodexNode,
   compactEmptyGitNode,
@@ -62,7 +65,11 @@ export function PhoneLayout({
                 className="compact-topbar"
               />
               <div className="content compact-content">
-                <ChatPane messagesNode={messagesNode} composerNode={composerNode} />
+                <ChatPane
+                  messagesNode={messagesNode}
+                  composerNode={composerNode}
+                  workspaceThreadColor={activeWorkspaceThreadColor}
+                />
               </div>
             </>
           ) : (

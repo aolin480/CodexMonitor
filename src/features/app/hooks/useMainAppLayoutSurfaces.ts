@@ -426,6 +426,7 @@ function buildPrimarySurface({
       onRenameThread: sidebarHandlers.onRenameThread,
       onDeleteWorkspace: sidebarHandlers.onDeleteWorkspace,
       onDeleteWorktree: sidebarHandlers.onDeleteWorktree,
+      onColorWorkspace: sidebarHandlers.onColorWorkspace,
       onLoadOlderThreads: sidebarHandlers.onLoadOlderThreads,
       onReloadWorkspaceThreads: sidebarHandlers.onReloadWorkspaceThreads,
       workspaceDropTargetRef: workspaceDrop.workspaceDropTargetRef,

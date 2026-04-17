@@ -1,4 +1,5 @@
 import { useEffect, useRef, type MouseEvent, type ReactNode } from "react";
+import type { WorkspaceThreadColor } from "../../../types";
 import { MainTopbar } from "../../app/components/MainTopbar";
 import { ChatPane } from "./ChatPane";
 
@@ -62,6 +63,7 @@ type DesktopLayoutProps = {
   homeNode: ReactNode;
   showHome: boolean;
   showWorkspace: boolean;
+  activeWorkspaceThreadColor: WorkspaceThreadColor | null;
   topbarLeftNode: ReactNode;
   topbarActionsNode?: ReactNode;
   centerMode: "chat" | "diff";
@@ -89,6 +91,7 @@ export function DesktopLayout({
   homeNode,
   showHome,
   showWorkspace,
+  activeWorkspaceThreadColor,
   topbarLeftNode,
   topbarActionsNode,
   centerMode,
@@ -109,7 +112,13 @@ export function DesktopLayout({
 }: DesktopLayoutProps) {
   const diffLayerRef = useRef<HTMLDivElement | null>(null);
   const chatLayerRef = useRef<HTMLDivElement | null>(null);
-  const chatPaneNode = <ChatPane messagesNode={messagesNode} composerNode={composerNode} />;
+  const chatPaneNode = (
+    <ChatPane
+      messagesNode={messagesNode}
+      composerNode={composerNode}
+      workspaceThreadColor={activeWorkspaceThreadColor}
+    />
+  );
   const diffLayerActive = isActiveLayer(centerMode, "diff");
   const chatLayerActive = isActiveLayer(centerMode, "chat");
   const showDiffViewer = shouldRenderDiffViewer({

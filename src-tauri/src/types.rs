@@ -296,6 +296,16 @@ impl WorkspaceKind {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum WorkspaceThreadColor {
+    Slate,
+    Blue,
+    Green,
+    Amber,
+    Rose,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct WorktreeInfo {
     pub(crate) branch: String,
@@ -327,6 +337,8 @@ pub(crate) struct WorkspaceSettings {
     pub(crate) launch_script: Option<String>,
     #[serde(default, rename = "launchScripts")]
     pub(crate) launch_scripts: Option<Vec<LaunchScriptEntry>>,
+    #[serde(default, rename = "threadColor")]
+    pub(crate) thread_color: Option<WorkspaceThreadColor>,
     #[serde(default, rename = "worktreeSetupScript")]
     pub(crate) worktree_setup_script: Option<String>,
     #[serde(default, rename = "worktreesFolder")]

@@ -57,6 +57,7 @@ fn workspace_with_id_and_kind(
             git_root: None,
             launch_script: None,
             launch_scripts: None,
+            thread_color: None,
             worktree_setup_script: None,
             worktrees_folder: None,
         },

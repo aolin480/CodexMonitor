@@ -1,8 +1,10 @@
 import { memo } from "react";
 import type { MouseEvent, ReactNode } from "react";
+import type { WorkspaceThreadColor } from "../../../types";
 import { DesktopLayout } from "../../layout/components/DesktopLayout";
 import { TabletLayout } from "../../layout/components/TabletLayout";
 import { PhoneLayout } from "../../layout/components/PhoneLayout";
+
 type AppLayoutProps = {
   isPhone: boolean;
   isTablet: boolean;
@@ -15,6 +17,7 @@ type AppLayoutProps = {
   splitChatDiffView: boolean;
   hasActivePlan: boolean;
   activeWorkspace: boolean;
+  activeWorkspaceThreadColor: WorkspaceThreadColor | null;
   sidebarNode: ReactNode;
   messagesNode: ReactNode;
   composerNode: ReactNode;
@@ -54,6 +57,7 @@ export const AppLayout = memo(function AppLayout({
   splitChatDiffView,
   hasActivePlan,
   activeWorkspace,
+  activeWorkspaceThreadColor,
   sidebarNode,
   messagesNode,
   composerNode,
@@ -91,6 +95,7 @@ export const AppLayout = memo(function AppLayout({
         sidebarNode={sidebarNode}
         activeTab={activeTab}
         activeWorkspace={activeWorkspace}
+        activeWorkspaceThreadColor={activeWorkspaceThreadColor}
         showGitDetail={showGitDetail}
         compactEmptyCodexNode={compactEmptyCodexNode}
         compactEmptyGitNode={compactEmptyGitNode}
@@ -116,6 +121,7 @@ export const AppLayout = memo(function AppLayout({
         homeNode={homeNode}
         showHome={showHome}
         showWorkspace={activeWorkspace && !showHome}
+        activeWorkspaceThreadColor={activeWorkspaceThreadColor}
         sidebarNode={sidebarNode}
         tabletTab={tabletTab}
         onSidebarResizeStart={onSidebarResizeStart}
@@ -139,6 +145,7 @@ export const AppLayout = memo(function AppLayout({
       homeNode={homeNode}
       showHome={showHome}
       showWorkspace={activeWorkspace && !showHome}
+      activeWorkspaceThreadColor={activeWorkspaceThreadColor}
       topbarLeftNode={desktopTopbarLeftNode}
       topbarActionsNode={topbarActionsNode}
       centerMode={centerMode}

@@ -12,6 +12,16 @@
   grid-row: 3;
 }
 
+.chat-pane[data-workspace-thread-color] .composer {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-tint-rgb) / 0.14) 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.08) 100%
+    ),
+    var(--cm-surface-composer);
+}
+
 .composer > * {
   width: min(100%, var(--conversation-column-width, 900px));
   margin-inline: auto;
@@ -20,6 +30,16 @@
 .app.reduced-transparency .composer {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+.app.reduced-transparency .chat-pane[data-workspace-thread-color] .composer {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-tint-rgb) / 0.18) 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.12) 100%
+    ),
+    var(--cm-surface-composer);
 }
 
 .composer-queue {
