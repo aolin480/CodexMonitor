@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -12,7 +13,15 @@ const THREAD_NAME_REGISTRY_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
 const THREAD_NAME_REGISTRY_LOCK_RETRY: Duration = Duration::from_millis(25);
 const THREAD_NAME_REGISTRY_STALE_LOCK_AGE: Duration = Duration::from_secs(10);
 
-type ThreadNameRegistry = HashMap<String, String>;
+type WorkspaceThreadNameRegistry = HashMap<String, String>;
+type ThreadNameRegistry = HashMap<String, WorkspaceThreadNameRegistry>;
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+enum ThreadNameRegistryFile {
+    Nested(ThreadNameRegistry),
+    LegacyFlat(HashMap<String, String>),
+}
 
 struct RegistryWriteLock {
     path: PathBuf,
@@ -32,10 +41,6 @@ fn registry_lock_path(data_dir: &Path) -> PathBuf {
     data_dir.join(THREAD_NAME_REGISTRY_LOCK_FILE)
 }
 
-fn make_thread_name_key(workspace_id: &str, thread_id: &str) -> String {
-    format!("{workspace_id}:{thread_id}")
-}
-
 fn normalize_thread_name(name: &str) -> Option<String> {
     let normalized = name.split_whitespace().collect::<Vec<_>>().join(" ");
     if normalized.is_empty() {
@@ -47,13 +52,31 @@ fn normalize_thread_name(name: &str) -> Option<String> {
 
 async fn read_registry(data_dir: &Path) -> Result<ThreadNameRegistry, String> {
     let path = registry_path(data_dir);
-    if !path.exists() {
-        return Ok(HashMap::new());
+    let raw = match fs::read_to_string(&path).await {
+        Ok(raw) => raw,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(HashMap::new()),
+        Err(err) => return Err(format!("failed to read {}: {err}", path.display())),
+    };
+    let parsed: ThreadNameRegistryFile = serde_json::from_str(&raw)
+        .map_err(|err| format!("failed to parse {}: {err}", path.display()))?;
+    Ok(match parsed {
+        ThreadNameRegistryFile::Nested(registry) => registry,
+        ThreadNameRegistryFile::LegacyFlat(legacy) => migrate_legacy_registry(legacy),
+    })
+}
+
+fn migrate_legacy_registry(legacy: HashMap<String, String>) -> ThreadNameRegistry {
+    let mut migrated = HashMap::new();
+    for (key, value) in legacy {
+        let Some((workspace_id, thread_id)) = key.split_once(':') else {
+            continue;
+        };
+        migrated
+            .entry(workspace_id.to_string())
+            .or_insert_with(HashMap::new)
+            .insert(thread_id.to_string(), value);
     }
-    let raw = fs::read_to_string(&path)
-        .await
-        .map_err(|err| format!("failed to read {}: {err}", path.display()))?;
-    serde_json::from_str(&raw).map_err(|err| format!("failed to parse {}: {err}", path.display()))
+    migrated
 }
 
 async fn acquire_registry_write_lock(data_dir: &Path) -> Result<RegistryWriteLock, String> {
@@ -128,7 +151,10 @@ fn overlay_thread_name_for_workspace(
     let Some(thread_id) = thread.get("id").and_then(Value::as_str) else {
         return;
     };
-    let Some(name) = registry.get(&make_thread_name_key(workspace_id, thread_id)) else {
+    let Some(name) = registry
+        .get(workspace_id)
+        .and_then(|threads| threads.get(thread_id))
+    else {
         return;
     };
     thread.insert("name".to_string(), Value::String(name.clone()));
@@ -148,13 +174,20 @@ pub(crate) async fn save_thread_name(
     }
     let _lock = acquire_registry_write_lock(data_dir).await?;
     let mut registry = read_registry(data_dir).await?;
-    let key = make_thread_name_key(workspace_id, thread_id);
     match normalize_thread_name(name) {
         Some(normalized_name) => {
-            registry.insert(key, normalized_name);
+            registry
+                .entry(workspace_id.to_string())
+                .or_insert_with(HashMap::new)
+                .insert(thread_id.to_string(), normalized_name);
         }
         None => {
-            registry.remove(&key);
+            if let Some(threads) = registry.get_mut(workspace_id) {
+                threads.remove(thread_id);
+                if threads.is_empty() {
+                    registry.remove(workspace_id);
+                }
+            }
         }
     }
     write_registry(data_dir, &registry).await
@@ -206,7 +239,7 @@ pub(crate) async fn apply_thread_name_overlays(
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_thread_name_overlays, save_thread_name};
+    use super::{apply_thread_name_overlays, read_registry, save_thread_name};
     use serde_json::{json, Value};
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -361,6 +394,78 @@ mod tests {
                 response["result"]["thread"]["name"],
                 Value::String("Server Name".to_string())
             );
+
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
+    fn preserves_distinct_workspace_and_thread_ids_with_colons() {
+        run_async_test(async {
+            let data_dir = temp_dir("thread-name-registry");
+            save_thread_name(&data_dir, "ws:one", "thread-1", "Workspace Scoped")
+                .await
+                .expect("save first name");
+            save_thread_name(&data_dir, "ws", "one:thread-1", "Thread Scoped")
+                .await
+                .expect("save second name");
+
+            let registry = read_registry(&data_dir).await.expect("read registry");
+            assert_eq!(
+                registry
+                    .get("ws:one")
+                    .and_then(|threads| threads.get("thread-1")),
+                Some(&"Workspace Scoped".to_string())
+            );
+            assert_eq!(
+                registry
+                    .get("ws")
+                    .and_then(|threads| threads.get("one:thread-1")),
+                Some(&"Thread Scoped".to_string())
+            );
+
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
+    fn reads_legacy_flat_registry_and_migrates_on_write() {
+        run_async_test(async {
+            let data_dir = temp_dir("thread-name-registry");
+            let legacy_path = data_dir.join("thread_names.json");
+            std::fs::write(
+                &legacy_path,
+                r#"{
+  "ws-1:thread-1": "Legacy Name",
+  "ws-2:thread-2": "Other Name"
+}"#,
+            )
+            .expect("write legacy registry");
+
+            let migrated = read_registry(&data_dir).await.expect("read legacy registry");
+            assert_eq!(
+                migrated
+                    .get("ws-1")
+                    .and_then(|threads| threads.get("thread-1")),
+                Some(&"Legacy Name".to_string())
+            );
+            assert_eq!(
+                migrated
+                    .get("ws-2")
+                    .and_then(|threads| threads.get("thread-2")),
+                Some(&"Other Name".to_string())
+            );
+
+            save_thread_name(&data_dir, "ws-3", "thread-3", "New Name")
+                .await
+                .expect("save migrated name");
+
+            let raw = std::fs::read_to_string(&legacy_path).expect("read migrated file");
+            let migrated_file: serde_json::Value =
+                serde_json::from_str(&raw).expect("parse migrated file");
+            assert_eq!(migrated_file["ws-1"]["thread-1"], Value::String("Legacy Name".into()));
+            assert_eq!(migrated_file["ws-2"]["thread-2"], Value::String("Other Name".into()));
+            assert_eq!(migrated_file["ws-3"]["thread-3"], Value::String("New Name".into()));
 
             let _ = std::fs::remove_dir_all(data_dir);
         });
