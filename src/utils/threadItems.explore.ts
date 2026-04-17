@@ -61,9 +61,13 @@ export function normalizeItem(item: ConversationItem): ConversationItem {
     return { ...item, diff: truncateText(item.diff) };
   }
   if (item.kind === "tool") {
+    const normalizedTitle =
+      item.toolType === "commandExecution"
+        ? truncateToolText(item.toolType, item.title)
+        : truncateText(item.title, 200);
     return {
       ...item,
-      title: truncateText(item.title, 200),
+      title: normalizedTitle,
       detail: truncateText(item.detail, 2000),
       output: item.output
         ? truncateToolText(item.toolType, item.output)

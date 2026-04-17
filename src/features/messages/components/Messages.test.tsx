@@ -17,6 +17,7 @@ const showFileLinkMenuMock = vi.fn();
 const { exportMarkdownFileMock } = vi.hoisted(() => ({
   exportMarkdownFileMock: vi.fn(),
 }));
+const clipboardWriteTextMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../hooks/useFileLinkOpener", () => ({
   useFileLinkOpener: (
@@ -41,9 +42,14 @@ describe("Messages", () => {
     if (!HTMLElement.prototype.scrollIntoView) {
       HTMLElement.prototype.scrollIntoView = vi.fn();
     }
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: (...args: unknown[]) => clipboardWriteTextMock(...args) },
+    });
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
   });
 
@@ -52,6 +58,7 @@ describe("Messages", () => {
     openFileLinkMock.mockReset();
     showFileLinkMenuMock.mockReset();
     exportMarkdownFileMock.mockReset();
+    clipboardWriteTextMock.mockReset();
   });
 
   it("renders image grid above message text and opens lightbox", () => {
@@ -1135,6 +1142,293 @@ describe("Messages", () => {
     const exploreItems = container.querySelectorAll(".explore-inline-item");
     expect(exploreItems.length).toBe(2);
     expect(screen.getByText(/rg reducers/i)).toBeTruthy();
+  });
+
+  it("expands the full command inline without opening tool details", () => {
+    const commandText =
+      "/bin/zsh -lc \"git rev-list --left-right --count origin/main...HEAD && echo '---' && git diff --stat\"";
+    const items: ConversationItem[] = [
+      {
+        id: "tool-inline-command-expand",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: `Command: ${commandText}`,
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+    ];
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    const commandChip = screen.getByRole("button", { name: "Expand full command" });
+    const commandValue = container.querySelector(".tool-inline-command");
+    const commandSummary = container.querySelector(".tool-inline-summary");
+    expect(commandValue?.classList.contains("tool-inline-command-full")).toBe(false);
+    expect(commandSummary?.classList.contains("tool-inline-summary-command-expanded")).toBe(
+      false,
+    );
+    expect(screen.queryByText("cwd: /repo")).toBeNull();
+
+    fireEvent.click(commandChip);
+
+    expect(commandValue?.classList.contains("tool-inline-command-full")).toBe(true);
+    expect(commandSummary?.classList.contains("tool-inline-summary-command-expanded")).toBe(
+      true,
+    );
+    expect(screen.queryByText("cwd: /repo")).toBeNull();
+    expect(screen.getByRole("button", { name: "Collapse full command" })).toBeTruthy();
+  });
+
+  it("shows a command menu on right click and copies on selection", async () => {
+    const rawCommandText =
+      "/bin/zsh -lc \"git rev-list --left-right --count origin/main...HEAD && echo '---' && git diff --stat\"";
+    const items: ConversationItem[] = [
+      {
+        id: "tool-inline-command-copy",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: `Command: ${rawCommandText}`,
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+    ];
+
+    render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Expand full command" }));
+
+    const copyMenuItem = await screen.findByRole("menuitem", {
+      name: "Copy command",
+    });
+    fireEvent.click(copyMenuItem);
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock).toHaveBeenCalledWith(rawCommandText);
+    });
+    expect(screen.queryByRole("menuitem", { name: "Copy command" })).toBeNull();
+    expect(screen.getByText("Copied")).toBeTruthy();
+    expect(screen.queryByText("cwd: /repo")).toBeNull();
+  });
+
+  it("expands the command from the keyboard without opening the menu", () => {
+    const items: ConversationItem[] = [
+      {
+        id: "tool-inline-command-keyboard-expand",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: git diff --stat",
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+    ];
+
+    render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    const commandChip = screen.getByRole("button", { name: "Expand full command" });
+    expect(commandChip.getAttribute("aria-keyshortcuts")).toBe("Shift+F10");
+    fireEvent.keyDown(commandChip, { key: "Enter" });
+
+    expect(screen.getByRole("button", { name: "Collapse full command" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Copy command" })).toBeNull();
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Collapse full command" }), {
+      key: " ",
+    });
+
+    expect(screen.getByRole("button", { name: "Expand full command" })).toBeTruthy();
+  });
+
+  it("opens the command menu from the keyboard and closes it with Escape", async () => {
+    const items: ConversationItem[] = [
+      {
+        id: "tool-inline-command-keyboard-menu",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: git diff --stat",
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+    ];
+
+    render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    const commandChip = screen.getByRole("button", { name: "Expand full command" });
+    expect(commandChip.getAttribute("aria-haspopup")).toBe("menu");
+    fireEvent.keyDown(commandChip, { key: "F10", shiftKey: true });
+
+    expect(await screen.findByRole("menuitem", { name: "Copy command" })).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("menuitem", { name: "Copy command" })).toBeNull();
+    });
+  });
+
+  it("dismisses the command menu on outside click", async () => {
+    const items: ConversationItem[] = [
+      {
+        id: "tool-inline-command-dismiss-menu",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: git diff --stat",
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+    ];
+
+    render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Expand full command" }));
+    expect(await screen.findByRole("menuitem", { name: "Copy command" })).toBeTruthy();
+
+    fireEvent.pointerDown(document.body);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("menuitem", { name: "Copy command" })).toBeNull();
+    });
+  });
+
+  it("dismisses the command menu on window resize", async () => {
+    const items: ConversationItem[] = [
+      {
+        id: "tool-inline-command-resize-menu",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: git diff --stat",
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+    ];
+
+    render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Expand full command" }));
+    expect(await screen.findByRole("menuitem", { name: "Copy command" })).toBeTruthy();
+
+    fireEvent(window, new Event("resize"));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("menuitem", { name: "Copy command" })).toBeNull();
+    });
+  });
+
+  it("resets copied feedback timing when the command is copied again", async () => {
+    vi.useFakeTimers();
+    const rawCommandText = "/bin/zsh -lc \"git diff --stat\"";
+    const items: ConversationItem[] = [
+      {
+        id: "tool-inline-command-copy-reset",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: `Command: ${rawCommandText}`,
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+    ];
+
+    render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    clipboardWriteTextMock.mockResolvedValue(undefined);
+
+    const openAndCopy = async () => {
+      fireEvent.contextMenu(screen.getByRole("button", { name: /full command/i }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("menuitem", { name: "Copy command" }));
+      });
+      expect(clipboardWriteTextMock).toHaveBeenLastCalledWith(rawCommandText);
+    };
+
+    await openAndCopy();
+    expect(screen.getByText("Copied")).toBeTruthy();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1100);
+    });
+    expect(screen.getByText("Copied")).toBeTruthy();
+
+    await openAndCopy();
+
+    await act(async () => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(screen.getByText("Copied")).toBeTruthy();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1050);
+    });
+
+    expect(screen.queryByText("Copied")).toBeNull();
   });
 
   it("preserves chronology when reasoning with body appears between explore items", async () => {

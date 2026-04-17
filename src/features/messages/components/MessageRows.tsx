@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import Brain from "lucide-react/dist/esm/icons/brain";
 import Check from "lucide-react/dist/esm/icons/check";
@@ -19,6 +19,10 @@ import { pushErrorToast } from "@services/toasts";
 import type { ConversationItem } from "../../../types";
 import type { ParsedFileLocation } from "../../../utils/fileLinks";
 import { PierreDiffBlock } from "../../git/components/PierreDiffBlock";
+import {
+  PopoverMenuItem,
+  PopoverSurface,
+} from "../../design-system/components/popover/PopoverPrimitives";
 import {
   MAX_COMMAND_OUTPUT_LINES,
   basename,
@@ -720,8 +724,15 @@ export const ToolRow = memo(function ToolRow({
       ? `${changeNames[0]} +${changeNames.length - 1}`
       : changeNames[0] || "changes"
     : summary.value;
+  const displayedCommandValue = isCommand ? commandText : summaryValue;
+  const [isCommandExpanded, setIsCommandExpanded] = useState(false);
+  const [commandMenuPosition, setCommandMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [isCommandCopied, setIsCommandCopied] = useState(false);
   const shouldFadeCommand =
-    isCommand && !isExpanded && (summaryValue?.length ?? 0) > 80;
+    isCommand && !isExpanded && !isCommandExpanded && (summaryValue?.length ?? 0) > 80;
   const showToolOutput = isExpanded && (!isFileChange || !hasChanges);
   const normalizedStatus = (item.status ?? "").toLowerCase();
   const isCommandRunning = isCommand && /in[_\s-]*progress|running|started/.test(normalizedStatus);
@@ -730,6 +741,19 @@ export const ToolRow = memo(function ToolRow({
   const isLongRunning = commandDurationMs !== null && commandDurationMs >= 1200;
   const [showLiveOutput, setShowLiveOutput] = useState(false);
   const [isExportingPlan, setIsExportingPlan] = useState(false);
+  const copyFeedbackTimeoutRef = useRef<number | null>(null);
+  const copyFeedbackVersionRef = useRef(0);
+  const commandMenuRef = useRef<HTMLDivElement | null>(null);
+  const commandButtonRef = useRef<HTMLButtonElement | null>(null);
+  const commandMenuId = `tool-command-menu-${item.id}`;
+  const commandHintId = `tool-command-hint-${item.id}`;
+
+  const clearCopyFeedbackTimeout = useCallback(() => {
+    if (copyFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(copyFeedbackTimeoutRef.current);
+      copyFeedbackTimeoutRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!isCommandRunning) {
@@ -743,6 +767,60 @@ export const ToolRow = memo(function ToolRow({
       window.clearTimeout(timeoutId);
     };
   }, [isCommandRunning]);
+
+  useEffect(() => {
+    return () => {
+      clearCopyFeedbackTimeout();
+    };
+  }, [clearCopyFeedbackTimeout]);
+
+  useEffect(() => {
+    copyFeedbackVersionRef.current += 1;
+    clearCopyFeedbackTimeout();
+    setIsCommandCopied(false);
+  }, [clearCopyFeedbackTimeout, displayedCommandValue, item.id]);
+
+  useEffect(() => {
+    if (!commandMenuPosition) {
+      return undefined;
+    }
+
+    const closeCommandMenu = () => {
+      setCommandMenuPosition(null);
+    };
+
+    const handlePointerDown = (event: Event) => {
+      const menuNode = commandMenuRef.current;
+      if (menuNode && event.target instanceof Node && menuNode.contains(event.target)) {
+        return;
+      }
+      const commandButton = commandButtonRef.current;
+      if (commandButton && event.target instanceof Node && commandButton.contains(event.target)) {
+        return;
+      }
+      closeCommandMenu();
+    };
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeCommandMenu();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("contextmenu", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", closeCommandMenu, true);
+    window.addEventListener("resize", closeCommandMenu);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("contextmenu", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", closeCommandMenu, true);
+      window.removeEventListener("resize", closeCommandMenu);
+    };
+  }, [commandMenuPosition]);
 
   const showCommandOutput =
     isCommand &&
@@ -779,6 +857,103 @@ export const ToolRow = memo(function ToolRow({
     [item.id, summary.output],
   );
 
+  const handleCommandToggle = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsCommandExpanded((current) => !current);
+    },
+    [],
+  );
+
+  const openCommandMenuAt = useCallback((x: number, y: number) => {
+    const margin = 8;
+    const menuWidth = 168;
+    const menuHeight = 44;
+    const viewportWidth =
+      typeof window === "undefined" ? menuWidth + margin * 2 : window.innerWidth;
+    const viewportHeight =
+      typeof window === "undefined" ? menuHeight + margin * 2 : window.innerHeight;
+    const clampedX = Math.min(Math.max(x, margin), Math.max(margin, viewportWidth - menuWidth - margin));
+    const clampedY = Math.min(
+      Math.max(y, margin),
+      Math.max(margin, viewportHeight - menuHeight - margin),
+    );
+    setCommandMenuPosition({ x: clampedX, y: clampedY });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!commandMenuPosition || !commandMenuRef.current || typeof window === "undefined") {
+      return;
+    }
+    const margin = 8;
+    const rect = commandMenuRef.current.getBoundingClientRect();
+    const nextX = Math.min(
+      Math.max(commandMenuPosition.x, margin),
+      Math.max(margin, window.innerWidth - rect.width - margin),
+    );
+    const nextY = Math.min(
+      Math.max(commandMenuPosition.y, margin),
+      Math.max(margin, window.innerHeight - rect.height - margin),
+    );
+    if (nextX !== commandMenuPosition.x || nextY !== commandMenuPosition.y) {
+      setCommandMenuPosition({ x: nextX, y: nextY });
+    }
+  }, [commandMenuPosition]);
+
+  const handleCommandKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+      if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsCommandExpanded((current) => !current);
+        return;
+      }
+      if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        openCommandMenuAt(rect.left, rect.bottom + 4);
+      }
+    },
+    [openCommandMenuAt],
+  );
+
+  const handleCommandContextMenu = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!displayedCommandValue) {
+        return;
+      }
+      openCommandMenuAt(event.clientX, event.clientY);
+    },
+    [displayedCommandValue, openCommandMenuAt],
+  );
+
+  const handleCopyCommand = useCallback(async () => {
+    const clipboard = typeof navigator === "undefined" ? null : navigator.clipboard;
+    if (!clipboard?.writeText || !displayedCommandValue) {
+      return;
+    }
+    try {
+      await clipboard.writeText(displayedCommandValue);
+      setCommandMenuPosition(null);
+      setIsCommandCopied(true);
+      copyFeedbackVersionRef.current += 1;
+      const copyFeedbackVersion = copyFeedbackVersionRef.current;
+      clearCopyFeedbackTimeout();
+      copyFeedbackTimeoutRef.current = window.setTimeout(() => {
+        if (copyFeedbackVersionRef.current === copyFeedbackVersion) {
+          setIsCommandCopied(false);
+          copyFeedbackTimeoutRef.current = null;
+        }
+      }, 1200);
+    } catch {
+      // Ignore clipboard failures in restricted contexts.
+    }
+  }, [clearCopyFeedbackTimeout, displayedCommandValue]);
+
   return (
     <div className={`tool-inline tool-inline-row ${isExpanded ? "tool-inline-expanded" : ""}`}>
       <button
@@ -789,39 +964,70 @@ export const ToolRow = memo(function ToolRow({
         aria-label="Toggle tool details"
       />
       <div className="tool-inline-content">
-        <button
-          type="button"
-          className="tool-inline-summary tool-inline-toggle"
-          onClick={() => onToggle(item.id)}
-          aria-expanded={isExpanded}
-        >
-          <ToolIcon className={`tool-inline-icon ${tone}`} size={14} aria-hidden />
-          {summaryLabel && (
-            <span className="tool-inline-label">{summaryLabel}:</span>
-          )}
-          {summaryValue && (
-            <span
-              className={`tool-inline-value ${isCommand ? "tool-inline-command" : ""} ${
-                isCommand && isExpanded ? "tool-inline-command-full" : ""
-              }`}
-            >
-              {isCommand ? (
+        {isCommand ? (
+          <div
+            className={`tool-inline-summary ${
+              isCommandExpanded ? "tool-inline-summary-command-expanded" : ""
+            }`}
+          >
+            <ToolIcon className={`tool-inline-icon ${tone}`} size={14} aria-hidden />
+            {displayedCommandValue && (
+              <button
+                ref={commandButtonRef}
+                type="button"
+                className={`tool-inline-value tool-inline-command ${
+                  isExpanded || isCommandExpanded ? "tool-inline-command-full" : ""
+                } ${isCommandCopied ? "is-copied" : ""}`}
+                aria-expanded={isCommandExpanded}
+                aria-haspopup="menu"
+                aria-controls={commandMenuPosition ? commandMenuId : undefined}
+                aria-describedby={displayedCommandValue ? commandHintId : undefined}
+                aria-keyshortcuts="Shift+F10"
+                aria-label={
+                  isCommandExpanded ? "Collapse full command" : "Expand full command"
+                }
+                title="Click to expand command. Shift+F10 or right-click for command actions."
+                onClick={handleCommandToggle}
+                onKeyDown={handleCommandKeyDown}
+                onContextMenu={handleCommandContextMenu}
+              >
                 <span
                   className={`tool-inline-command-text ${
                     shouldFadeCommand ? "tool-inline-command-fade" : ""
                   }`}
                 >
-                  {summaryValue}
+                  {displayedCommandValue}
                 </span>
-              ) : (
-                summaryValue
-              )}
-            </span>
-          )}
-          {inlineStatus && (
-            <span className="tool-inline-status">{inlineStatus}</span>
-          )}
-        </button>
+                {isCommandCopied ? (
+                  <span className="tool-inline-command-badge">Copied</span>
+                ) : null}
+              </button>
+            )}
+            {displayedCommandValue ? (
+              <span id={commandHintId} className="tool-inline-command-assistive">
+                Press Enter or Space to expand. Press Shift+F10 or right-click for command
+                actions.
+              </span>
+            ) : null}
+            {inlineStatus && <span className="tool-inline-status">{inlineStatus}</span>}
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="tool-inline-summary tool-inline-toggle"
+            onClick={() => onToggle(item.id)}
+            aria-expanded={isExpanded}
+          >
+            <ToolIcon className={`tool-inline-icon ${tone}`} size={14} aria-hidden />
+            {summaryLabel && (
+              <span className="tool-inline-label">{summaryLabel}:</span>
+            )}
+            {summaryValue && <span className="tool-inline-value">{summaryValue}</span>}
+            {inlineStatus && (
+              <span className="tool-inline-status">{inlineStatus}</span>
+            )}
+          </button>
+        )}
         {isExpanded && summary.detail && !isFileChange && (
           <div className="tool-inline-detail">{summary.detail}</div>
         )}
@@ -893,6 +1099,33 @@ export const ToolRow = memo(function ToolRow({
           </div>
         )}
       </div>
+      {commandMenuPosition
+        ? createPortal(
+            <PopoverSurface
+              ref={commandMenuRef}
+              id={commandMenuId}
+              className="tool-inline-command-menu"
+              role="menu"
+              style={{
+                position: "fixed",
+                left: commandMenuPosition.x,
+                top: commandMenuPosition.y,
+                zIndex: 1000,
+              }}
+            >
+              <PopoverMenuItem
+                role="menuitem"
+                icon={<Copy size={14} />}
+                onClick={() => {
+                  void handleCopyCommand();
+                }}
+              >
+                Copy command
+              </PopoverMenuItem>
+            </PopoverSurface>,
+            document.body,
+          )
+        : null}
     </div>
   );
 });

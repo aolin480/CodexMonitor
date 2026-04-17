@@ -651,9 +651,13 @@
   border-radius: 6px;
   border: 1px solid var(--border-subtle);
   display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
+  text-align: left;
+  cursor: pointer;
 }
 
 .tool-inline-command-text {
@@ -663,6 +667,7 @@
   display: block;
   flex: 1 1 auto;
   min-width: 0;
+  cursor: pointer;
 }
 
 .tool-inline-command-fade {
@@ -670,16 +675,74 @@
   mask-image: linear-gradient(90deg, #000 70%, transparent 100%);
 }
 
+.tool-inline-command-text:focus-visible {
+  outline: 1px solid var(--border-strong);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.tool-inline-command:focus-visible {
+  outline: 1px solid var(--border-strong);
+  outline-offset: 2px;
+}
+
 .tool-inline-command-full {
   max-width: none;
+}
+
+.tool-inline-summary-command-expanded {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.tool-inline-summary-command-expanded .tool-inline-command {
+  flex: 1 0 100%;
+  width: 100%;
+  max-width: 100%;
+  align-items: flex-start;
 }
 
 .tool-inline-command-full .tool-inline-command-text {
   overflow: visible;
   text-overflow: unset;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   -webkit-mask-image: none;
   mask-image: none;
+}
+
+.tool-inline-summary-command-expanded .tool-inline-status {
+  width: 100%;
+  margin-left: 0;
+}
+
+.tool-inline-command-badge {
+  flex: 0 0 auto;
+  font-family: var(--font-family-sans);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--status-success);
+  background: color-mix(in srgb, var(--status-success) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-success) 28%, transparent);
+  border-radius: 999px;
+  padding: 3px 6px;
+}
+
+.tool-inline-command-menu {
+  min-width: 168px;
+}
+
+.tool-inline-command-assistive {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .tool-inline-status {
@@ -1033,6 +1096,19 @@
   .item-card,
   .tool-inline {
     padding: 13px 14px;
+  }
+
+  .tool-inline-summary-command-expanded .tool-inline-command-text {
+    white-space: pre-wrap;
+    overflow: visible;
+    text-overflow: unset;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .tool-inline-summary-command-expanded .tool-inline-status {
+    width: 100%;
+    margin-left: 0;
   }
 }
 

@@ -48,6 +48,25 @@ describe("threadItems", () => {
     }
   });
 
+  it("preserves full command titles during normalization", () => {
+    const command = `Command: ${"rg very-long-command ".repeat(20)}`.trim();
+    const item: ConversationItem = {
+      id: "tool-command-title",
+      kind: "tool",
+      toolType: "commandExecution",
+      title: command,
+      detail: "",
+      output: "",
+    };
+
+    const normalized = normalizeItem(item);
+    expect(normalized.kind).toBe("tool");
+    if (normalized.kind === "tool") {
+      expect(normalized.title).toBe(command);
+      expect(normalized.title.endsWith("...")).toBe(false);
+    }
+  });
+
   it("truncates older tool output in prepareThreadItems", () => {
     const output = "y".repeat(21000);
     const items: ConversationItem[] = Array.from({ length: 41 }, (_, index) => ({
