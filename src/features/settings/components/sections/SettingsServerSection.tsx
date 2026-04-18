@@ -335,6 +335,24 @@ export function SettingsServerSection({
 
         {!isMobileSimplified && (
           <SettingsToggleRow
+            title="Auto-start mobile access daemon on desktop launch"
+            subtitle="If enabled, CodexMonitor starts the managed TCP mobile access daemon during desktop startup when it is not already running."
+          >
+            <SettingsToggleSwitch
+              pressed={appSettings.autoStartMobileDaemonOnLaunch}
+              onClick={() =>
+                void onUpdateAppSettings({
+                  ...appSettings,
+                  autoStartMobileDaemonOnLaunch:
+                    !appSettings.autoStartMobileDaemonOnLaunch,
+                })
+              }
+            />
+          </SettingsToggleRow>
+        )}
+
+        {!isMobileSimplified && (
+          <SettingsToggleRow
             title="Keep daemon running after app closes"
             subtitle="If disabled, CodexMonitor stops managed TCP daemon processes before exit."
           >

@@ -247,6 +247,7 @@ export type AppSettings = {
   remoteBackendToken: string | null;
   remoteBackends: RemoteBackendTarget[];
   activeRemoteBackendId: string | null;
+  autoStartMobileDaemonOnLaunch: boolean;
   keepDaemonRunningAfterAppClose: boolean;
   defaultAccessMode: AccessMode;
   reviewDeliveryMode: "inline" | "detached";

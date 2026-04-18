@@ -405,6 +405,8 @@ pub(crate) struct AppSettings {
     pub(crate) remote_backends: Vec<RemoteBackendTarget>,
     #[serde(default, rename = "activeRemoteBackendId")]
     pub(crate) active_remote_backend_id: Option<String>,
+    #[serde(default, rename = "autoStartMobileDaemonOnLaunch")]
+    pub(crate) auto_start_mobile_daemon_on_launch: bool,
     #[serde(default, rename = "keepDaemonRunningAfterAppClose")]
     pub(crate) keep_daemon_running_after_app_close: bool,
     #[serde(default = "default_access_mode", rename = "defaultAccessMode")]
@@ -1143,6 +1145,7 @@ impl Default for AppSettings {
             remote_backend_token: None,
             remote_backends: default_remote_backends(),
             active_remote_backend_id: None,
+            auto_start_mobile_daemon_on_launch: false,
             keep_daemon_running_after_app_close: false,
             default_access_mode: "current".to_string(),
             review_delivery_mode: default_review_delivery_mode(),
@@ -1243,6 +1246,7 @@ mod tests {
         assert!(settings.remote_backend_token.is_none());
         assert!(settings.remote_backends.is_empty());
         assert!(settings.active_remote_backend_id.is_none());
+        assert!(!settings.auto_start_mobile_daemon_on_launch);
         assert!(!settings.keep_daemon_running_after_app_close);
         assert_eq!(settings.default_access_mode, "current");
         assert_eq!(settings.review_delivery_mode, "inline");

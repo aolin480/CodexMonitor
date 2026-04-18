@@ -56,6 +56,15 @@ fn keep_daemon_running_after_close(app_handle: &tauri::AppHandle) -> bool {
 }
 
 #[cfg(desktop)]
+fn should_start_tcp_daemon_on_launch(settings: &types::AppSettings) -> bool {
+    matches!(
+        settings.remote_backend_provider,
+        crate::types::RemoteBackendProvider::Tcp
+    ) && (matches!(settings.backend_mode, crate::types::BackendMode::Remote)
+        || settings.auto_start_mobile_daemon_on_launch)
+}
+
+#[cfg(desktop)]
 async fn stop_managed_daemons_for_exit(app_handle: tauri::AppHandle) {
     let state = app_handle.state::<state::AppState>();
     let _ = tailscale::tailscale_daemon_stop(state).await;
@@ -135,22 +144,21 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     let state = app_handle.state::<state::AppState>();
                     let settings = state.app_settings.lock().await.clone();
-                    if matches!(
+                    if should_start_tcp_daemon_on_launch(&settings) {
+                        // The managed start command probes the existing process and only
+                        // restarts when version or ownership checks require it.
+                        let state = app_handle.state::<state::AppState>();
+                        let _ = tailscale::tailscale_daemon_start(state).await;
+                    } else if matches!(
                         settings.remote_backend_provider,
                         crate::types::RemoteBackendProvider::Tcp
                     ) {
-                        if matches!(settings.backend_mode, crate::types::BackendMode::Remote) {
-                            // Remote mode: ensure daemon is up and version-current.
-                            let state = app_handle.state::<state::AppState>();
-                            let _ = tailscale::tailscale_daemon_start(state).await;
-                        } else {
-                            // Local mode: only enforce version if daemon is already running.
-                            let state = app_handle.state::<state::AppState>();
-                            if let Ok(status) = tailscale::tailscale_daemon_status(state).await {
-                                if matches!(status.state, crate::types::TcpDaemonState::Running) {
-                                    let state = app_handle.state::<state::AppState>();
-                                    let _ = tailscale::tailscale_daemon_start(state).await;
-                                }
+                        // Local mode without launch auto-start: only enforce version if daemon is already running.
+                        let state = app_handle.state::<state::AppState>();
+                        if let Ok(status) = tailscale::tailscale_daemon_status(state).await {
+                            if matches!(status.state, crate::types::TcpDaemonState::Running) {
+                                let state = app_handle.state::<state::AppState>();
+                                let _ = tailscale::tailscale_daemon_start(state).await;
                             }
                         }
                     }
@@ -334,4 +342,27 @@ pub fn run() {
             }
         }
     });
+}
+
+#[cfg(all(test, desktop))]
+mod tests {
+    use super::should_start_tcp_daemon_on_launch;
+    use crate::types::{AppSettings, BackendMode};
+
+    #[test]
+    fn startup_auto_start_runs_for_remote_tcp_mode() {
+        let settings = AppSettings::default();
+        assert!(!should_start_tcp_daemon_on_launch(&settings));
+
+        let mut remote_settings = settings.clone();
+        remote_settings.backend_mode = BackendMode::Remote;
+        assert!(should_start_tcp_daemon_on_launch(&remote_settings));
+    }
+
+    #[test]
+    fn startup_auto_start_runs_for_local_tcp_mode_when_enabled() {
+        let mut settings = AppSettings::default();
+        settings.auto_start_mobile_daemon_on_launch = true;
+        assert!(should_start_tcp_daemon_on_launch(&settings));
+    }
 }

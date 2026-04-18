@@ -84,6 +84,7 @@ const baseSettings: AppSettings = {
     },
   ],
   activeRemoteBackendId: "remote-default",
+  autoStartMobileDaemonOnLaunch: false,
   keepDaemonRunningAfterAppClose: false,
   defaultAccessMode: "current",
   reviewDeliveryMode: "inline",
@@ -1163,6 +1164,11 @@ describe("SettingsView Codex section", () => {
         initialSection="server"
       />,
     );
+
+    expect(
+      screen.getByText("Auto-start mobile access daemon on desktop launch"),
+    ).toBeTruthy();
+    expect(screen.getByText("Keep daemon running after app closes")).toBeTruthy();
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Start daemon" })).toBeTruthy();

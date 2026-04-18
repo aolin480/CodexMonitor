@@ -142,6 +142,7 @@ function buildDefaultSettings(): AppSettings {
     remoteBackendToken: null,
     remoteBackends: [defaultRemote],
     activeRemoteBackendId: defaultRemote.id,
+    autoStartMobileDaemonOnLaunch: false,
     keepDaemonRunningAfterAppClose: false,
     defaultAccessMode: "current",
     reviewDeliveryMode: "inline",
