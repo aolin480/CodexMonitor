@@ -15,7 +15,8 @@ use crate::shared::workspaces_core::{
 };
 use crate::storage::{read_workspaces, write_workspaces};
 use crate::types::{
-    AppSettings, WorkspaceEntry, WorkspaceInfo, WorkspaceKind, WorkspaceSettings, WorktreeInfo,
+    AppSettings, WorkspaceEntry, WorkspaceInfo, WorkspaceKind, WorkspaceSettings,
+    WorkspaceThreadColor, WorktreeInfo,
 };
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -221,6 +222,7 @@ fn update_workspace_settings_persists_sort_and_group() {
     settings.git_root = Some("/tmp".to_string());
     settings.launch_script = Some("npm run dev".to_string());
     settings.worktree_setup_script = Some("pnpm install".to_string());
+    settings.thread_color = Some(WorkspaceThreadColor::Amber);
     settings.worktrees_folder = Some(r"\\?\I:\gpt-projects\worktrees".to_string());
 
     let updated =
@@ -237,6 +239,7 @@ fn update_workspace_settings_persists_sort_and_group() {
         updated.settings.worktree_setup_script.as_deref(),
         Some("pnpm install"),
     );
+    assert_eq!(updated.settings.thread_color, Some(WorkspaceThreadColor::Amber));
     assert_eq!(
         updated.settings.worktrees_folder.as_deref(),
         Some(r"\\?\I:\gpt-projects\worktrees"),
@@ -258,6 +261,7 @@ fn update_workspace_settings_persists_sort_and_group() {
         stored.settings.launch_script.as_deref(),
         Some("npm run dev")
     );
+    assert_eq!(stored.settings.thread_color, Some(WorkspaceThreadColor::Amber));
     assert_eq!(
         stored.settings.worktree_setup_script.as_deref(),
         Some("pnpm install"),

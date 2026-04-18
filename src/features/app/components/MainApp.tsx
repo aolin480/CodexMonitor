@@ -1845,10 +1845,7 @@ export default function MainApp() {
       splitChatDiffView: appSettings.splitChatDiffView,
       hasActivePlan: hasActivePlan,
       activeWorkspace: Boolean(activeWorkspace),
-      activeWorkspaceThreadColor:
-        activeThreadId && activeWorkspace
-          ? activeWorkspace.settings.threadColor ?? null
-          : null,
+      activeWorkspaceThreadColor: activeWorkspace?.settings.threadColor ?? null,
       sidebarNode,
       messagesNode: mainMessagesNode,
       composerNode,

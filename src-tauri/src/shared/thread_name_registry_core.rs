@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tokio::fs;
@@ -237,9 +238,36 @@ pub(crate) async fn apply_thread_name_overlays(
     Ok(())
 }
 
+pub(crate) async fn with_thread_name_overlays<Fut>(
+    data_dir: &Path,
+    workspace_id: &str,
+    operation: Fut,
+) -> Result<Value, String>
+where
+    Fut: Future<Output = Result<Value, String>>,
+{
+    let mut response = operation.await?;
+    apply_thread_name_overlays(data_dir, workspace_id, &mut response).await?;
+    Ok(response)
+}
+
+pub(crate) async fn save_thread_name_and_apply_overlays(
+    data_dir: &Path,
+    workspace_id: &str,
+    thread_id: &str,
+    name: &str,
+    response: &mut Value,
+) -> Result<(), String> {
+    save_thread_name(data_dir, workspace_id, thread_id, name).await?;
+    apply_thread_name_overlays(data_dir, workspace_id, response).await
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{apply_thread_name_overlays, read_registry, save_thread_name};
+    use super::{
+        apply_thread_name_overlays, read_registry, save_thread_name,
+        save_thread_name_and_apply_overlays, with_thread_name_overlays,
+    };
     use serde_json::{json, Value};
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -466,6 +494,73 @@ mod tests {
             assert_eq!(migrated_file["ws-1"]["thread-1"], Value::String("Legacy Name".into()));
             assert_eq!(migrated_file["ws-2"]["thread-2"], Value::String("Other Name".into()));
             assert_eq!(migrated_file["ws-3"]["thread-3"], Value::String("New Name".into()));
+
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
+    fn helper_applies_thread_name_overlays() {
+        run_async_test(async {
+            let data_dir = temp_dir("thread-name-registry");
+            save_thread_name(&data_dir, "ws-1", "thread-1", "Shared Name")
+                .await
+                .expect("save name");
+
+            let response = with_thread_name_overlays(&data_dir, "ws-1", async {
+                Ok(json!({
+                    "result": {
+                        "thread": {
+                            "id": "thread-1",
+                            "name": "Server Name"
+                        }
+                    }
+                }))
+            })
+            .await
+            .expect("overlay response");
+
+            assert_eq!(
+                response["result"]["thread"]["name"],
+                Value::String("Shared Name".to_string())
+            );
+
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
+    fn helper_saves_thread_name_before_overlaying() {
+        run_async_test(async {
+            let data_dir = temp_dir("thread-name-registry");
+            let mut response = json!({
+                "thread": {
+                    "id": "thread-1",
+                    "name": "Server Name"
+                }
+            });
+
+            save_thread_name_and_apply_overlays(
+                &data_dir,
+                "ws-1",
+                "thread-1",
+                "Saved Name",
+                &mut response,
+            )
+            .await
+            .expect("save and overlay response");
+
+            let registry = read_registry(&data_dir).await.expect("read registry");
+            assert_eq!(
+                registry
+                    .get("ws-1")
+                    .and_then(|threads| threads.get("thread-1")),
+                Some(&"Saved Name".to_string())
+            );
+            assert_eq!(
+                response["thread"]["name"],
+                Value::String("Saved Name".to_string())
+            );
 
             let _ = std::fs::remove_dir_all(data_dir);
         });

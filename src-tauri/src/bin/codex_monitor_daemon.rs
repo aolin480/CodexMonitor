@@ -689,27 +689,21 @@ impl DaemonState {
         workspace_id: String,
         thread_id: String,
     ) -> Result<Value, String> {
-        let mut response =
-            codex_core::resume_thread_core(&self.sessions, workspace_id.clone(), thread_id).await?;
-        thread_name_registry_core::apply_thread_name_overlays(
+        thread_name_registry_core::with_thread_name_overlays(
             &self.data_dir,
             &workspace_id,
-            &mut response,
+            codex_core::resume_thread_core(&self.sessions, workspace_id.clone(), thread_id),
         )
-        .await?;
-        Ok(response)
+        .await
     }
 
     async fn read_thread(&self, workspace_id: String, thread_id: String) -> Result<Value, String> {
-        let mut response =
-            codex_core::read_thread_core(&self.sessions, workspace_id.clone(), thread_id).await?;
-        thread_name_registry_core::apply_thread_name_overlays(
+        thread_name_registry_core::with_thread_name_overlays(
             &self.data_dir,
             &workspace_id,
-            &mut response,
+            codex_core::read_thread_core(&self.sessions, workspace_id.clone(), thread_id),
         )
-        .await?;
-        Ok(response)
+        .await
     }
 
     async fn thread_live_subscribe(
@@ -777,21 +771,18 @@ impl DaemonState {
         limit: Option<u32>,
         sort_key: Option<String>,
     ) -> Result<Value, String> {
-        let mut response = codex_core::list_threads_core(
-            &self.sessions,
-            workspace_id.clone(),
-            cursor,
-            limit,
-            sort_key,
-        )
-        .await?;
-        thread_name_registry_core::apply_thread_name_overlays(
+        thread_name_registry_core::with_thread_name_overlays(
             &self.data_dir,
             &workspace_id,
-            &mut response,
+            codex_core::list_threads_core(
+                &self.sessions,
+                workspace_id.clone(),
+                cursor,
+                limit,
+                sort_key,
+            ),
         )
-        .await?;
-        Ok(response)
+        .await
     }
 
     async fn list_mcp_server_status(
@@ -832,16 +823,11 @@ impl DaemonState {
             name.clone(),
         )
         .await?;
-        thread_name_registry_core::save_thread_name(
+        thread_name_registry_core::save_thread_name_and_apply_overlays(
             &self.data_dir,
             &workspace_id,
             &thread_id,
             &name,
-        )
-        .await?;
-        thread_name_registry_core::apply_thread_name_overlays(
-            &self.data_dir,
-            &workspace_id,
             &mut response,
         )
         .await?;

@@ -115,15 +115,12 @@ pub(crate) async fn resume_thread(
         .await;
     }
 
-    let mut response =
-        codex_core::resume_thread_core(&state.sessions, workspace_id.clone(), thread_id).await?;
-    thread_name_registry_core::apply_thread_name_overlays(
+    thread_name_registry_core::with_thread_name_overlays(
         app_data_dir(&state)?,
         &workspace_id,
-        &mut response,
+        codex_core::resume_thread_core(&state.sessions, workspace_id.clone(), thread_id),
     )
-    .await?;
-    Ok(response)
+    .await
 }
 
 #[tauri::command]
@@ -143,15 +140,12 @@ pub(crate) async fn read_thread(
         .await;
     }
 
-    let mut response =
-        codex_core::read_thread_core(&state.sessions, workspace_id.clone(), thread_id).await?;
-    thread_name_registry_core::apply_thread_name_overlays(
+    thread_name_registry_core::with_thread_name_overlays(
         app_data_dir(&state)?,
         &workspace_id,
-        &mut response,
+        codex_core::read_thread_core(&state.sessions, workspace_id.clone(), thread_id),
     )
-    .await?;
-    Ok(response)
+    .await
 }
 
 #[tauri::command]
@@ -274,21 +268,18 @@ pub(crate) async fn list_threads(
         .await;
     }
 
-    let mut response = codex_core::list_threads_core(
-        &state.sessions,
-        workspace_id.clone(),
-        cursor,
-        limit,
-        sort_key,
-    )
-    .await?;
-    thread_name_registry_core::apply_thread_name_overlays(
+    thread_name_registry_core::with_thread_name_overlays(
         app_data_dir(&state)?,
         &workspace_id,
-        &mut response,
+        codex_core::list_threads_core(
+            &state.sessions,
+            workspace_id.clone(),
+            cursor,
+            limit,
+            sort_key,
+        ),
     )
-    .await?;
-    Ok(response)
+    .await
 }
 
 #[tauri::command]
@@ -377,16 +368,11 @@ pub(crate) async fn set_thread_name(
         name.clone(),
     )
     .await?;
-    thread_name_registry_core::save_thread_name(
+    thread_name_registry_core::save_thread_name_and_apply_overlays(
         app_data_dir(&state)?,
         &workspace_id,
         &thread_id,
         &name,
-    )
-    .await?;
-    thread_name_registry_core::apply_thread_name_overlays(
-        app_data_dir(&state)?,
-        &workspace_id,
         &mut response,
     )
     .await?;
