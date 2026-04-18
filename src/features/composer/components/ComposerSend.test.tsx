@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isMobilePlatform } from "../../../utils/platformPaths";
@@ -41,6 +41,8 @@ type HarnessProps = {
   followUpMessageBehavior?: FollowUpMessageBehavior;
   steerAvailable?: boolean;
   selectedServiceTier?: "fast" | "flex" | null;
+  processingStartedAt?: number | null;
+  lastDurationMs?: number | null;
 };
 
 function ComposerHarness({
@@ -50,6 +52,8 @@ function ComposerHarness({
   followUpMessageBehavior = "queue",
   steerAvailable = false,
   selectedServiceTier = null,
+  processingStartedAt = null,
+  lastDurationMs = null,
 }: HarnessProps) {
   const [draftText, setDraftText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -81,6 +85,8 @@ function ComposerHarness({
       apps={apps}
       prompts={[]}
       files={[]}
+      processingStartedAt={processingStartedAt}
+      lastDurationMs={lastDurationMs}
       draftText={draftText}
       onDraftChange={setDraftText}
       textareaRef={textareaRef}
@@ -279,5 +285,163 @@ describe("Composer send triggers", () => {
     fireEvent.keyDown(textarea, { key: "Tab" });
 
     expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("shows a live elapsed timer while processing", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-17T12:00:00.000Z"));
+
+    render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        isProcessing={true}
+        processingStartedAt={Date.now() - 850}
+      />,
+    );
+
+    expect(screen.getByText("Live")).toBeTruthy();
+    expect(screen.getByText("850ms")).toBeTruthy();
+    expect(screen.getByRole("timer")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Current turn elapsed time 850ms").getAttribute("title"),
+    ).toBe("Current turn elapsed time: 850ms");
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.getByText("1.1s")).toBeTruthy();
+  });
+
+  it("shows the last completed duration when idle", () => {
+    render(<ComposerHarness onSend={vi.fn()} lastDurationMs={4_250} />);
+
+    expect(screen.getByText("Last")).toBeTruthy();
+    expect(screen.getByText("4.3s")).toBeTruthy();
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(
+      screen.getByLabelText("Last turn duration 4.3s").getAttribute("title"),
+    ).toBe("Last turn completed in 4.3s");
+  });
+
+  it("treats a zero processing timestamp as a valid timer start", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("1970-01-01T00:00:00.500Z"));
+
+    render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        isProcessing={true}
+        processingStartedAt={0}
+      />,
+    );
+
+    expect(screen.getByText("Live")).toBeTruthy();
+    expect(screen.getByText("500ms")).toBeTruthy();
+  });
+
+  it("hides the duration badge when no timing is available", () => {
+    render(<ComposerHarness onSend={vi.fn()} />);
+
+    expect(screen.queryByText("Live")).toBeNull();
+    expect(screen.queryByText("Last")).toBeNull();
+  });
+
+  it("does not show a live badge before processing has a start time", () => {
+    render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        isProcessing={true}
+        processingStartedAt={null}
+      />,
+    );
+
+    expect(screen.queryByText("Live")).toBeNull();
+    expect(screen.queryByLabelText(/Current turn elapsed time/i)).toBeNull();
+  });
+
+  it("switches from live elapsed time to the last completed duration", () => {
+    const { rerender } = render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        isProcessing={true}
+        processingStartedAt={Date.now() - 1_200}
+      />,
+    );
+
+    expect(screen.getByLabelText("Current turn elapsed time 1.2s")).toBeTruthy();
+
+    rerender(<ComposerHarness onSend={vi.fn()} lastDurationMs={4_250} />);
+
+    expect(screen.getByLabelText("Last turn duration 4.3s")).toBeTruthy();
+    expect(screen.queryByText("Live")).toBeNull();
+  });
+
+  it("stops live timer updates after the composer rerenders idle", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-17T12:00:00.000Z"));
+
+    const { rerender } = render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        isProcessing={true}
+        processingStartedAt={Date.now() - 900}
+      />,
+    );
+
+    expect(screen.getByText("900ms")).toBeTruthy();
+
+    rerender(<ComposerHarness onSend={vi.fn()} lastDurationMs={2_500} />);
+
+    act(() => {
+      vi.advanceTimersByTime(2_000);
+    });
+
+    expect(screen.getByText("2.5s")).toBeTruthy();
+    expect(screen.queryByText("2.7s")).toBeNull();
+  });
+
+  it("pauses live timer updates while the document is hidden", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-17T12:00:00.000Z"));
+
+    render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        isProcessing={true}
+        processingStartedAt={Date.now() - 900}
+      />,
+    );
+
+    const getBadgeText = () =>
+      screen.getByLabelText(/Current turn elapsed time/i).textContent;
+
+    expect(getBadgeText()).toContain("900ms");
+
+    act(() => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "hidden",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    const hiddenBadgeText = getBadgeText();
+
+    act(() => {
+      vi.advanceTimersByTime(1_500);
+    });
+
+    expect(getBadgeText()).toBe(hiddenBadgeText);
+
+    act(() => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "visible",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(screen.getByText("2.4s")).toBeTruthy();
   });
 });

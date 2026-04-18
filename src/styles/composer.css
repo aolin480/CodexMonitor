@@ -702,16 +702,62 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .composer-context {
   margin-left: auto;
-  display: grid;
-  grid-template-columns: auto;
+  display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: fit-content;
+  max-width: 100%;
+  flex: 0 1 auto;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.composer-duration-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: 6px;
+  min-height: 20px;
+  max-width: min(100%, 128px);
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--cm-border-elevated);
+  background: color-mix(in srgb, var(--cm-surface-panel-elevated) 88%, transparent);
+  color: var(--text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.composer-duration-badge.is-live {
+  color: var(--text-strong);
+  border-color: color-mix(in srgb, var(--message-link-color) 38%, var(--cm-border-elevated));
+  background: color-mix(in srgb, var(--message-link-color) 10%, var(--cm-surface-panel-elevated));
+}
+
+.composer-duration-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-fainter);
+}
+
+.composer-duration-badge.is-live .composer-duration-label {
+  color: color-mix(in srgb, var(--message-link-color) 72%, white);
+}
+
+.composer-duration-value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .composer-context-ring {
@@ -1019,6 +1065,12 @@
   }
 
   .app.layout-phone .composer-context {
+    display: inline-flex;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .app.layout-phone .composer-context-ring {
     display: none;
   }
 
@@ -1033,5 +1085,20 @@
 
   .app.layout-phone .composer-select {
     font-size: 12px;
+  }
+
+  .app.layout-phone .composer-duration-badge {
+    min-width: 0;
+    max-width: min(100%, 96px);
+    padding: 0 6px;
+    gap: 4px;
+  }
+
+  .app.layout-phone .composer-duration-label {
+    display: none;
+  }
+
+  .app.layout-phone .composer-duration-value {
+    font-size: 10px;
   }
 }

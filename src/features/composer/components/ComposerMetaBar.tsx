@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { memo, useEffect, useState, type CSSProperties } from "react";
 import { BrainCog, SlidersHorizontal, Zap } from "lucide-react";
 import type { AccessMode, ServiceTier, ThreadTokenUsage } from "../../../types";
 import type { CodexArgsOption } from "../../threads/utils/codexArgsProfiles";
@@ -22,7 +22,140 @@ type ComposerMetaBarProps = {
   selectedCodexArgsOverride?: string | null;
   onSelectCodexArgsOverride?: (value: string | null) => void;
   contextUsage?: ThreadTokenUsage | null;
+  durationBadge?: {
+    isProcessing: boolean;
+    processingStartedAt?: number | null;
+    lastDurationMs?: number | null;
+  };
 };
+
+function formatComposerDuration(durationMs: number) {
+  if (durationMs < 1000) {
+    return `${Math.max(0, Math.round(durationMs))}ms`;
+  }
+  if (durationMs < 10_000) {
+    return `${(durationMs / 1000).toFixed(1)}s`;
+  }
+  return `${Math.max(1, Math.round(durationMs / 1000))}s`;
+}
+
+function getComposerDurationTickDelay(elapsedMs: number) {
+  if (elapsedMs < 1000) {
+    return 200;
+  }
+  if (elapsedMs < 10_000) {
+    return 250;
+  }
+  return 1000;
+}
+
+const ComposerDurationBadge = memo(function ComposerDurationBadge({
+  isProcessing,
+  processingStartedAt = null,
+  lastDurationMs = null,
+}: NonNullable<ComposerMetaBarProps["durationBadge"]>) {
+  const getLiveElapsedMs = () =>
+    isProcessing && processingStartedAt != null
+      ? Math.max(0, Date.now() - processingStartedAt)
+      : 0;
+  const [currentElapsedMs, setCurrentElapsedMs] = useState(getLiveElapsedMs);
+  const [isDocumentVisible, setIsDocumentVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState !== "hidden",
+  );
+
+  useEffect(() => {
+    setCurrentElapsedMs(getLiveElapsedMs());
+  }, [isProcessing, processingStartedAt]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      const nextVisible = document.visibilityState !== "hidden";
+      setIsDocumentVisible(nextVisible);
+      if (nextVisible && isProcessing && processingStartedAt != null) {
+        setCurrentElapsedMs(Math.max(0, Date.now() - processingStartedAt));
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isProcessing || processingStartedAt == null) {
+      setCurrentElapsedMs(0);
+      return;
+    }
+
+    if (!isDocumentVisible) {
+      setCurrentElapsedMs(Math.max(0, Date.now() - processingStartedAt));
+      return;
+    }
+
+    let isCancelled = false;
+    let timeoutId: number | null = null;
+
+    const scheduleNextTick = () => {
+      if (isCancelled) {
+        return;
+      }
+      const elapsedMs = Math.max(0, Date.now() - processingStartedAt);
+      setCurrentElapsedMs(elapsedMs);
+      const nextDelay = getComposerDurationTickDelay(elapsedMs);
+      timeoutId = window.setTimeout(() => {
+        if (!isCancelled) {
+          scheduleNextTick();
+        }
+      }, nextDelay);
+    };
+
+    scheduleNextTick();
+
+    return () => {
+      isCancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [isDocumentVisible, isProcessing, processingStartedAt]);
+
+  const visibleDurationMs = isProcessing
+    ? processingStartedAt != null
+      ? currentElapsedMs
+      : null
+    : lastDurationMs;
+
+  if (visibleDurationMs == null) {
+    return null;
+  }
+
+  const durationLabel = formatComposerDuration(visibleDurationMs);
+  const durationTitle = isProcessing
+    ? `Current turn elapsed time: ${durationLabel}`
+    : `Last turn completed in ${durationLabel}`;
+  const durationAriaLabel = isProcessing
+    ? `Current turn elapsed time ${durationLabel}`
+    : `Last turn duration ${durationLabel}`;
+  const durationStatusLabel = isProcessing ? "Live" : "Last";
+
+  return (
+    <div
+      className={`composer-duration-badge${isProcessing ? " is-live" : ""}`}
+      role={isProcessing ? "timer" : "status"}
+      aria-label={durationAriaLabel}
+      aria-atomic="true"
+      title={durationTitle}
+    >
+      <span className="composer-duration-label">{durationStatusLabel}</span>
+      <span className="composer-duration-value">{durationLabel}</span>
+    </div>
+  );
+});
 
 export function ComposerMetaBar({
   disabled,
@@ -43,6 +176,7 @@ export function ComposerMetaBar({
   selectedCodexArgsOverride = null,
   onSelectCodexArgsOverride,
   contextUsage = null,
+  durationBadge = undefined,
 }: ComposerMetaBarProps) {
   const selectedModel =
     models.find((model) => model.id === selectedModelId) ?? null;
@@ -273,6 +407,7 @@ export function ComposerMetaBar({
         </div>
       </div>
       <div className="composer-context">
+        {durationBadge ? <ComposerDurationBadge {...durationBadge} /> : null}
         <div
           className="composer-context-ring"
           data-tooltip={

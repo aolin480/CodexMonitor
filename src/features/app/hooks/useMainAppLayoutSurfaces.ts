@@ -518,6 +518,12 @@ function buildPrimarySurface({
           onSelectCodexArgsOverride,
           accessMode,
           onSelectAccessMode,
+          processingStartedAt: activeThreadId
+            ? threadStatusById[activeThreadId]?.processingStartedAt ?? null
+            : null,
+          lastDurationMs: activeThreadId
+            ? threadStatusById[activeThreadId]?.lastDurationMs ?? null
+            : null,
           skills,
           appsEnabled: appSettings.experimentalAppsEnabled,
           apps,

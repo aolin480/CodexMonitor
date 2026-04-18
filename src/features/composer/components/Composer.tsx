@@ -81,6 +81,8 @@ type ComposerProps = {
   prompts: CustomPromptOption[];
   files: string[];
   contextUsage?: ThreadTokenUsage | null;
+  processingStartedAt?: number | null;
+  lastDurationMs?: number | null;
   queuedMessages?: QueuedMessage[];
   queuePausedReason?: string | null;
   onEditQueued?: (item: QueuedMessage) => void;
@@ -190,6 +192,8 @@ export const Composer = memo(function Composer({
   prompts,
   files,
   contextUsage = null,
+  processingStartedAt = null,
+  lastDurationMs = null,
   queuedMessages = [],
   queuePausedReason = null,
   onEditQueued,
@@ -254,6 +258,10 @@ export const Composer = memo(function Composer({
   const canSend = text.trim().length > 0 || attachedImages.length > 0;
   const isMac = isMacPlatform();
   const followUpShortcutLabel = isMac ? "Shift+Cmd+Enter" : "Shift+Ctrl+Enter";
+  // Active turn timing takes precedence over the last completed duration.
+  const showDurationBadge = isProcessing
+    ? processingStartedAt != null
+    : lastDurationMs != null;
   const effectiveFollowUpBehavior: FollowUpMessageBehavior =
     followUpMessageBehavior === "steer" && steerAvailable ? "steer" : "queue";
   const oppositeFollowUpIntent: ComposerSendIntent =
@@ -693,6 +701,15 @@ export const Composer = memo(function Composer({
         accessMode={accessMode}
         onSelectAccessMode={onSelectAccessMode}
         contextUsage={contextUsage}
+        durationBadge={
+          showDurationBadge
+            ? {
+                isProcessing,
+                processingStartedAt,
+                lastDurationMs,
+              }
+            : undefined
+        }
       />
     </footer>
   );
