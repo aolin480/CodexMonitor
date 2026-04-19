@@ -57,6 +57,22 @@ describe("useAppSettings", () => {
     expect(result.current.settings.remoteBackendHost).toBe("example:1234");
   });
 
+  it("forces steer availability on load even when persisted settings disable it", async () => {
+    getAppSettingsMock.mockResolvedValue(
+      ({
+        steerEnabled: false,
+        followUpMessageBehavior: "queue",
+      } as unknown) as AppSettings,
+    );
+
+    const { result } = renderHook(() => useAppSettings());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.settings.steerEnabled).toBe(true);
+    expect(result.current.settings.followUpMessageBehavior).toBe("queue");
+  });
+
   it("keeps defaults when getAppSettings fails", async () => {
     getAppSettingsMock.mockRejectedValue(new Error("boom"));
 

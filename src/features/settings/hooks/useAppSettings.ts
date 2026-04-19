@@ -260,13 +260,14 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     personality: allowedPersonality.has(settings.personality)
       ? settings.personality
       : "friendly",
+    // Upstream Codex keeps the steer flag only for backward-compatible config parsing.
+    // CodexMonitor should not disable same-turn steering based on a stale local flag.
+    steerEnabled: true,
     followUpMessageBehavior: allowedFollowUpMessageBehavior.has(
       settings.followUpMessageBehavior,
     )
       ? settings.followUpMessageBehavior
-      : settings.steerEnabled
-        ? "steer"
-        : "queue",
+      : "queue",
     composerFollowUpHintEnabled:
       typeof settings.composerFollowUpHintEnabled === "boolean"
         ? settings.composerFollowUpHintEnabled
