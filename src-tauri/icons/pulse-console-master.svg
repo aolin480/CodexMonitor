@@ -1,0 +1,33 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tile-fill" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1B1D22"/>
+      <stop offset="1" stop-color="#111215"/>
+    </linearGradient>
+    <linearGradient id="tile-highlight" x1="512" y1="0" x2="512" y2="424" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="white" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#tile-fill)"/>
+  <rect width="1024" height="1024" rx="228" fill="url(#tile-highlight)"/>
+  <rect x="6" y="6" width="1012" height="1012" rx="222" stroke="white" stroke-opacity="0.06" stroke-width="4"/>
+
+  <rect x="171" y="259" width="682" height="506" rx="63" fill="#14171C"/>
+  <rect x="150" y="238" width="724" height="548" rx="84" stroke="#F5F7FA" stroke-width="42"/>
+
+  <rect x="260" y="353" width="96" height="318" rx="18" fill="#F5F7FA"/>
+
+  <rect x="466" y="497" width="250" height="30" rx="15" fill="#34D399" fill-opacity="0.18"/>
+
+  <path
+    d="M503 468L565 512L503 556"
+    stroke="#F5F7FA"
+    stroke-width="34"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <rect x="595" y="496" width="122" height="32" rx="16" fill="#34D399"/>
+</svg>
