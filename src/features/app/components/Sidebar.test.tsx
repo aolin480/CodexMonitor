@@ -882,4 +882,64 @@ describe("Sidebar", () => {
     const indicator = screen.queryByTitle("Streaming updates in progress");
     expect(indicator).toBeNull();
   });
+
+  it("applies the assigned conversation color to workspace and worktree cards", () => {
+    const { container } = render(
+      <Sidebar
+        {...baseProps}
+        workspaces={[
+          {
+            id: "ws-1",
+            name: "Workspace",
+            path: "/tmp/workspace",
+            connected: true,
+            settings: { sidebarCollapsed: false, threadColor: "amber" },
+          },
+          {
+            id: "ws-2",
+            name: "Worktree",
+            path: "/tmp/worktree",
+            connected: true,
+            worktree: { branch: "feature/mobile-colors", head: "abc123" },
+            parentId: "ws-1",
+            kind: "worktree",
+            settings: { sidebarCollapsed: false, threadColor: "blue" },
+          } as never,
+        ]}
+        groupedWorkspaces={[
+          {
+            id: null,
+            name: "Workspaces",
+            workspaces: [
+              {
+                id: "ws-1",
+                name: "Workspace",
+                path: "/tmp/workspace",
+                connected: true,
+                settings: { sidebarCollapsed: false, threadColor: "amber" },
+              },
+              {
+                id: "ws-2",
+                name: "Worktree",
+                path: "/tmp/worktree",
+                connected: true,
+                worktree: { branch: "feature/mobile-colors", head: "abc123" },
+                parentId: "ws-1",
+                kind: "worktree",
+                settings: { sidebarCollapsed: false, threadColor: "blue" },
+              } as never,
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const workspaceRow = container.querySelector(".workspace-row");
+    expect(workspaceRow?.getAttribute("data-workspace-thread-color")).toBe("amber");
+    expect(workspaceRow?.getAttribute("style")).toContain("--workspace-thread-tint-rgb: 245 158 11");
+
+    const worktreeRow = container.querySelector(".worktree-row");
+    expect(worktreeRow?.getAttribute("data-workspace-thread-color")).toBe("blue");
+    expect(worktreeRow?.getAttribute("style")).toContain("--workspace-thread-tint-rgb: 96 165 250");
+  });
 });

@@ -302,8 +302,12 @@ pub(crate) enum WorkspaceThreadColor {
     Slate,
     Blue,
     Green,
+    Teal,
+    Cyan,
     Amber,
+    Orange,
     Rose,
+    Violet,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1430,5 +1434,18 @@ mod tests {
         assert!(settings.sort_order.is_none());
         assert!(settings.group_id.is_none());
         assert!(settings.git_root.is_none());
+    }
+
+    #[test]
+    fn workspace_settings_round_trip_preserves_new_thread_colors() {
+        let settings: WorkspaceSettings = serde_json::from_str(
+            r#"{"sidebarCollapsed":false,"threadColor":"violet"}"#,
+        )
+        .expect("workspace settings deserialize");
+
+        assert_eq!(settings.thread_color, Some(WorkspaceThreadColor::Violet));
+
+        let json = serde_json::to_string(&settings).expect("workspace settings serialize");
+        assert!(json.contains(r#""threadColor":"violet""#));
     }
 }

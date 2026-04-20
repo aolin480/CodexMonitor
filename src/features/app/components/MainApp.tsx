@@ -1571,6 +1571,11 @@ export default function MainApp() {
           onAgentMdSave: () => {
             void saveAgentMd();
           },
+          onUpdateThreadColor: async (color) => {
+            await updateWorkspaceSettings(activeWorkspace.id, {
+              threadColor: color,
+            });
+          },
         }
       : null,
   });

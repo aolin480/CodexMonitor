@@ -10,8 +10,12 @@ export const WORKSPACE_THREAD_COLOR_OPTIONS: WorkspaceThreadColorOption[] = [
   { value: "slate", label: "Slate", rgb: "148 163 184" },
   { value: "blue", label: "Blue", rgb: "96 165 250" },
   { value: "green", label: "Green", rgb: "74 222 128" },
+  { value: "teal", label: "Teal", rgb: "45 212 191" },
+  { value: "cyan", label: "Cyan", rgb: "34 211 238" },
   { value: "amber", label: "Amber", rgb: "245 158 11" },
+  { value: "orange", label: "Orange", rgb: "251 146 60" },
   { value: "rose", label: "Rose", rgb: "251 113 133" },
+  { value: "violet", label: "Violet", rgb: "167 139 250" },
 ];
 
 export function getWorkspaceThreadColorOption(

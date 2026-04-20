@@ -1,4 +1,13 @@
-export type WorkspaceThreadColor = "slate" | "blue" | "green" | "amber" | "rose";
+export type WorkspaceThreadColor =
+  | "slate"
+  | "blue"
+  | "green"
+  | "teal"
+  | "cyan"
+  | "amber"
+  | "orange"
+  | "rose"
+  | "violet";
 
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;

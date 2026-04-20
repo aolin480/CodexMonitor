@@ -18,6 +18,35 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 16px 36px rgba(0, 0, 0, 0.16);
+}
+
+.workspace-home-hero[data-workspace-thread-color] {
+  background:
+    radial-gradient(
+      120% 120% at 50% 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.18) 0%,
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-tint-rgb) / 0.12) 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.06) 100%
+    ),
+    var(--surface-card);
+  border-color: rgb(var(--workspace-thread-tint-rgb) / 0.36);
+  box-shadow:
+    0 0 0 1px rgb(var(--workspace-thread-tint-rgb) / 0.12),
+    0 18px 40px rgb(var(--workspace-thread-tint-rgb) / 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .workspace-home-icon {
@@ -67,6 +96,127 @@
 .workspace-home-git-banner-actions button {
   padding: 8px 12px;
   font-size: 12px;
+}
+
+.workspace-home-color-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
+    var(--surface-card);
+  border: 1px solid var(--border-subtle);
+}
+
+.workspace-home-color-header {
+  align-items: flex-start;
+}
+
+.workspace-home-color-description {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.workspace-home-color-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 10px;
+}
+
+.workspace-home-color-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border-muted) 92%, transparent);
+  background: var(--surface-item);
+  color: var(--text-strong);
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.workspace-home-color-option:hover:not(:disabled) {
+  border-color: rgb(var(--workspace-home-color-rgb) / 0.42);
+  background: color-mix(
+    in srgb,
+    rgb(var(--workspace-home-color-rgb) / 0.1) 56%,
+    var(--surface-item)
+  );
+  transform: translateY(-1px);
+}
+
+.workspace-home-color-option:disabled {
+  cursor: progress;
+}
+
+.workspace-home-color-option.is-selected {
+  border-color: rgb(var(--workspace-home-color-rgb) / 0.5);
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-home-color-rgb) / 0.14) 0%,
+      rgb(var(--workspace-home-color-rgb) / 0.08) 100%
+    ),
+    var(--surface-item);
+  box-shadow: 0 0 0 1px rgb(var(--workspace-home-color-rgb) / 0.2);
+}
+
+.workspace-home-color-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  border: 1px solid rgb(var(--workspace-home-color-rgb) / 0.46);
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-home-color-rgb) / 0.94) 0%,
+      rgb(var(--workspace-home-color-rgb) / 0.58) 100%
+    );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.workspace-home-color-option-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workspace-home-color-option-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.workspace-home-color-option-state {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.workspace-home-color-clear {
+  min-width: 76px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.workspace-home-color-clear.is-selected {
+  border-color: var(--border-muted);
+  background: var(--surface-item);
+  color: var(--text-muted);
 }
 
 .workspace-home-composer {
@@ -402,6 +552,21 @@
   font-size: 12px;
   color: var(--text-faint);
   white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .workspace-home-color-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .workspace-home-color-clear {
+    align-self: flex-start;
+  }
+
+  .workspace-home-color-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .workspace-home-instance-list {

@@ -15,6 +15,7 @@ import type {
   ModelOption,
   SkillOption,
   WorkspaceInfo,
+  WorkspaceThreadColor,
 } from "../../../types";
 import { ComposerInput } from "../../composer/components/ComposerInput";
 import { useComposerImages } from "../../composer/hooks/useComposerImages";
@@ -34,6 +35,10 @@ import { WorkspaceHomeGitInitBanner } from "./WorkspaceHomeGitInitBanner";
 import { buildIconPath } from "./workspaceHomeHelpers";
 import { useWorkspaceHomeSuggestionsStyle } from "../hooks/useWorkspaceHomeSuggestionsStyle";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
+import {
+  getWorkspaceThreadColorOption,
+  WORKSPACE_THREAD_COLOR_OPTIONS,
+} from "../utils/workspaceThreadColors";
 
 type WorkspaceHomeProps = {
   workspace: WorkspaceInfo;
@@ -96,6 +101,7 @@ type WorkspaceHomeProps = {
   onAgentMdChange: (value: string) => void;
   onAgentMdRefresh: () => void;
   onAgentMdSave: () => void;
+  onUpdateThreadColor: (color: WorkspaceThreadColor | null) => Promise<void>;
 };
 
 export function WorkspaceHome({
@@ -159,9 +165,15 @@ export function WorkspaceHome({
   onAgentMdChange,
   onAgentMdRefresh,
   onAgentMdSave,
+  onUpdateThreadColor,
 }: WorkspaceHomeProps) {
   const [showIcon, setShowIcon] = useState(true);
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
+  const [threadColorSaving, setThreadColorSaving] = useState(false);
+  const [threadColorError, setThreadColorError] = useState<string | null>(null);
+  const [optimisticThreadColor, setOptimisticThreadColor] = useState<
+    WorkspaceThreadColor | null | undefined
+  >(undefined);
   const iconPath = useMemo(() => buildIconPath(workspace.path), [workspace.path]);
   const iconSrc = useMemo(() => convertFileSrc(iconPath), [iconPath]);
   const fallbackTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -240,6 +252,16 @@ export function WorkspaceHome({
   useEffect(() => {
     setShowIcon(true);
   }, [workspace.id]);
+
+  useEffect(() => {
+    setThreadColorSaving(false);
+    setThreadColorError(null);
+    setOptimisticThreadColor(undefined);
+  }, [workspace.id]);
+
+  useEffect(() => {
+    setOptimisticThreadColor(undefined);
+  }, [workspace.settings.threadColor]);
 
   useEffect(() => {
     if (!dictationTranscript) {
@@ -346,10 +368,42 @@ export function WorkspaceHome({
   const agentMdSaveLabel = agentMdExists ? "Save" : "Create";
   const agentMdSaveDisabled = agentMdLoading || agentMdSaving || !agentMdDirty;
   const agentMdRefreshDisabled = agentMdLoading || agentMdSaving;
+  const persistedThreadColor = workspace.settings.threadColor ?? null;
+  const currentThreadColor =
+    optimisticThreadColor !== undefined ? optimisticThreadColor : persistedThreadColor;
+  const currentThreadColorOption = getWorkspaceThreadColorOption(currentThreadColor);
+  const workspaceHeroStyle = currentThreadColorOption
+    ? {
+        ["--workspace-thread-tint-rgb" as string]: currentThreadColorOption.rgb,
+      }
+    : undefined;
+
+  const handleThreadColorSelect = async (color: WorkspaceThreadColor | null) => {
+    if (threadColorSaving || currentThreadColor === color) {
+      return;
+    }
+
+    setThreadColorSaving(true);
+    setThreadColorError(null);
+    setOptimisticThreadColor(color);
+
+    try {
+      await onUpdateThreadColor(color);
+    } catch (error) {
+      setOptimisticThreadColor(undefined);
+      setThreadColorError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setThreadColorSaving(false);
+    }
+  };
 
   return (
     <div className="workspace-home">
-      <div className="workspace-home-hero">
+      <div
+        className="workspace-home-hero"
+        style={workspaceHeroStyle}
+        data-workspace-thread-color={currentThreadColor ?? undefined}
+      >
         {showIcon && (
           <img
             className="workspace-home-icon"
@@ -370,6 +424,58 @@ export function WorkspaceHome({
           onInitGitRepo={onInitGitRepo}
         />
       )}
+
+      <div className="workspace-home-color-card">
+        <div className="workspace-home-section-header workspace-home-color-header">
+          <div>
+            <div className="workspace-home-section-title">Conversation color</div>
+            <div className="workspace-home-color-description">
+              Tint this workspace&apos;s thread view on desktop and mobile.
+            </div>
+          </div>
+          <button
+            type="button"
+            className={`ghost workspace-home-color-clear${
+              currentThreadColor === null ? " is-selected" : ""
+            }`}
+            onClick={() => {
+              void handleThreadColorSelect(null);
+            }}
+            disabled={threadColorSaving || currentThreadColor === null}
+          >
+            {currentThreadColor === null ? "No color" : "Clear"}
+          </button>
+        </div>
+        <div className="workspace-home-color-options" role="list">
+          {WORKSPACE_THREAD_COLOR_OPTIONS.map((option) => {
+            const isSelected = currentThreadColor === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={`workspace-home-color-option${isSelected ? " is-selected" : ""}`}
+                style={{
+                  ["--workspace-home-color-rgb" as string]: option.rgb,
+                }}
+                onClick={() => {
+                  void handleThreadColorSelect(option.value);
+                }}
+                disabled={threadColorSaving}
+                aria-pressed={isSelected}
+              >
+                <span className="workspace-home-color-swatch" aria-hidden />
+                <span className="workspace-home-color-option-copy">
+                  <span className="workspace-home-color-option-label">{option.label}</span>
+                  <span className="workspace-home-color-option-state">
+                    {isSelected ? "Current" : "Apply"}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {threadColorError ? <div className="workspace-home-error">{threadColorError}</div> : null}
+      </div>
 
       <div className="workspace-home-composer">
         <div className="composer">
