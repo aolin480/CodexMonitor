@@ -133,24 +133,74 @@ describe("Composer send triggers", () => {
     expect(screen.getByLabelText("Fast mode enabled")).toBeTruthy();
   });
 
-  it("blurs the textarea after Enter send on mobile", () => {
+  it("does not blur the textarea on mobile Enter because Enter inserts a newline", () => {
     vi.mocked(isMobilePlatform).mockReturnValue(true);
     const onSend = vi.fn();
     const blurSpy = vi.spyOn(HTMLTextAreaElement.prototype, "blur");
     render(<ComposerHarness onSend={onSend} />);
 
-    const textarea = screen.getByRole("textbox");
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "dismiss keyboard" } });
+    textarea.setSelectionRange(16, 16);
     fireEvent.keyDown(textarea, { key: "Enter" });
 
-    expect(onSend).toHaveBeenCalledTimes(1);
-    expect(onSend).toHaveBeenCalledWith(
-      "dismiss keyboard",
-      [],
-      undefined,
-      "default",
-    );
-    expect(blurSpy).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+    expect(blurSpy).not.toHaveBeenCalled();
+    expect(textarea.value).toBe("dismiss keyboard\n");
+  });
+
+  it("inserts a newline instead of sending on mobile Enter", () => {
+    vi.mocked(isMobilePlatform).mockReturnValue(true);
+    const onSend = vi.fn();
+    const blurSpy = vi.spyOn(HTMLTextAreaElement.prototype, "blur");
+    render(<ComposerHarness onSend={onSend} />);
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "line one" } });
+    textarea.setSelectionRange(8, 8);
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(blurSpy).not.toHaveBeenCalled();
+    expect(textarea.value).toBe("line one\n");
+    expect(textarea.selectionStart).toBe(9);
+    expect(textarea.selectionEnd).toBe(9);
+  });
+
+  it("does nothing on mobile Enter when the composer only has whitespace", () => {
+    vi.mocked(isMobilePlatform).mockReturnValue(true);
+    const onSend = vi.fn();
+    const blurSpy = vi.spyOn(HTMLTextAreaElement.prototype, "blur");
+    render(<ComposerHarness onSend={onSend} />);
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: " \n  " } });
+    textarea.setSelectionRange(4, 4);
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(blurSpy).not.toHaveBeenCalled();
+    expect(textarea.value).toBe(" \n  ");
+    expect(textarea.selectionStart).toBe(4);
+    expect(textarea.selectionEnd).toBe(4);
+  });
+
+  it("does nothing on mobile Enter when the composer only has punctuation", () => {
+    vi.mocked(isMobilePlatform).mockReturnValue(true);
+    const onSend = vi.fn();
+    const blurSpy = vi.spyOn(HTMLTextAreaElement.prototype, "blur");
+    render(<ComposerHarness onSend={onSend} />);
+
+    const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "!!!" } });
+    textarea.setSelectionRange(3, 3);
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(blurSpy).not.toHaveBeenCalled();
+    expect(textarea.value).toBe("!!!");
+    expect(textarea.selectionStart).toBe(3);
+    expect(textarea.selectionEnd).toBe(3);
   });
 
   it("sends explicit app mentions when an app autocomplete item is selected", () => {

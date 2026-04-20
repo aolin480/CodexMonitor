@@ -8,8 +8,8 @@ vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (path: string) => path,
 }));
 
-vi.mock("../../composer/components/ComposerInput", () => ({
-  ComposerInput: () => <div data-testid="workspace-home-composer-input" />,
+vi.mock("../../../services/dragDrop", () => ({
+  subscribeWindowDragDrop: vi.fn(() => () => {}),
 }));
 
 vi.mock("../../composer/hooks/useComposerImages", () => ({
@@ -92,10 +92,13 @@ function renderWorkspaceHome(
   options: {
     threadColor?: WorkspaceInfo["settings"]["threadColor"];
     onUpdateThreadColor?: (color: WorkspaceInfo["settings"]["threadColor"]) => Promise<void>;
+    prompt?: string;
+    onStartRun?: (images?: string[]) => Promise<boolean>;
   } = {},
 ) {
   const onUpdateThreadColor =
     options.onUpdateThreadColor ?? vi.fn().mockResolvedValue(undefined);
+  const onStartRun = options.onStartRun ?? vi.fn().mockResolvedValue(false);
 
   render(
     <WorkspaceHome
@@ -106,9 +109,9 @@ function renderWorkspaceHome(
       runs={[]}
       recentThreadInstances={[]}
       recentThreadsUpdatedAt={null}
-      prompt=""
+      prompt={options.prompt ?? ""}
       onPromptChange={vi.fn()}
-      onStartRun={vi.fn().mockResolvedValue(false)}
+      onStartRun={onStartRun}
       runMode="local"
       onRunModeChange={vi.fn()}
       models={[]}
@@ -161,7 +164,7 @@ function renderWorkspaceHome(
     />,
   );
 
-  return { onUpdateThreadColor };
+  return { onStartRun, onUpdateThreadColor };
 }
 
 describe("WorkspaceHome conversation color", () => {
@@ -208,5 +211,19 @@ describe("WorkspaceHome conversation color", () => {
 
     expect(await screen.findByText("Failed to save color")).toBeTruthy();
     expect(onUpdateThreadColor).toHaveBeenCalledWith("green");
+  });
+
+  it("submits the workspace prompt on desktop Enter", async () => {
+    const onStartRun = vi.fn().mockResolvedValue(true);
+    renderWorkspaceHome({
+      prompt: "ship this",
+      onStartRun,
+    });
+
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(onStartRun).toHaveBeenCalledWith([]);
+    });
   });
 });

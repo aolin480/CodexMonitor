@@ -4,6 +4,8 @@ import { getListContinuation } from "../../../utils/composerText";
 import { isComposingEvent } from "../../../utils/keys";
 import { isMobilePlatform } from "../../../utils/platformPaths";
 
+const MOBILE_NEWLINE_CONTENT_PATTERN = /[A-Za-z0-9]/;
+
 type ReviewPromptKeyEvent = {
   key: string;
   shiftKey?: boolean;
@@ -53,6 +55,7 @@ export function useComposerKeyDown({
 }: UseComposerKeyDownArgs) {
   return useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      const isMobile = isMobilePlatform();
       if (isComposingEvent(event)) {
         return;
       }
@@ -70,7 +73,7 @@ export function useComposerKeyDown({
           return;
         }
         event.preventDefault();
-        const dismissKeyboardAfterSend = canSend && isMobilePlatform();
+        const dismissKeyboardAfterSend = canSend && isMobile;
         handleSend(oppositeSubmitIntent);
         if (dismissKeyboardAfterSend) {
           textareaRef.current?.blur();
@@ -134,6 +137,31 @@ export function useComposerKeyDown({
         applyTextInsertion(nextText, nextCursor);
         return;
       }
+      if (
+        isMobile &&
+        event.key === "Enter" &&
+        !event.shiftKey &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !suggestionsOpen
+      ) {
+        if (!MOBILE_NEWLINE_CONTENT_PATTERN.test(text)) {
+          event.preventDefault();
+          return;
+        }
+        event.preventDefault();
+        const textarea = textareaRef.current;
+        if (!textarea) {
+          return;
+        }
+        const start = textarea.selectionStart ?? text.length;
+        const end = textarea.selectionEnd ?? start;
+        const nextText = `${text.slice(0, start)}\n${text.slice(end)}`;
+        const nextCursor = start + 1;
+        applyTextInsertion(nextText, nextCursor);
+        return;
+      }
       if (reviewPromptOpen && onReviewPromptKeyDown) {
         const handled = onReviewPromptKeyDown(event);
         if (handled) {
@@ -161,7 +189,7 @@ export function useComposerKeyDown({
           return;
         }
         event.preventDefault();
-        const dismissKeyboardAfterSend = canSend && isMobilePlatform();
+        const dismissKeyboardAfterSend = canSend && isMobile;
         handleSend(defaultSubmitIntent);
         if (dismissKeyboardAfterSend) {
           textareaRef.current?.blur();

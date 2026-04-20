@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
   type RefObject,
 } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -20,6 +19,7 @@ import type {
 import { ComposerInput } from "../../composer/components/ComposerInput";
 import { useComposerImages } from "../../composer/hooks/useComposerImages";
 import { useComposerAutocompleteState } from "../../composer/hooks/useComposerAutocompleteState";
+import { useComposerKeyDown } from "../../composer/hooks/useComposerKeyDown";
 import { usePromptHistory } from "../../composer/hooks/usePromptHistory";
 import type {
   WorkspaceHomeRun,
@@ -27,7 +27,6 @@ import type {
   WorkspaceRunMode,
 } from "../hooks/useWorkspaceHome";
 import { computeDictationInsertion } from "../../../utils/dictation";
-import { isComposingEvent } from "../../../utils/keys";
 import { FileEditorCard } from "../../shared/components/FileEditorCard";
 import { WorkspaceHomeRunControls } from "./WorkspaceHomeRunControls";
 import { WorkspaceHomeHistory } from "./WorkspaceHomeHistory";
@@ -247,6 +246,19 @@ export function WorkspaceHome({
     handleTextChange(next, cursor);
   };
 
+  const applyTextInsertion = (nextText: string, nextCursor: number) => {
+    onPromptChange(nextText);
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        return;
+      }
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
+      handleSelectionChange(nextCursor);
+    });
+  };
+
   const isDictationBusy = dictationState !== "idle";
 
   useEffect(() => {
@@ -325,30 +337,27 @@ export function WorkspaceHome({
     }
   };
 
-  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (isComposingEvent(event)) {
-      return;
-    }
-
-    handleHistoryKeyDown(event);
-    if (event.defaultPrevented) {
-      return;
-    }
-
-    handleInputKeyDown(event);
-    if (event.defaultPrevented) {
-      return;
-    }
-
-    if (event.key === "Enter" && !event.shiftKey) {
-      if (isDictationBusy) {
-        event.preventDefault();
-        return;
-      }
-      event.preventDefault();
+  const handleComposerKeyDown = useComposerKeyDown({
+    applyTextInsertion,
+    canSend: prompt.trim().length > 0 || activeImages.length > 0,
+    continueListOnShiftEnter: false,
+    defaultSubmitIntent: "default",
+    expandFenceOnEnter: false,
+    expandFenceOnSpace: false,
+    handleHistoryKeyDown,
+    handleInputKeyDown,
+    handleSend: () => {
       void handleRunSubmit();
-    }
-  };
+    },
+    isDictationBusy,
+    isMac: false,
+    oppositeSubmitIntent: "default",
+    reviewPromptOpen: false,
+    suggestionsOpen: isAutocompleteOpen,
+    text: prompt,
+    textareaRef,
+    tryExpandFence: () => false,
+  });
 
   const agentMdStatus = agentMdLoading
     ? "Loading…"
