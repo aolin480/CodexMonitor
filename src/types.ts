@@ -7,7 +7,8 @@ export type WorkspaceThreadColor =
   | "amber"
   | "orange"
   | "rose"
-  | "violet";
+  | "violet"
+  | "synthwave";
 
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;

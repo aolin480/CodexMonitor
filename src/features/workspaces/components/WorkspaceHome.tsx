@@ -35,7 +35,7 @@ import { buildIconPath } from "./workspaceHomeHelpers";
 import { useWorkspaceHomeSuggestionsStyle } from "../hooks/useWorkspaceHomeSuggestionsStyle";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
 import {
-  getWorkspaceThreadColorOption,
+  getWorkspaceThreadColorCssVars,
   WORKSPACE_THREAD_COLOR_OPTIONS,
 } from "../utils/workspaceThreadColors";
 
@@ -380,12 +380,7 @@ export function WorkspaceHome({
   const persistedThreadColor = workspace.settings.threadColor ?? null;
   const currentThreadColor =
     optimisticThreadColor !== undefined ? optimisticThreadColor : persistedThreadColor;
-  const currentThreadColorOption = getWorkspaceThreadColorOption(currentThreadColor);
-  const workspaceHeroStyle = currentThreadColorOption
-    ? {
-        ["--workspace-thread-tint-rgb" as string]: currentThreadColorOption.rgb,
-      }
-    : undefined;
+  const workspaceHeroStyle = getWorkspaceThreadColorCssVars(currentThreadColor);
 
   const handleThreadColorSelect = async (color: WorkspaceThreadColor | null) => {
     if (threadColorSaving || currentThreadColor === color) {
@@ -465,6 +460,8 @@ export function WorkspaceHome({
                 className={`workspace-home-color-option${isSelected ? " is-selected" : ""}`}
                 style={{
                   ["--workspace-home-color-rgb" as string]: option.rgb,
+                  ["--workspace-home-color-secondary-rgb" as string]:
+                    option.secondaryRgb ?? option.rgb,
                 }}
                 onClick={() => {
                   void handleThreadColorSelect(option.value);

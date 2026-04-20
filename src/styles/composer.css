@@ -22,6 +22,16 @@
     var(--cm-surface-composer);
 }
 
+.chat-pane[data-workspace-thread-color="synthwave"] .composer {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.18) 0%,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.1) 100%
+    ),
+    var(--cm-surface-composer);
+}
+
 .composer > * {
   width: min(100%, var(--conversation-column-width, 900px));
   margin-inline: auto;
@@ -38,6 +48,16 @@
       180deg,
       rgb(var(--workspace-thread-tint-rgb) / 0.18) 0%,
       rgb(var(--workspace-thread-tint-rgb) / 0.12) 100%
+    ),
+    var(--cm-surface-composer);
+}
+
+.app.reduced-transparency .chat-pane[data-workspace-thread-color="synthwave"] .composer {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.22) 0%,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.14) 100%
     ),
     var(--cm-surface-composer);
 }

@@ -1,7 +1,7 @@
 import type { MouseEvent } from "react";
 
 import type { WorkspaceInfo } from "../../../types";
-import { getWorkspaceThreadColorOption } from "../../workspaces/utils/workspaceThreadColors";
+import { getWorkspaceThreadColorCssVars } from "../../workspaces/utils/workspaceThreadColors";
 
 type WorktreeCardProps = {
   worktree: WorkspaceInfo;
@@ -31,12 +31,7 @@ export function WorktreeCard({
     worktreeBranch && worktreeBranch !== worktreeLabel ? worktreeBranch : null;
   const contentCollapsedClass = worktreeCollapsed ? " collapsed" : "";
   const worktreeThreadColor = worktree.settings.threadColor ?? null;
-  const worktreeThreadColorOption = getWorkspaceThreadColorOption(worktreeThreadColor);
-  const worktreeTintStyle = worktreeThreadColorOption
-    ? {
-        ["--workspace-thread-tint-rgb" as string]: worktreeThreadColorOption.rgb,
-      }
-    : undefined;
+  const worktreeTintStyle = getWorkspaceThreadColorCssVars(worktreeThreadColor);
 
   return (
     <div className={`worktree-card${isDeleting ? " deleting" : ""}`}>

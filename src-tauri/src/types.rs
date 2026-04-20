@@ -308,6 +308,7 @@ pub(crate) enum WorkspaceThreadColor {
     Orange,
     Rose,
     Violet,
+    Synthwave,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1439,13 +1440,13 @@ mod tests {
     #[test]
     fn workspace_settings_round_trip_preserves_new_thread_colors() {
         let settings: WorkspaceSettings = serde_json::from_str(
-            r#"{"sidebarCollapsed":false,"threadColor":"violet"}"#,
+            r#"{"sidebarCollapsed":false,"threadColor":"synthwave"}"#,
         )
         .expect("workspace settings deserialize");
 
-        assert_eq!(settings.thread_color, Some(WorkspaceThreadColor::Violet));
+        assert_eq!(settings.thread_color, Some(WorkspaceThreadColor::Synthwave));
 
         let json = serde_json::to_string(&settings).expect("workspace settings serialize");
-        assert!(json.contains(r#""threadColor":"violet""#));
+        assert!(json.contains(r#""threadColor":"synthwave""#));
     }
 }

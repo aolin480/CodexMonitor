@@ -1,9 +1,16 @@
+import type { CSSProperties } from "react";
 import type { WorkspaceThreadColor } from "../../../types";
 
 type WorkspaceThreadColorOption = {
   value: WorkspaceThreadColor;
   label: string;
   rgb: string;
+  secondaryRgb?: string;
+};
+
+export type WorkspaceThreadColorCssVars = CSSProperties & {
+  "--workspace-thread-tint-rgb": string;
+  "--workspace-thread-secondary-rgb": string;
 };
 
 export const WORKSPACE_THREAD_COLOR_OPTIONS: WorkspaceThreadColorOption[] = [
@@ -16,6 +23,12 @@ export const WORKSPACE_THREAD_COLOR_OPTIONS: WorkspaceThreadColorOption[] = [
   { value: "orange", label: "Orange", rgb: "251 146 60" },
   { value: "rose", label: "Rose", rgb: "251 113 133" },
   { value: "violet", label: "Violet", rgb: "167 139 250" },
+  {
+    value: "synthwave",
+    label: "Synthwave",
+    rgb: "244 114 182",
+    secondaryRgb: "125 211 252",
+  },
 ];
 
 export function getWorkspaceThreadColorOption(
@@ -25,4 +38,18 @@ export function getWorkspaceThreadColorOption(
     return null;
   }
   return WORKSPACE_THREAD_COLOR_OPTIONS.find((option) => option.value === color) ?? null;
+}
+
+export function getWorkspaceThreadColorCssVars(
+  color: WorkspaceThreadColor | null | undefined,
+): WorkspaceThreadColorCssVars | undefined {
+  const option = getWorkspaceThreadColorOption(color);
+  if (!option) {
+    return undefined;
+  }
+
+  return {
+    "--workspace-thread-tint-rgb": option.rgb,
+    "--workspace-thread-secondary-rgb": option.secondaryRgb ?? option.rgb,
+  };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { WorkspaceThreadColor } from "../../../types";
-import { getWorkspaceThreadColorOption } from "../../workspaces/utils/workspaceThreadColors";
+import { getWorkspaceThreadColorCssVars } from "../../workspaces/utils/workspaceThreadColors";
 
 type ChatPaneProps = {
   messagesNode: ReactNode;
@@ -12,6 +12,7 @@ type ChatPaneProps = {
 type ChatPaneStyle = CSSProperties & {
   "--composer-overlay-height": string;
   "--workspace-thread-tint-rgb"?: string;
+  "--workspace-thread-secondary-rgb"?: string;
 };
 
 export function ChatPane({
@@ -22,7 +23,7 @@ export function ChatPane({
 }: ChatPaneProps) {
   const composerRef = useRef<HTMLDivElement | null>(null);
   const [composerHeight, setComposerHeight] = useState(0);
-  const workspaceThreadColorOption = getWorkspaceThreadColorOption(workspaceThreadColor);
+  const workspaceThreadColorStyle = getWorkspaceThreadColorCssVars(workspaceThreadColor);
 
   useEffect(() => {
     if (!composerNode) {
@@ -56,12 +57,12 @@ export function ChatPane({
       const style: ChatPaneStyle = {
         "--composer-overlay-height": `${composerHeight}px`,
       };
-      if (workspaceThreadColorOption) {
-        style["--workspace-thread-tint-rgb"] = workspaceThreadColorOption.rgb;
+      if (workspaceThreadColorStyle) {
+        Object.assign(style, workspaceThreadColorStyle);
       }
       return style;
     },
-    [composerHeight, workspaceThreadColorOption],
+    [composerHeight, workspaceThreadColorStyle],
   );
 
   return (

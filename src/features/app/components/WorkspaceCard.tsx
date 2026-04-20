@@ -1,7 +1,7 @@
 import type { MouseEvent } from "react";
 
 import type { WorkspaceInfo } from "../../../types";
-import { getWorkspaceThreadColorOption } from "../../workspaces/utils/workspaceThreadColors";
+import { getWorkspaceThreadColorCssVars } from "../../workspaces/utils/workspaceThreadColors";
 
 type WorkspaceCardProps = {
   workspace: WorkspaceInfo;
@@ -41,12 +41,7 @@ export function WorkspaceCard({
 }: WorkspaceCardProps) {
   const contentCollapsedClass = isCollapsed ? " collapsed" : "";
   const workspaceThreadColor = workspace.settings.threadColor ?? null;
-  const workspaceThreadColorOption = getWorkspaceThreadColorOption(workspaceThreadColor);
-  const workspaceTintStyle = workspaceThreadColorOption
-    ? {
-        ["--workspace-thread-tint-rgb" as string]: workspaceThreadColorOption.rgb,
-      }
-    : undefined;
+  const workspaceTintStyle = getWorkspaceThreadColorCssVars(workspaceThreadColor);
 
   return (
     <div className="workspace-card">

@@ -63,6 +63,8 @@ export function WorkspaceColorPrompt({
                 className="workspace-color-modal-swatch"
                 style={{
                   ["--workspace-color-swatch-rgb" as string]: option.rgb,
+                  ["--workspace-color-swatch-secondary-rgb" as string]:
+                    option.secondaryRgb ?? option.rgb,
                 }}
                 aria-hidden
               />

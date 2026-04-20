@@ -956,6 +956,20 @@
     );
 }
 
+.chat-pane[data-workspace-thread-color="synthwave"]::before {
+  background:
+    radial-gradient(
+      128% 124% at 50% 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.22) 0%,
+      transparent 56%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-tint-rgb) / 0.08) 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.16) 100%
+    );
+}
+
 .app.reduced-transparency .chat-pane[data-workspace-thread-color]::before {
   background:
     radial-gradient(
@@ -967,6 +981,20 @@
       180deg,
       rgb(var(--workspace-thread-tint-rgb) / 0.1) 0%,
       rgb(var(--workspace-thread-tint-rgb) / 0.15) 100%
+    );
+}
+
+.app.reduced-transparency .chat-pane[data-workspace-thread-color="synthwave"]::before {
+  background:
+    radial-gradient(
+      128% 124% at 50% 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.24) 0%,
+      transparent 56%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-tint-rgb) / 0.12) 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.18) 100%
     );
 }
 

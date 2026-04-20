@@ -893,7 +893,7 @@ describe("Sidebar", () => {
             name: "Workspace",
             path: "/tmp/workspace",
             connected: true,
-            settings: { sidebarCollapsed: false, threadColor: "amber" },
+            settings: { sidebarCollapsed: false, threadColor: "synthwave" },
           },
           {
             id: "ws-2",
@@ -916,7 +916,7 @@ describe("Sidebar", () => {
                 name: "Workspace",
                 path: "/tmp/workspace",
                 connected: true,
-                settings: { sidebarCollapsed: false, threadColor: "amber" },
+                settings: { sidebarCollapsed: false, threadColor: "synthwave" },
               },
               {
                 id: "ws-2",
@@ -935,8 +935,13 @@ describe("Sidebar", () => {
     );
 
     const workspaceRow = container.querySelector(".workspace-row");
-    expect(workspaceRow?.getAttribute("data-workspace-thread-color")).toBe("amber");
-    expect(workspaceRow?.getAttribute("style")).toContain("--workspace-thread-tint-rgb: 245 158 11");
+    expect(workspaceRow?.getAttribute("data-workspace-thread-color")).toBe("synthwave");
+    expect(workspaceRow?.getAttribute("style")).toContain(
+      "--workspace-thread-tint-rgb: 244 114 182",
+    );
+    expect(workspaceRow?.getAttribute("style")).toContain(
+      "--workspace-thread-secondary-rgb: 125 211 252",
+    );
 
     const worktreeRow = container.querySelector(".worktree-row");
     expect(worktreeRow?.getAttribute("data-workspace-thread-color")).toBe("blue");

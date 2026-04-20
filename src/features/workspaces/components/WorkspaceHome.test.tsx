@@ -169,11 +169,14 @@ function renderWorkspaceHome(
 
 describe("WorkspaceHome conversation color", () => {
   it("tints the workspace hero when a conversation color is assigned", () => {
-    renderWorkspaceHome({ threadColor: "amber" });
+    renderWorkspaceHome({ threadColor: "synthwave" });
 
     const hero = document.querySelector(".workspace-home-hero");
-    expect(hero?.getAttribute("data-workspace-thread-color")).toBe("amber");
-    expect(hero?.getAttribute("style")).toContain("--workspace-thread-tint-rgb: 245 158 11");
+    expect(hero?.getAttribute("data-workspace-thread-color")).toBe("synthwave");
+    expect(hero?.getAttribute("style")).toContain("--workspace-thread-tint-rgb: 244 114 182");
+    expect(hero?.getAttribute("style")).toContain(
+      "--workspace-thread-secondary-rgb: 125 211 252",
+    );
   });
 
   it("updates the workspace color from an inline swatch", async () => {

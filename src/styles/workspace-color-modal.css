@@ -51,9 +51,11 @@
   border: 1px solid rgb(var(--workspace-color-swatch-rgb) / 0.46);
   background:
     linear-gradient(
-      180deg,
+      135deg,
       rgb(var(--workspace-color-swatch-rgb) / 0.9) 0%,
-      rgb(var(--workspace-color-swatch-rgb) / 0.54) 100%
+      rgb(var(--workspace-color-swatch-rgb) / 0.78) 46%,
+      rgb(var(--workspace-color-swatch-secondary-rgb) / 0.8) 54%,
+      rgb(var(--workspace-color-swatch-secondary-rgb) / 0.54) 100%
     );
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16);
 }

@@ -843,6 +843,66 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
+.workspace-row[data-workspace-thread-color="synthwave"]::before {
+  background:
+    radial-gradient(
+      128% 124% at 50% 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.18) 0%,
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.2) 0%,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.1) 100%
+    ),
+    var(--cm-surface-panel-strong);
+  border-color: rgb(var(--workspace-thread-tint-rgb) / 0.5);
+  box-shadow:
+    0 0 0 1px rgb(var(--workspace-thread-tint-rgb) / 0.18),
+    0 12px 28px rgb(var(--workspace-thread-tint-rgb) / 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.workspace-row[data-workspace-thread-color="synthwave"]:hover::before {
+  background:
+    radial-gradient(
+      128% 124% at 50% 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.24) 0%,
+      transparent 60%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.24) 0%,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.12) 100%
+    ),
+    color-mix(in srgb, var(--cm-surface-panel-hover) 74%, white);
+  border-color: rgb(var(--workspace-thread-tint-rgb) / 0.62);
+  box-shadow:
+    0 0 0 1px rgb(var(--workspace-thread-tint-rgb) / 0.22),
+    0 16px 34px rgb(var(--workspace-thread-tint-rgb) / 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.workspace-row.active[data-workspace-thread-color="synthwave"]::before {
+  background:
+    radial-gradient(
+      128% 124% at 50% 0%,
+      rgb(var(--workspace-thread-tint-rgb) / 0.26) 0%,
+      transparent 60%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.22) 0%,
+      rgb(var(--workspace-thread-secondary-rgb) / 0.12) 100%
+    ),
+    var(--cm-surface-panel-active);
+  border-color: rgb(var(--workspace-thread-tint-rgb) / 0.72);
+  box-shadow:
+    0 0 0 1px rgb(var(--workspace-thread-tint-rgb) / 0.26),
+    0 18px 36px rgb(var(--workspace-thread-tint-rgb) / 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
 .workspace-row.active .workspace-name {
   color: var(--text-strong);
 }
