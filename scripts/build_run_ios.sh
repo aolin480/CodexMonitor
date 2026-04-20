@@ -4,13 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# shellcheck source=scripts/lib/ios-config.sh
+. "${ROOT_DIR}/scripts/lib/ios-config.sh"
+
 SIMULATOR_NAME="${SIMULATOR_NAME:-iPhone Air}"
 TARGET="${TARGET:-aarch64-sim}"
 BUNDLE_ID="${BUNDLE_ID:-}"
 SKIP_BUILD=0
 CLEAN_BUILD=1
 IOS_APP_ICONSET_DIR="src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset"
-TAURI_IOS_LOCAL_CONFIG="src-tauri/tauri.ios.local.conf.json"
 TAURI_CONFIG_ARGS=()
 
 usage() {
@@ -97,30 +99,6 @@ sync_ios_icons() {
   fi
 }
 
-resolve_ios_bundle_id() {
-  node - <<'NODE'
-const fs = require("fs");
-
-function readConfig(path) {
-  try {
-    return JSON.parse(fs.readFileSync(path, "utf8"));
-  } catch (_) {
-    return {};
-  }
-}
-
-const baseCfg = readConfig("src-tauri/tauri.conf.json");
-const iosCfg = readConfig("src-tauri/tauri.ios.conf.json");
-const localCfg = readConfig("src-tauri/tauri.ios.local.conf.json");
-const identifier =
-  localCfg?.identifier ??
-  iosCfg?.identifier ??
-  baseCfg?.identifier ??
-  "";
-process.stdout.write(String(identifier).trim());
-NODE
-}
-
 case "$TARGET" in
   aarch64-sim)
     APP_ARCH_DIR="arm64-sim"
@@ -141,15 +119,15 @@ if [[ -z "$NPM_BIN" ]]; then
   exit 1
 fi
 
-if [[ -f "$TAURI_IOS_LOCAL_CONFIG" ]]; then
-  TAURI_CONFIG_ARGS+=(--config "$TAURI_IOS_LOCAL_CONFIG")
+if ios_has_local_config; then
+  TAURI_CONFIG_ARGS+=(--config "$IOS_LOCAL_CONFIG_PATH")
 fi
 
 if [[ -z "$BUNDLE_ID" ]]; then
-  BUNDLE_ID="$(resolve_ios_bundle_id)"
+  BUNDLE_ID="$(ios_resolve_config_value identifier)"
 fi
 if [[ -z "$BUNDLE_ID" ]]; then
-  BUNDLE_ID="com.dimillian.codexmonitor.ios"
+  BUNDLE_ID="$IOS_DEFAULT_BUNDLE_ID"
 fi
 
 if [[ "$SKIP_BUILD" -eq 0 ]]; then

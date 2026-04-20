@@ -149,11 +149,21 @@ rustup target add aarch64-apple-ios aarch64-apple-ios-sim
 rustup target add x86_64-apple-ios
 ```
 
-- Apple signing configured (development team).
-  - Set `bundle.iOS.developmentTeam` and `identifier` in `src-tauri/tauri.ios.local.conf.json` (preferred for local machine setup), or
-  - set values in `src-tauri/tauri.ios.conf.json`, or
-  - pass `--team <TEAM_ID>` to the device script.
-  - `build_run_ios*.sh` and `release_testflight_ios.sh` automatically merge `src-tauri/tauri.ios.local.conf.json` when present.
+- Local iOS config created with:
+
+```bash
+./scripts/setup_ios_local_config.sh
+```
+
+Canonical local build runbook: `docs/ios-local-setup.md`
+
+Notes:
+
+- Personal signing data lives in `src-tauri/tauri.ios.local.conf.json` (gitignored).
+- Start from `src-tauri/tauri.ios.local.example.json` if you prefer to copy/edit manually.
+- `build_run_ios*.sh` and `release_testflight_ios.sh` automatically merge the local config when present.
+- First-time Apple account login, device trust, and provisioning are still an Xcode step. Use `docs/ios-local-setup.md` for the exact bootstrap flow.
+- Recommended once per clone: `./scripts/install_git_hooks.sh` to block committing local iOS signing drift.
 
 ### Run on iOS Simulator
 
@@ -179,7 +189,7 @@ List discoverable devices:
 Build, install, and launch on a specific device:
 
 ```bash
-./scripts/build_run_ios_device.sh --device "<device name or identifier>" --team <TEAM_ID>
+./scripts/build_run_ios_device.sh --device "<device name or identifier>"
 ```
 
 Additional options:
@@ -188,17 +198,13 @@ Additional options:
 - `--skip-build` to reuse the current app bundle.
 - `--bundle-id <id>` to launch a non-default bundle identifier.
 
-First-time device setup usually requires:
-
-1. iPhone unlocked and trusted with this Mac.
-2. Developer Mode enabled on iPhone.
-3. Pairing/signing approved in Xcode at least once.
-
-If signing is not ready yet, open Xcode from the script flow:
+If signing is not ready yet, open the generated project in Xcode from the script flow:
 
 ```bash
 ./scripts/build_run_ios_device.sh --open-xcode
 ```
+
+Use the full first-time flow in `docs/ios-local-setup.md`.
 
 ### iOS TestFlight Release (Scripted)
 

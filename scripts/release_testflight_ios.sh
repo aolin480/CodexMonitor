@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# shellcheck source=scripts/lib/ios-config.sh
+. "${ROOT_DIR}/scripts/lib/ios-config.sh"
+
 DEFAULT_ENV_FILE=".testflight.local.env"
 ENV_FILE="${TESTFLIGHT_ENV_FILE:-$DEFAULT_ENV_FILE}"
 if [[ -f "$ENV_FILE" ]]; then
@@ -29,7 +32,6 @@ REVIEW_CONTACT_PHONE="${REVIEW_CONTACT_PHONE:-}"
 REVIEW_NOTES="${REVIEW_NOTES:-Codex Monitor iOS beta build for external testing.}"
 SKIP_BUILD=0
 SKIP_SUBMIT=0
-TAURI_IOS_LOCAL_CONFIG="src-tauri/tauri.ios.local.conf.json"
 TAURI_CONFIG_ARGS=()
 
 usage() {
@@ -196,30 +198,6 @@ sync_ios_icons() {
   fi
 }
 
-resolve_ios_bundle_id() {
-  node - <<'NODE'
-const fs = require("fs");
-
-function readConfig(path) {
-  try {
-    return JSON.parse(fs.readFileSync(path, "utf8"));
-  } catch (_) {
-    return {};
-  }
-}
-
-const baseCfg = readConfig("src-tauri/tauri.conf.json");
-const iosCfg = readConfig("src-tauri/tauri.ios.conf.json");
-const localCfg = readConfig("src-tauri/tauri.ios.local.conf.json");
-const identifier =
-  localCfg?.identifier ??
-  iosCfg?.identifier ??
-  baseCfg?.identifier ??
-  "";
-process.stdout.write(String(identifier).trim());
-NODE
-}
-
 json_get() {
   local json="$1"
   local expr="$2"
@@ -229,15 +207,15 @@ json_get() {
 require_cmd asc
 require_cmd jq
 
-if [[ -f "$TAURI_IOS_LOCAL_CONFIG" ]]; then
-  TAURI_CONFIG_ARGS+=(--config "$TAURI_IOS_LOCAL_CONFIG")
+if ios_has_local_config; then
+  TAURI_CONFIG_ARGS+=(--config "$IOS_LOCAL_CONFIG_PATH")
 fi
 
 if [[ -z "$BUNDLE_ID" ]]; then
-  BUNDLE_ID="$(resolve_ios_bundle_id)"
+  BUNDLE_ID="$(ios_resolve_config_value identifier)"
 fi
 if [[ -z "$BUNDLE_ID" ]]; then
-  BUNDLE_ID="com.dimillian.codexmonitor.ios"
+  BUNDLE_ID="$IOS_DEFAULT_BUNDLE_ID"
 fi
 
 log "Checking App Store Connect authentication"

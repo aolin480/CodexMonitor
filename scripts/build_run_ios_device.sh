@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# shellcheck source=scripts/lib/ios-config.sh
+. "${ROOT_DIR}/scripts/lib/ios-config.sh"
+
 DEVICE=""
 TARGET="${TARGET:-aarch64}"
 BUNDLE_ID="${BUNDLE_ID:-}"
@@ -12,8 +15,11 @@ SKIP_BUILD=0
 OPEN_XCODE=0
 LIST_DEVICES=0
 IOS_APP_ICONSET_DIR="src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset"
-TAURI_IOS_LOCAL_CONFIG="src-tauri/tauri.ios.local.conf.json"
 TAURI_CONFIG_ARGS=()
+USE_DERIVED_DATA_APP=0
+CURRENT_BUILD_DERIVED_DATA_APP=""
+PROJECT_TARGET_BUILD_DIR=""
+PROJECT_FULL_PRODUCT_NAME=""
 
 usage() {
   cat <<'EOF'
@@ -35,22 +41,34 @@ Options:
 EOF
 }
 
+require_option_value() {
+  local option_name="${1:?missing option name}"
+  local option_value="${2:-}"
+
+  if [[ -z "$option_value" || "$option_value" == --* ]]; then
+    echo "Option ${option_name} requires a value." >&2
+    exit 1
+  fi
+
+  printf '%s' "$option_value"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --device)
-      DEVICE="${2:-}"
+      DEVICE="$(require_option_value "$1" "${2:-}")"
       shift 2
       ;;
     --target)
-      TARGET="${2:-}"
+      TARGET="$(require_option_value "$1" "${2:-}")"
       shift 2
       ;;
     --bundle-id)
-      BUNDLE_ID="${2:-}"
+      BUNDLE_ID="$(require_option_value "$1" "${2:-}")"
       shift 2
       ;;
     --team)
-      DEVELOPMENT_TEAM="${2:-}"
+      DEVELOPMENT_TEAM="$(require_option_value "$1" "${2:-}")"
       shift 2
       ;;
     --skip-build)
@@ -111,46 +129,134 @@ sync_ios_icons() {
   fi
 }
 
-resolve_ios_config_value() {
-  local key="$1"
-  node - "$key" <<'NODE'
-const fs = require("fs");
+load_project_device_build_metadata() {
+  local workspace="src-tauri/gen/apple/codex-monitor.xcodeproj/project.xcworkspace"
+  local build_settings=""
 
-function readConfig(path) {
-  try {
-    return JSON.parse(fs.readFileSync(path, "utf8"));
-  } catch (_) {
-    return {};
-  }
+  if [[ -n "$PROJECT_TARGET_BUILD_DIR" && -n "$PROJECT_FULL_PRODUCT_NAME" ]]; then
+    return
+  fi
+
+  if [[ ! -d "$workspace" ]]; then
+    return
+  fi
+
+  build_settings="$(xcodebuild \
+    -workspace "$workspace" \
+    -scheme codex-monitor_iOS \
+    -configuration debug \
+    -sdk iphoneos \
+    -showBuildSettings 2>/dev/null || true)"
+
+  if [[ -z "$build_settings" ]]; then
+    return
+  fi
+
+  PROJECT_TARGET_BUILD_DIR="$(printf '%s\n' "$build_settings" | sed -n 's/^[[:space:]]*TARGET_BUILD_DIR = //p' | head -n 1)"
+  PROJECT_FULL_PRODUCT_NAME="$(printf '%s\n' "$build_settings" | sed -n 's/^[[:space:]]*FULL_PRODUCT_NAME = //p' | head -n 1)"
 }
 
-const key = process.argv[2];
-const baseCfg = readConfig("src-tauri/tauri.conf.json");
-const iosCfg = readConfig("src-tauri/tauri.ios.conf.json");
-const localPath = "src-tauri/tauri.ios.local.conf.json";
-const hasLocal = fs.existsSync(localPath);
-const localCfg = hasLocal ? readConfig(localPath) : {};
+derived_data_device_app_from_log() {
+  local build_log="${1:-}"
 
-const identifier =
-  localCfg?.identifier ??
-  iosCfg?.identifier ??
-  baseCfg?.identifier ??
-  "";
+  if [[ -z "$build_log" || ! -f "$build_log" ]]; then
+    return
+  fi
 
-const team =
-  localCfg?.bundle?.iOS?.developmentTeam ??
-  iosCfg?.bundle?.iOS?.developmentTeam ??
-  baseCfg?.bundle?.iOS?.developmentTeam ??
-  "";
+  sed -n 's#.*\([^"]*/Build/Products/[^/]*iphoneos/[^"]*\\.app\).*#\1#p' "$build_log" |
+    sed 's#\\ # #g' |
+    tail -n 1
+}
 
-const values = {
-  identifier: String(identifier).trim(),
-  team: String(team).trim(),
-  hasLocal: hasLocal ? "1" : "0",
-};
+project_derived_data_device_app() {
+  local app_path=""
 
-process.stdout.write(values[key] ?? "");
-NODE
+  load_project_device_build_metadata
+
+  if [[ -z "$PROJECT_TARGET_BUILD_DIR" || -z "$PROJECT_FULL_PRODUCT_NAME" ]]; then
+    return
+  fi
+
+  app_path="${PROJECT_TARGET_BUILD_DIR}/${PROJECT_FULL_PRODUCT_NAME}"
+  if [[ -d "$app_path" ]]; then
+    printf '%s' "$app_path"
+  fi
+}
+
+latest_generated_build_app() {
+  local build_root="src-tauri/gen/apple/build"
+  local product_name=""
+  local latest_path=""
+  local latest_mtime=0
+
+  if [[ ! -d "$build_root" ]]; then
+    return
+  fi
+
+  load_project_device_build_metadata
+  product_name="${PROJECT_FULL_PRODUCT_NAME:-Codex Monitor.app}"
+
+  while IFS= read -r -d '' path; do
+    local mtime
+    mtime="$(stat -f '%m' "$path" 2>/dev/null || printf '0')"
+    if [[ "$mtime" -gt "$latest_mtime" ]]; then
+      latest_mtime="$mtime"
+      latest_path="$path"
+    fi
+  done < <(find "$build_root" -maxdepth 4 -type d -name "$product_name" -print0 2>/dev/null)
+
+  printf '%s' "$latest_path"
+}
+
+app_bundle_identifier() {
+  local app_path="${1:-}"
+  local plist_path=""
+
+  if [[ -z "$app_path" || ! -d "$app_path" ]]; then
+    return
+  fi
+
+  plist_path="${app_path}/Info.plist"
+  if [[ ! -f "$plist_path" ]]; then
+    return
+  fi
+
+  /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist_path" 2>/dev/null || true
+}
+
+resolve_device_app_path() {
+  local app_path=""
+
+  if [[ "$USE_DERIVED_DATA_APP" -eq 1 ]]; then
+    app_path="$CURRENT_BUILD_DERIVED_DATA_APP"
+    if [[ -n "$app_path" && -d "$app_path" ]]; then
+      printf '%s' "$app_path"
+      return
+    fi
+
+    app_path="$(project_derived_data_device_app)"
+    if [[ -n "$app_path" && -d "$app_path" ]]; then
+      printf '%s' "$app_path"
+      return
+    fi
+  fi
+
+  app_path="src-tauri/gen/apple/build/arm64/Codex Monitor.app"
+  if [[ -d "$app_path" ]]; then
+    printf '%s' "$app_path"
+    return
+  fi
+
+  app_path="$(latest_generated_build_app)"
+  if [[ -n "$app_path" && -d "$app_path" ]]; then
+    printf '%s' "$app_path"
+    return
+  fi
+
+  app_path="$(project_derived_data_device_app)"
+  if [[ -n "$app_path" && -d "$app_path" ]]; then
+    printf '%s' "$app_path"
+  fi
 }
 
 if ! xcrun devicectl --help >/dev/null 2>&1; then
@@ -175,19 +281,19 @@ if [[ -z "$NPM_BIN" ]]; then
   exit 1
 fi
 
-if [[ "$(resolve_ios_config_value hasLocal)" == "1" ]]; then
-  TAURI_CONFIG_ARGS+=(--config "$TAURI_IOS_LOCAL_CONFIG")
+if [[ "$(ios_resolve_config_value hasLocal)" == "1" ]]; then
+  TAURI_CONFIG_ARGS+=(--config "$IOS_LOCAL_CONFIG_PATH")
 fi
 
 if [[ -z "$BUNDLE_ID" ]]; then
-  BUNDLE_ID="$(resolve_ios_config_value identifier)"
+  BUNDLE_ID="$(ios_resolve_config_value identifier)"
 fi
 if [[ -z "$BUNDLE_ID" ]]; then
-  BUNDLE_ID="com.dimillian.codexmonitor.ios"
+  BUNDLE_ID="$IOS_DEFAULT_BUNDLE_ID"
 fi
 
 if [[ -z "$DEVELOPMENT_TEAM" ]]; then
-  DEVELOPMENT_TEAM="$(resolve_ios_config_value team)"
+  DEVELOPMENT_TEAM="$(ios_resolve_config_value team)"
 fi
 
 if [[ -n "$DEVELOPMENT_TEAM" ]]; then
@@ -195,10 +301,11 @@ if [[ -n "$DEVELOPMENT_TEAM" ]]; then
 fi
 
 if [[ "$SKIP_BUILD" -eq 0 && -z "${APPLE_DEVELOPMENT_TEAM:-}" ]]; then
-  if [[ -z "$(resolve_ios_config_value team)" ]]; then
-    echo "Missing iOS signing team." >&2
-    echo "Set one via --team <TEAM_ID> or APPLE_DEVELOPMENT_TEAM, or set bundle.iOS.developmentTeam in src-tauri/tauri.ios.local.conf.json (preferred) / src-tauri/tauri.ios.conf.json / src-tauri/tauri.conf.json." >&2
-    echo "Tip: First-time setup can be done with --open-xcode." >&2
+  if [[ -z "$(ios_resolve_config_value team)" ]]; then
+    echo "Missing iOS signing configuration." >&2
+    echo "Run ./scripts/setup_ios_local_config.sh (preferred), or copy ${IOS_LOCAL_CONFIG_EXAMPLE_PATH} to ${IOS_LOCAL_CONFIG_PATH} and fill in your Apple team ID + iOS bundle ID." >&2
+    echo "You can also pass --team <TEAM_ID> or export APPLE_DEVELOPMENT_TEAM for a one-off build." >&2
+    echo "Then follow docs/ios-local-setup.md for the first Xcode bootstrap." >&2
     exit 1
   fi
 fi
@@ -215,16 +322,34 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     exit 0
   fi
   BUILD_CMD+=(--ci)
-  "${BUILD_CMD[@]}"
+  BUILD_LOG="$(mktemp)"
+  if "${BUILD_CMD[@]}" 2>&1 | tee "$BUILD_LOG"; then
+    :
+  else
+    if grep -q '\*\* BUILD SUCCEEDED \*\*' "$BUILD_LOG" && grep -q 'EXPORT FAILED' "$BUILD_LOG"; then
+      CURRENT_BUILD_DERIVED_DATA_APP="$(derived_data_device_app_from_log "$BUILD_LOG")"
+      echo "Tauri export failed after a successful Xcode device build." >&2
+      echo "Falling back to the DerivedData app for install/launch." >&2
+      USE_DERIVED_DATA_APP=1
+    else
+      rm -f "$BUILD_LOG"
+      exit 1
+    fi
+  fi
+  rm -f "$BUILD_LOG"
 fi
 
-APP_PATH="src-tauri/gen/apple/build/arm64/Codex Monitor.app"
-if [[ ! -d "$APP_PATH" ]]; then
-  APP_PATH="$(find src-tauri/gen/apple/build -maxdepth 4 -type d -name 'Codex Monitor.app' | head -n 1 || true)"
-fi
+APP_PATH="$(resolve_device_app_path)"
 
 if [[ -z "$APP_PATH" || ! -d "$APP_PATH" ]]; then
-  echo "Built app not found under src-tauri/gen/apple/build." >&2
+  echo "Built app not found under src-tauri/gen/apple/build or Xcode DerivedData." >&2
+  exit 1
+fi
+
+APP_BUNDLE_IDENTIFIER="$(app_bundle_identifier "$APP_PATH")"
+if [[ -n "$BUNDLE_ID" && -n "$APP_BUNDLE_IDENTIFIER" && "$APP_BUNDLE_IDENTIFIER" != "$BUNDLE_ID" ]]; then
+  echo "Resolved app bundle ID (${APP_BUNDLE_IDENTIFIER}) does not match expected bundle ID (${BUNDLE_ID})." >&2
+  echo "Refusing to install a potentially stale or unrelated app bundle." >&2
   exit 1
 fi
 
