@@ -59,6 +59,7 @@ Notes:
 - The local config is gitignored.
 - The setup script only writes the local JSON config. It does not rewrite tracked generated Xcode files.
 - Do not commit local signing changes under `src-tauri/gen/apple/*`. Those are generated artifacts, not the source of truth for per-machine signing.
+- If `src-tauri/gen/apple/codex-monitor.xcodeproj/project.pbxproj` picks up local team or bundle-ID churn, revert it. The CLI scripts read signing values from `src-tauri/tauri.ios.local.conf.json`, not from the tracked `pbxproj`.
 
 ## 1a. Install The Repo Safeguards
 
@@ -176,6 +177,14 @@ That rewrites the local config. If Xcode still shows stale signing state, open t
 ```
 
 Then confirm `Signing & Capabilities` matches the local JSON config and build once from Xcode.
+
+### Generated Xcode files became dirty
+
+If `src-tauri/gen/apple/codex-monitor.xcodeproj/project.pbxproj` shows only local signing drift such as `DEVELOPMENT_TEAM` or `PRODUCT_BUNDLE_IDENTIFIER`, revert it. Do not keep or commit that change.
+
+The repo-supported source of truth is `src-tauri/tauri.ios.local.conf.json`. The CLI build scripts merge that JSON config when present and can still build and install from it after the generated Xcode file is reverted.
+
+Treat generated Xcode signing churn as disposable local state unless you are intentionally debugging the Tauri/Xcode export pipeline itself.
 
 ### Xcode says there is no account or no provisioning profile
 
