@@ -150,6 +150,9 @@ export function useThreads({
     itemsByThread: state.itemsByThread,
     threadsByWorkspace: state.threadsByWorkspace,
   });
+  const activeAutoModelRoutingDecision = activeThreadId
+    ? state.autoModelRoutingDecisionByThread[activeThreadId] ?? null
+    : null;
 
   const getCurrentRateLimits = useCallback(
     (workspaceId: string) => rateLimitsByWorkspaceRef.current[workspaceId] ?? null,
@@ -877,6 +880,8 @@ export function useThreads({
     activeTurnIdByThread: state.activeTurnIdByThread,
     turnDiffByThread: state.turnDiffByThread,
     tokenUsageByThread: state.tokenUsageByThread,
+    autoModelRoutingDecisionByThread: state.autoModelRoutingDecisionByThread,
+    activeAutoModelRoutingDecision,
     rateLimitsByWorkspace: state.rateLimitsByWorkspace,
     accountByWorkspace: state.accountByWorkspace,
     planByThread: state.planByThread,

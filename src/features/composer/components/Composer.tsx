@@ -9,6 +9,7 @@ import {
 import type {
   AppMention,
   AppOption,
+  AutoModelRoutingDecision,
   ComposerSendIntent,
   ComposerEditorSettings,
   CustomPromptOption,
@@ -70,6 +71,7 @@ type ComposerProps = {
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
   selectedServiceTier: ServiceTier | null;
+  activeAutoModelRoutingDecision?: AutoModelRoutingDecision | null;
   reasoningSupported: boolean;
   codexArgsOptions?: CodexArgsOption[];
   selectedCodexArgsOverride?: string | null;
@@ -181,6 +183,7 @@ export const Composer = memo(function Composer({
   selectedEffort,
   onSelectEffort,
   selectedServiceTier,
+  activeAutoModelRoutingDecision = null,
   reasoningSupported,
   codexArgsOptions = [],
   selectedCodexArgsOverride = null,
@@ -694,6 +697,7 @@ export const Composer = memo(function Composer({
         selectedEffort={selectedEffort}
         onSelectEffort={onSelectEffort}
         selectedServiceTier={selectedServiceTier}
+        activeAutoModelRoutingDecision={activeAutoModelRoutingDecision}
         reasoningSupported={reasoningSupported}
         codexArgsOptions={codexArgsOptions}
         selectedCodexArgsOverride={selectedCodexArgsOverride}

@@ -32,6 +32,7 @@ import type { ThreadAction, ThreadState } from "./useThreadsReducer";
 import { useReviewPrompt } from "./useReviewPrompt";
 import {
   buildAppsLines,
+  extractAutoModelRoutingDecision,
   buildMcpStatusLines,
   buildReviewThreadTitle,
   buildStatusLines,
@@ -163,6 +164,7 @@ export function useThreadMessaging({
         resolvedAccessMode,
         appMentions,
         sendIntent,
+        queueIntentRequested,
         shouldSteer,
         requestMode,
       } = resolveSendMessageOptions({
@@ -178,6 +180,20 @@ export function useThreadMessaging({
           activeTurnId,
         },
       });
+      if (queueIntentRequested && isProcessing) {
+        onDebug?.({
+          id: `${Date.now()}-client-turn-queue-intent-rejected`,
+          timestamp: Date.now(),
+          source: "error",
+          label: "turn/queue intent rejected",
+          payload: {
+            workspaceId: workspace.id,
+            threadId,
+            activeTurnId,
+          },
+        });
+        return { status: "blocked" };
+      }
       Sentry.metrics.count("prompt_sent", 1, {
         attributes: {
           workspace_id: workspace.id,
@@ -264,6 +280,16 @@ export function useThreadMessaging({
           )) as Record<string, unknown>;
 
         const rpcError = extractRpcErrorMessage(response);
+        const routingDecision =
+          requestMode === "start" ? extractAutoModelRoutingDecision(response) : null;
+
+        if (requestMode === "start" && routingDecision) {
+          dispatch({
+            type: "setAutoModelRoutingDecision",
+            threadId,
+            decision: routingDecision,
+          });
+        }
 
         onDebug?.({
           id: `${Date.now()}-${requestMode === "steer" ? "server-turn-steer" : "server-turn-start"}`,
@@ -278,7 +304,9 @@ export function useThreadMessaging({
             setActiveTurnId(threadId, null);
             pushThreadErrorMessage(threadId, `Turn failed to start: ${rpcError}`);
             safeMessageActivity();
-            return { status: "blocked" };
+            return routingDecision
+              ? { status: "blocked", routingDecision }
+              : { status: "blocked" };
           }
           if (isStaleSteerTurnError(rpcError)) {
             markProcessing(threadId, false);
@@ -309,10 +337,14 @@ export function useThreadMessaging({
           setActiveTurnId(threadId, null);
           pushThreadErrorMessage(threadId, "Turn failed to start.");
           safeMessageActivity();
-          return { status: "blocked" };
+          return routingDecision
+            ? { status: "blocked", routingDecision }
+            : { status: "blocked" };
         }
         setActiveTurnId(threadId, turnId);
-        return { status: "sent" };
+        return routingDecision
+          ? { status: "sent", routingDecision }
+          : { status: "sent" };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (requestMode !== "steer") {

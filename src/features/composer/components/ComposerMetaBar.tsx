@@ -1,6 +1,11 @@
 import { memo, useEffect, useState, type CSSProperties } from "react";
 import { BrainCog, SlidersHorizontal, Zap } from "lucide-react";
-import type { AccessMode, ServiceTier, ThreadTokenUsage } from "../../../types";
+import type {
+  AccessMode,
+  AutoModelRoutingDecision,
+  ServiceTier,
+  ThreadTokenUsage,
+} from "../../../types";
 import type { CodexArgsOption } from "../../threads/utils/codexArgsProfiles";
 
 type ComposerMetaBarProps = {
@@ -15,6 +20,7 @@ type ComposerMetaBarProps = {
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
   selectedServiceTier: ServiceTier | null;
+  activeAutoModelRoutingDecision?: AutoModelRoutingDecision | null;
   reasoningSupported: boolean;
   accessMode: AccessMode;
   onSelectAccessMode: (mode: AccessMode) => void;
@@ -157,6 +163,49 @@ const ComposerDurationBadge = memo(function ComposerDurationBadge({
   );
 });
 
+function buildRoutingDecisionTitle(decision: AutoModelRoutingDecision) {
+  const truncateLine = (value: string, maxLength = 120) =>
+    value.length > maxLength ? `${value.slice(0, maxLength - 1).trimEnd()}…` : value;
+  const effortLabel = decision.selectedReasoningEffort ?? "default";
+  const statusLabel = decision.fallbackUsed ? "Fallback selection" : "Router selection";
+  const lines = [
+    `${statusLabel}: ${decision.selectedModel} (${effortLabel})`,
+    truncateLine(decision.reason),
+  ];
+  if (decision.policyNote) {
+    lines.push(truncateLine(decision.policyNote));
+  }
+  return lines.join("\n");
+}
+
+const ComposerRoutingBadge = memo(function ComposerRoutingBadge({
+  decision,
+}: {
+  decision: AutoModelRoutingDecision;
+}) {
+  const effortLabel = decision.selectedReasoningEffort ?? "default";
+
+  return (
+    <div
+      className={`composer-routing-badge${decision.fallbackUsed ? " is-fallback" : ""}`}
+      role="status"
+      aria-label={`Auto routing selected ${decision.selectedModel} with ${effortLabel} reasoning`}
+      title={buildRoutingDecisionTitle(decision)}
+    >
+      <span className="composer-routing-badge-label">
+        {decision.fallbackUsed ? "Auto fallback" : "Auto"}
+      </span>
+      <span className="composer-routing-badge-value">
+        {decision.selectedModel}
+        <span className="composer-routing-badge-separator" aria-hidden>
+          •
+        </span>
+        {effortLabel}
+      </span>
+    </div>
+  );
+});
+
 export function ComposerMetaBar({
   disabled,
   collaborationModes,
@@ -169,6 +218,7 @@ export function ComposerMetaBar({
   selectedEffort,
   onSelectEffort,
   selectedServiceTier,
+  activeAutoModelRoutingDecision = null,
   reasoningSupported,
   accessMode,
   onSelectAccessMode,
@@ -351,6 +401,9 @@ export function ComposerMetaBar({
             ))}
           </select>
         </div>
+        {activeAutoModelRoutingDecision && (
+          <ComposerRoutingBadge decision={activeAutoModelRoutingDecision} />
+        )}
         {codexArgsOptions.length > 1 && onSelectCodexArgsOverride && (
           <div className="composer-select-wrap">
             <span className="composer-icon" aria-hidden>

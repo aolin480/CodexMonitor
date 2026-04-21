@@ -236,12 +236,39 @@ export type AutoModelRoutingCredentialInput = {
   provider: AutoModelRoutingProvider;
   credential: string;
 };
+
+export type AutoModelRoutingDecision = {
+  mode: string;
+  provider: AutoModelRoutingProvider;
+  selectedModel: string;
+  selectedReasoningEffort: string | null;
+  fallbackUsed: boolean;
+  reason: string;
+  confidence: number | null;
+  taskType: string;
+  complexity: string;
+  ambiguity: string;
+  needsTools: boolean;
+  needsLargeContext: boolean;
+  policyNote: string | null;
+};
 export type ThemePreference = "system" | "light" | "dark" | "dim";
 export type PersonalityPreference = "friendly" | "pragmatic";
 export type FollowUpMessageBehavior = "queue" | "steer";
 export type ComposerSendIntent = "default" | "queue" | "steer";
 export type SendMessageResult = {
   status: "sent" | "blocked" | "steer_failed";
+  routingDecision?: AutoModelRoutingDecision;
+};
+
+export type SendUserMessageResponse = {
+  result?: {
+    turn?: { id?: string | null } | null;
+    routingDecision?: AutoModelRoutingDecision | null;
+  } | null;
+  turn?: { id?: string | null } | null;
+  routingDecision?: AutoModelRoutingDecision | null;
+  error?: unknown;
 };
 
 export type ComposerEditorPreset = "default" | "helpful" | "smart";

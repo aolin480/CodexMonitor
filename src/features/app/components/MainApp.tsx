@@ -441,6 +441,7 @@ export default function MainApp() {
     threadListCursorByWorkspace,
     activeTurnIdByThread,
     tokenUsageByThread,
+    activeAutoModelRoutingDecision,
     rateLimitsByWorkspace,
     accountByWorkspace,
     planByThread,
@@ -1115,12 +1116,14 @@ export default function MainApp() {
       activeItems,
       threadStatusById,
       activeTurnIdByThread,
+      activeAutoModelRoutingDecision,
       userInputRequests,
     },
     settings: {
       steerEnabled: appSettings.steerEnabled,
       followUpMessageBehavior: appSettings.followUpMessageBehavior,
       experimentalAppsEnabled: appSettings.experimentalAppsEnabled,
+      autoModelRoutingShowDiagnostics: appSettings.autoModelRoutingShowDiagnostics,
       pauseQueuedMessagesWhenResponseRequired:
         appSettings.pauseQueuedMessagesWhenResponseRequired,
     },

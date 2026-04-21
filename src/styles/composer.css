@@ -780,6 +780,50 @@
   text-overflow: ellipsis;
 }
 
+.composer-routing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  max-width: min(100%, 260px);
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--message-link-color) 24%, var(--cm-border-elevated));
+  background: color-mix(in srgb, var(--message-link-color) 10%, var(--cm-surface-panel-elevated));
+  color: var(--text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.composer-routing-badge.is-fallback {
+  border-color: color-mix(in srgb, var(--warning-color, #d97706) 28%, var(--cm-border-elevated));
+  background: color-mix(in srgb, var(--warning-color, #d97706) 10%, var(--cm-surface-panel-elevated));
+}
+
+.composer-routing-badge-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--message-link-color) 72%, white);
+  flex-shrink: 0;
+}
+
+.composer-routing-badge.is-fallback .composer-routing-badge-label {
+  color: color-mix(in srgb, var(--warning-color, #d97706) 78%, white);
+}
+
+.composer-routing-badge-value {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-routing-badge-separator {
+  padding: 0 4px;
+  color: var(--text-fainter);
+}
+
 .composer-context-ring {
   --context-free: 0;
   width: 20px;
@@ -1119,6 +1163,20 @@
   }
 
   .app.layout-phone .composer-duration-value {
+    font-size: 10px;
+  }
+
+  .app.layout-phone .composer-routing-badge {
+    max-width: min(100%, 180px);
+    padding: 0 6px;
+    gap: 4px;
+  }
+
+  .app.layout-phone .composer-routing-badge-label {
+    display: none;
+  }
+
+  .app.layout-phone .composer-routing-badge-value {
     font-size: 10px;
   }
 }

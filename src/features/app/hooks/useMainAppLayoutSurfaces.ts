@@ -512,6 +512,8 @@ function buildPrimarySurface({
           selectedEffort,
           onSelectEffort,
           selectedServiceTier,
+          activeAutoModelRoutingDecision:
+            composerWorkspaceState.activeAutoModelRoutingDecision,
           reasoningSupported,
           codexArgsOptions,
           selectedCodexArgsOverride,

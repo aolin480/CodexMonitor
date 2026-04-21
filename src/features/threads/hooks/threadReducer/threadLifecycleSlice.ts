@@ -130,7 +130,9 @@ export function reduceThreadLifecycle(
       const { [action.threadId]: ___, ...restTurns } = state.activeTurnIdByThread;
       const { [action.threadId]: ____, ...restDiffs } = state.turnDiffByThread;
       const { [action.threadId]: _____, ...restPlans } = state.planByThread;
-      const { [action.threadId]: ______, ...restParents } = state.threadParentById;
+      const { [action.threadId]: ______, ...restRouting } =
+        state.autoModelRoutingDecisionByThread;
+      const { [action.threadId]: _______, ...restParents } = state.threadParentById;
       return {
         ...state,
         threadsByWorkspace: {
@@ -142,6 +144,7 @@ export function reduceThreadLifecycle(
         activeTurnIdByThread: restTurns,
         turnDiffByThread: restDiffs,
         planByThread: restPlans,
+        autoModelRoutingDecisionByThread: restRouting,
         threadParentById: restParents,
         activeThreadIdByWorkspace: {
           ...state.activeThreadIdByWorkspace,
@@ -220,6 +223,14 @@ export function reduceThreadLifecycle(
         activeTurnIdByThread: {
           ...state.activeTurnIdByThread,
           [action.threadId]: action.turnId,
+        },
+      };
+    case "setAutoModelRoutingDecision":
+      return {
+        ...state,
+        autoModelRoutingDecisionByThread: {
+          ...state.autoModelRoutingDecisionByThread,
+          [action.threadId]: action.decision,
         },
       };
     case "markReviewing": {

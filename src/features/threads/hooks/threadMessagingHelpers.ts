@@ -1,5 +1,6 @@
 import type {
   AccessMode,
+  AutoModelRoutingDecision,
   AppMention,
   ComposerSendIntent,
   RateLimitSnapshot,
@@ -44,6 +45,7 @@ export type ResolvedSendMessageOptions = {
   resolvedAccessMode?: AccessMode;
   appMentions: AppMention[];
   sendIntent: ComposerSendIntent;
+  queueIntentRequested: boolean;
   shouldSteer: boolean;
   requestMode: "start" | "steer";
 };
@@ -130,15 +132,18 @@ export function resolveSendMessageOptions({
   const resolvedAccessMode =
     options?.accessMode !== undefined ? options.accessMode : defaults.accessMode;
   const appMentions = options?.appMentions ?? [];
-  const sendIntent = options?.sendIntent ?? "default";
+  const requestedSendIntent = options?.sendIntent ?? "default";
+  const queueIntentRequested = requestedSendIntent === "queue";
   const canSteerCurrentTurn =
     defaults.isProcessing && defaults.steerEnabled && Boolean(defaults.activeTurnId);
   const shouldSteer =
-    sendIntent === "steer"
+    requestedSendIntent === "steer"
       ? canSteerCurrentTurn
-      : sendIntent === "queue"
+      : requestedSendIntent === "queue"
         ? false
         : canSteerCurrentTurn;
+  const sendIntent =
+    queueIntentRequested && !defaults.isProcessing ? "default" : requestedSendIntent;
 
   return {
     resolvedModel,
@@ -148,6 +153,7 @@ export function resolveSendMessageOptions({
     resolvedAccessMode,
     appMentions,
     sendIntent,
+    queueIntentRequested,
     shouldSteer,
     requestMode: shouldSteer ? "steer" : "start",
   };
@@ -186,6 +192,114 @@ export function buildTurnStartPayload({
   return payload;
 }
 
+function asNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function readRecordValue(
+  record: Record<string, unknown>,
+  ...keys: string[]
+): unknown {
+  for (const key of keys) {
+    if (key in record) {
+      return record[key];
+    }
+  }
+  return undefined;
+}
+
+function readStringValue(
+  record: Record<string, unknown>,
+  ...keys: string[]
+): string | null {
+  return asNonEmptyString(readRecordValue(record, ...keys));
+}
+
+function readBooleanValue(
+  record: Record<string, unknown>,
+  fallback: boolean,
+  ...keys: string[]
+): boolean {
+  const value = readRecordValue(record, ...keys);
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function readNumberValue(
+  record: Record<string, unknown>,
+  ...keys: string[]
+): number | null {
+  const value = readRecordValue(record, ...keys);
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function parseAutoModelRoutingDecision(
+  value: unknown,
+): AutoModelRoutingDecision | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+
+  const selectedModel = readStringValue(
+    candidate,
+    "selectedModel",
+    "selected_model",
+  );
+  if (!selectedModel) {
+    return null;
+  }
+
+  return {
+    mode: readStringValue(candidate, "mode") ?? "unknown",
+    provider: "openai",
+    selectedModel,
+    selectedReasoningEffort: readStringValue(
+      candidate,
+      "selectedReasoningEffort",
+      "selected_reasoning_effort",
+      "selectedReasoning",
+      "selected_reasoning",
+    ),
+    fallbackUsed: readBooleanValue(
+      candidate,
+      false,
+      "fallbackUsed",
+      "fallback_used",
+    ),
+    reason:
+      readStringValue(candidate, "reason") ?? "Auto model routing applied.",
+    confidence: readNumberValue(candidate, "confidence"),
+    taskType: readStringValue(candidate, "taskType", "task_type") ?? "unknown",
+    complexity: readStringValue(candidate, "complexity") ?? "unknown",
+    ambiguity: readStringValue(candidate, "ambiguity") ?? "unknown",
+    needsTools: readBooleanValue(candidate, false, "needsTools", "needs_tools"),
+    needsLargeContext: readBooleanValue(
+      candidate,
+      false,
+      "needsLargeContext",
+      "needs_large_context",
+    ),
+    policyNote: readStringValue(candidate, "policyNote", "policy_note"),
+  };
+}
+
+export function extractAutoModelRoutingDecision(
+  response: Record<string, unknown>,
+): AutoModelRoutingDecision | null {
+  const result =
+    response.result && typeof response.result === "object"
+      ? (response.result as { routingDecision?: unknown })
+      : null;
+  return (
+    parseAutoModelRoutingDecision(result?.routingDecision) ??
+    parseAutoModelRoutingDecision(response.routingDecision)
+  );
+}
+
 function normalizeReset(value?: number | null): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return null;
@@ -199,19 +313,31 @@ function resetLabel(value?: number | null): string | null {
 }
 
 function getCollaborationModeId(
-  collaborationMode?: Record<string, unknown> | null,
+  collaborationMode?: Record<string, unknown> | string | null,
 ): string {
-  if (
-    !collaborationMode ||
-    typeof collaborationMode !== "object" ||
-    !("settings" in collaborationMode) ||
-    !collaborationMode.settings ||
-    typeof collaborationMode.settings !== "object" ||
-    !("id" in collaborationMode.settings)
-  ) {
+  if (typeof collaborationMode === "string") {
+    return collaborationMode.trim();
+  }
+  if (!collaborationMode || typeof collaborationMode !== "object") {
     return "";
   }
-  return String(collaborationMode.settings.id ?? "");
+
+  const topLevelMode = asNonEmptyString(readRecordValue(collaborationMode, "mode", "id"));
+  if (topLevelMode) {
+    return topLevelMode;
+  }
+
+  const settings =
+    collaborationMode.settings && typeof collaborationMode.settings === "object"
+      ? (collaborationMode.settings as Record<string, unknown>)
+      : null;
+  if (!settings) {
+    return "";
+  }
+
+  return (
+    asNonEmptyString(readRecordValue(settings, "id", "mode", "name")) ?? ""
+  );
 }
 
 export function buildStatusLines({
@@ -226,7 +352,7 @@ export function buildStatusLines({
   serviceTier?: ServiceTier | null | undefined;
   effort?: string | null;
   accessMode?: AccessMode;
-  collaborationMode?: Record<string, unknown> | null;
+  collaborationMode?: Record<string, unknown> | string | null;
   rateLimits: RateLimitSnapshot | null;
 }): string[] {
   const lines = [

@@ -207,6 +207,207 @@ describe("useThreadMessaging telemetry", () => {
     );
   });
 
+  it("captures backend routing decisions for turn/start responses", async () => {
+    const dispatch = vi.fn();
+    vi.mocked(sendUserMessageService).mockResolvedValueOnce({
+      result: {
+        turn: { id: "turn-1" },
+        routingDecision: {
+          mode: "responsive",
+          provider: "openai",
+          selectedModel: "gpt-5.4",
+          selectedReasoningEffort: "medium",
+          fallbackUsed: false,
+          reason: "Matched a balanced coding task.",
+          confidence: 0.81,
+          taskType: "coding",
+          complexity: "medium",
+          ambiguity: "low",
+          needsTools: true,
+          needsLargeContext: false,
+          policyNote: null,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof sendUserMessageService>>);
+
+    const { result } = renderHook(() =>
+      useThreadMessaging({
+        activeWorkspace: workspace,
+        activeThreadId: "thread-1",
+        accessMode: "current",
+        model: null,
+        effort: null,
+        collaborationMode: null,
+        reviewDeliveryMode: "inline",
+        steerEnabled: false,
+        customPrompts: [],
+        threadStatusById: {},
+        activeTurnIdByThread: {},
+        rateLimitsByWorkspace: {},
+        pendingInterruptsRef: { current: new Set<string>() },
+        dispatch,
+        getCustomName: vi.fn(() => undefined),
+        markProcessing: vi.fn(),
+        markReviewing: vi.fn(),
+        setActiveTurnId: vi.fn(),
+        recordThreadActivity: vi.fn(),
+        safeMessageActivity: vi.fn(),
+        onDebug: vi.fn(),
+        pushThreadErrorMessage: vi.fn(),
+        ensureThreadForActiveWorkspace: vi.fn(async () => "thread-1"),
+        ensureThreadForWorkspace: vi.fn(async () => "thread-1"),
+        refreshThread: vi.fn(async () => null),
+        forkThreadForWorkspace: vi.fn(async () => null),
+        updateThreadParent: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      const sendResult = await result.current.sendUserMessage("hello");
+      expect(sendResult).toEqual(
+        expect.objectContaining({
+          status: "sent",
+          routingDecision: expect.objectContaining({
+            selectedModel: "gpt-5.4",
+            selectedReasoningEffort: "medium",
+          }),
+        }),
+      );
+    });
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setAutoModelRoutingDecision",
+      threadId: "thread-1",
+      decision: expect.objectContaining({
+        selectedModel: "gpt-5.4",
+        selectedReasoningEffort: "medium",
+        fallbackUsed: false,
+      }),
+    });
+  });
+
+  it("does not clear the last routing decision when a start response has no valid routing payload", async () => {
+    const dispatch = vi.fn();
+    vi.mocked(sendUserMessageService).mockResolvedValueOnce({
+      result: {
+        turn: { id: "turn-1" },
+        routingDecision: {
+          mode: "responsive",
+          provider: "openai",
+          selectedModel: 123,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof sendUserMessageService>>);
+
+    const { result } = renderHook(() =>
+      useThreadMessaging({
+        activeWorkspace: workspace,
+        activeThreadId: "thread-1",
+        accessMode: "current",
+        model: null,
+        effort: null,
+        collaborationMode: null,
+        reviewDeliveryMode: "inline",
+        steerEnabled: false,
+        customPrompts: [],
+        threadStatusById: {},
+        activeTurnIdByThread: {},
+        rateLimitsByWorkspace: {},
+        pendingInterruptsRef: { current: new Set<string>() },
+        dispatch,
+        getCustomName: vi.fn(() => undefined),
+        markProcessing: vi.fn(),
+        markReviewing: vi.fn(),
+        setActiveTurnId: vi.fn(),
+        recordThreadActivity: vi.fn(),
+        safeMessageActivity: vi.fn(),
+        onDebug: vi.fn(),
+        pushThreadErrorMessage: vi.fn(),
+        ensureThreadForActiveWorkspace: vi.fn(async () => "thread-1"),
+        ensureThreadForWorkspace: vi.fn(async () => "thread-1"),
+        refreshThread: vi.fn(async () => null),
+        forkThreadForWorkspace: vi.fn(async () => null),
+        updateThreadParent: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      const sendResult = await result.current.sendUserMessage("hello");
+      expect(sendResult).toEqual({ status: "sent" });
+    });
+
+    expect(
+      dispatch.mock.calls.some(
+        ([action]) => action?.type === "setAutoModelRoutingDecision",
+      ),
+    ).toBe(false);
+  });
+
+  it("blocks direct queue intent while a turn is already processing", async () => {
+    const onDebug = vi.fn();
+    const { result } = renderHook(() =>
+      useThreadMessaging({
+        activeWorkspace: workspace,
+        activeThreadId: "thread-1",
+        accessMode: "current",
+        model: null,
+        effort: null,
+        collaborationMode: null,
+        reviewDeliveryMode: "inline",
+        steerEnabled: true,
+        customPrompts: [],
+        threadStatusById: {
+          "thread-1": {
+            isProcessing: true,
+            isReviewing: false,
+            hasUnread: false,
+            processingStartedAt: 0,
+            lastDurationMs: null,
+          },
+        },
+        activeTurnIdByThread: {
+          "thread-1": "turn-1",
+        },
+        rateLimitsByWorkspace: {},
+        pendingInterruptsRef: { current: new Set<string>() },
+        dispatch: vi.fn(),
+        getCustomName: vi.fn(() => undefined),
+        markProcessing: vi.fn(),
+        markReviewing: vi.fn(),
+        setActiveTurnId: vi.fn(),
+        recordThreadActivity: vi.fn(),
+        safeMessageActivity: vi.fn(),
+        onDebug,
+        pushThreadErrorMessage: vi.fn(),
+        ensureThreadForActiveWorkspace: vi.fn(async () => "thread-1"),
+        ensureThreadForWorkspace: vi.fn(async () => "thread-1"),
+        refreshThread: vi.fn(async () => null),
+        forkThreadForWorkspace: vi.fn(async () => null),
+        updateThreadParent: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      const sendResult = await result.current.sendUserMessageToThread(
+        workspace,
+        "thread-1",
+        "queued follow-up",
+        [],
+        { sendIntent: "queue" },
+      );
+      expect(sendResult).toEqual({ status: "blocked" });
+    });
+
+    expect(sendUserMessageService).not.toHaveBeenCalled();
+    expect(steerTurnService).not.toHaveBeenCalled();
+    expect(onDebug).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "error",
+        label: "turn/queue intent rejected",
+      }),
+    );
+  });
+
   it("forwards the selected service tier to turn/start", async () => {
     const { result } = renderHook(() =>
       useThreadMessaging({

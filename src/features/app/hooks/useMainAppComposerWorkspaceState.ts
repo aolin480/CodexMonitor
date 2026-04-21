@@ -1,6 +1,7 @@
 import { useMemo, type RefObject } from "react";
 import type {
   AppSettings,
+  AutoModelRoutingDecision,
   ConversationItem,
   DebugEntry,
   ModelOption,
@@ -39,6 +40,7 @@ type UseMainAppComposerWorkspaceStateArgs = {
     activeThreadId: string | null;
     activeItems: ConversationItem[];
     activeTurnIdByThread: Record<string, string | null | undefined>;
+    activeAutoModelRoutingDecision: AutoModelRoutingDecision | null;
     threadStatusById: Record<
       string,
       {
@@ -53,6 +55,7 @@ type UseMainAppComposerWorkspaceStateArgs = {
     | "steerEnabled"
     | "followUpMessageBehavior"
     | "experimentalAppsEnabled"
+    | "autoModelRoutingShowDiagnostics"
     | "pauseQueuedMessagesWhenResponseRequired"
   >;
   models: {
@@ -120,6 +123,7 @@ export function useMainAppComposerWorkspaceState({
     activeThreadId,
     activeItems,
     activeTurnIdByThread,
+    activeAutoModelRoutingDecision,
     threadStatusById,
     userInputRequests,
   } = thread;
@@ -319,6 +323,8 @@ export function useMainAppComposerWorkspaceState({
     activeTurnId,
     steerAvailable,
     queuePausedReason,
+    activeAutoModelRoutingDecision:
+      settings.autoModelRoutingShowDiagnostics ? activeAutoModelRoutingDecision : null,
     canInsertComposerText,
     handleInsertComposerText,
     recentThreadInstances,

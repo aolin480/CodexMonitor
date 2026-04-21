@@ -1,6 +1,7 @@
 import type {
   AccountSnapshot,
   ApprovalRequest,
+  AutoModelRoutingDecision,
   ConversationItem,
   RateLimitSnapshot,
   RequestUserInputRequest,
@@ -42,6 +43,7 @@ export type ThreadState = {
   approvals: ApprovalRequest[];
   userInputRequests: RequestUserInputRequest[];
   tokenUsageByThread: Record<string, ThreadTokenUsage>;
+  autoModelRoutingDecisionByThread: Record<string, AutoModelRoutingDecision | null>;
   rateLimitsByWorkspace: Record<string, RateLimitSnapshot | null>;
   accountByWorkspace: Record<string, AccountSnapshot | null>;
   planByThread: Record<string, TurnPlan | null>;
@@ -157,6 +159,11 @@ export type ThreadAction =
     }
   | { type: "setThreadTokenUsage"; threadId: string; tokenUsage: ThreadTokenUsage }
   | {
+      type: "setAutoModelRoutingDecision";
+      threadId: string;
+      decision: AutoModelRoutingDecision | null;
+    }
+  | {
       type: "setRateLimits";
       workspaceId: string;
       rateLimits: RateLimitSnapshot | null;
@@ -197,6 +204,7 @@ export const initialState: ThreadState = {
   approvals: [],
   userInputRequests: [],
   tokenUsageByThread: {},
+  autoModelRoutingDecisionByThread: {},
   rateLimitsByWorkspace: {},
   accountByWorkspace: {},
   planByThread: {},

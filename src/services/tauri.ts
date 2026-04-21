@@ -10,6 +10,7 @@ import type {
   DictationModelStatus,
   DictationSessionState,
   LocalUsageSnapshot,
+  SendUserMessageResponse,
   TcpDaemonStatus,
   TailscaleDaemonCommandPreview,
   TailscaleStatus,
@@ -460,7 +461,7 @@ export async function sendUserMessage(
     collaborationMode?: Record<string, unknown> | null;
     appMentions?: AppMention[];
   },
-) {
+): Promise<SendUserMessageResponse> {
   const images = await normalizeImagesForRpc(options?.images);
   const payload: Record<string, unknown> = {
     workspaceId,
@@ -480,7 +481,7 @@ export async function sendUserMessage(
   if (options?.appMentions && options.appMentions.length > 0) {
     payload.appMentions = options.appMentions;
   }
-  return invoke("send_user_message", payload);
+  return invoke<SendUserMessageResponse>("send_user_message", payload);
 }
 
 export async function interruptTurn(
