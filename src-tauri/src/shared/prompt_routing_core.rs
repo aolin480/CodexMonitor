@@ -788,9 +788,22 @@ async fn route_prompt_with_openai(
             .unwrap_or_else(|| format!("OpenAI router request failed with status {}", status));
         return Err(error_message);
     }
-    let text = extract_response_text(&value)?;
-    serde_json::from_str::<RouterOutput>(text.as_str())
-        .map_err(|error| format!("Failed to parse router decision JSON: {error}"))
+    let text_candidates = extract_response_text_candidates(&value)?;
+    let mut last_error = None;
+    for text in text_candidates {
+        match parse_router_output(text.as_str()) {
+            Ok(output) => return Ok(output),
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(format!(
+        "Failed to parse router decision JSON: {}",
+        last_error.unwrap_or_else(|| {
+            serde_json::Error::io(std::io::Error::other(
+                "router output did not contain valid JSON",
+            ))
+        })
+    ))
 }
 
 fn build_openai_request_body(payload: RouterRequestPayload) -> Result<String, String> {
@@ -872,50 +885,242 @@ fn extract_openai_error_message(value: &Value) -> Option<String> {
         .filter(|message| !message.is_empty())
 }
 
-fn extract_response_text(value: &Value) -> Result<String, String> {
-    if let Some(text) = value.get("output_text").and_then(Value::as_str) {
-        let text = text.trim();
-        if !text.is_empty() {
-            return Ok(text.to_string());
+fn push_text_fragment(parts: &mut Vec<String>, text: &str) {
+    let trimmed = text.trim();
+    if !trimmed.is_empty() {
+        parts.push(trimmed.to_string());
+    }
+}
+
+fn push_unique_text(parts: &mut Vec<String>, text: String) {
+    if !parts.iter().any(|existing| existing == &text) {
+        parts.push(text);
+    }
+}
+
+fn extract_supported_text_value(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        Value::Object(object) => {
+            if let Some(text) = object.get("text").and_then(extract_supported_text_value) {
+                return Some(text);
+            }
+            object
+                .get("value")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+        }
+        _ => None,
+    }
+}
+
+fn extract_output_text_candidate(value: &Value) -> Option<String> {
+    match value {
+        Value::String(_) | Value::Object(_) => extract_supported_text_value(value),
+        Value::Array(values) => {
+            let mut parts = Vec::new();
+            for item in values {
+                if let Some(text) = extract_supported_text_value(item) {
+                    push_text_fragment(&mut parts, text.as_str());
+                    continue;
+                }
+                if let Some(text) = item.get("text").and_then(extract_supported_text_value) {
+                    push_text_fragment(&mut parts, text.as_str());
+                }
+            }
+            if parts.is_empty() {
+                None
+            } else {
+                Some(parts.join("\n"))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn extract_output_item_candidate(value: &Value) -> Option<String> {
+    let object = value.as_object()?;
+
+    if let Some(content) = object.get("content").and_then(Value::as_array) {
+        let mut parts = Vec::new();
+        for item in content {
+            if let Some(text) = item.get("text").and_then(extract_supported_text_value) {
+                push_text_fragment(&mut parts, text.as_str());
+            }
+        }
+        if !parts.is_empty() {
+            return Some(parts.join("\n"));
         }
     }
 
-    let Some(outputs) = value.get("output").and_then(Value::as_array) else {
-        return Err("Auto-routing response did not contain output text.".to_string());
-    };
+    object.get("text").and_then(extract_supported_text_value)
+}
 
+fn extract_response_text_candidates(value: &Value) -> Result<Vec<String>, String> {
     let mut parts = Vec::new();
-    for output in outputs {
-        let Some(content) = output.get("content").and_then(Value::as_array) else {
-            continue;
-        };
-        for item in content {
-            if let Some(text) = item.get("text").and_then(Value::as_str) {
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    parts.push(trimmed.to_string());
-                    continue;
-                }
-            }
-            if let Some(text) = item
-                .get("text")
-                .and_then(Value::as_object)
-                .and_then(|object| object.get("value"))
-                .and_then(Value::as_str)
-            {
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    parts.push(trimmed.to_string());
-                }
+
+    if let Some(output_text) = value.get("output_text") {
+        if let Some(text) = extract_output_text_candidate(output_text) {
+            push_unique_text(&mut parts, text);
+        }
+    }
+
+    if let Some(output) = value.get("output").and_then(Value::as_array) {
+        for item in output {
+            if let Some(text) = extract_output_item_candidate(item) {
+                push_unique_text(&mut parts, text);
             }
         }
     }
 
     if parts.is_empty() {
-        return Err("Auto-routing response did not contain output text.".to_string());
+        Err("Auto-routing response did not contain output text.".to_string())
+    } else {
+        Ok(parts)
+    }
+}
+
+#[cfg(test)]
+fn extract_response_text(value: &Value) -> Result<String, String> {
+    extract_response_text_candidates(value)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "Auto-routing response did not contain output text.".to_string())
+}
+
+fn strip_markdown_code_fence(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    let mut lines: Vec<&str> = trimmed.lines().collect();
+    if lines.len() < 3 {
+        return None;
+    }
+    let first = lines.first()?.trim();
+    let last = lines.last()?.trim();
+    if !first.starts_with("```") || !last.starts_with("```") {
+        return None;
+    }
+    lines.remove(0);
+    lines.pop();
+    let candidate = lines.join("\n").trim().to_string();
+    if candidate.is_empty() {
+        None
+    } else {
+        Some(candidate)
+    }
+}
+
+fn router_output_schema_matches(value: &Value) -> bool {
+    let Some(object) = value.as_object() else {
+        return false;
+    };
+
+    object.get("task_type").and_then(Value::as_str).is_some()
+        && object.get("complexity").and_then(Value::as_str).is_some()
+        && object.get("ambiguity").and_then(Value::as_str).is_some()
+        && object.get("needs_tools").and_then(Value::as_bool).is_some()
+        && object
+            .get("needs_large_context")
+            .and_then(Value::as_bool)
+            .is_some()
+        && object.get("selected_model").and_then(Value::as_str).is_some()
+        && object
+            .get("selected_reasoning")
+            .and_then(Value::as_str)
+            .is_some()
+        && object.get("confidence").and_then(Value::as_f64).is_some()
+        && object.get("reason").and_then(Value::as_str).is_some()
+}
+
+fn extract_router_json_object(text: &str) -> Option<String> {
+    let mut start = None;
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escape = false;
+
+    for (index, ch) in text.char_indices() {
+        if in_string {
+            if escape {
+                escape = false;
+                continue;
+            }
+            match ch {
+                '\\' => escape = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+
+        match ch {
+            '"' => in_string = true,
+            '{' => {
+                if depth == 0 {
+                    start = Some(index);
+                }
+                depth += 1;
+            }
+            '}' => {
+                if depth == 0 {
+                    continue;
+                }
+                depth -= 1;
+                if depth == 0 {
+                    let start = start?;
+                    let candidate = &text[start..=index];
+                    if let Ok(value) = serde_json::from_str::<Value>(candidate) {
+                        if router_output_schema_matches(&value) {
+                            return Some(candidate.to_string());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
-    Ok(parts.join("\n"))
+    None
+}
+
+fn parse_router_output(text: &str) -> Result<RouterOutput, serde_json::Error> {
+    let trimmed = text.trim();
+    let mut candidates = vec![trimmed.to_string()];
+
+    if let Some(fenced) = strip_markdown_code_fence(trimmed) {
+        if !candidates.iter().any(|candidate| candidate == &fenced) {
+            candidates.push(fenced);
+        }
+    }
+
+    // Recovery order is deliberate: prefer strict JSON first, then fenced JSON,
+    // then a schema-shaped object extracted from prose-wrapped output.
+    if let Some(json_object) = extract_router_json_object(trimmed) {
+        if !candidates.iter().any(|candidate| candidate == &json_object) {
+            candidates.push(json_object);
+        }
+    }
+
+    let mut last_error = None;
+    for candidate in candidates {
+        match serde_json::from_str::<RouterOutput>(candidate.as_str()) {
+            Ok(parsed) => return Ok(parsed),
+            Err(error) => last_error = Some(error),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        serde_json::Error::io(std::io::Error::other(
+            "router output did not contain valid JSON",
+        ))
+    }))
 }
 
 #[cfg(any(
@@ -1132,8 +1337,10 @@ fn map_keyring_read_error(
 mod tests {
     use super::{
         attach_auto_model_routing_decision, build_fallback_decision, extract_response_text,
-        map_keyring_read_error, parse_model_list_candidates, remove_auto_model_routing_credential_with,
-        resolve_router_selection, save_auto_model_routing_credential_with, AutoModelRoutingCredentialInput,
+        extract_response_text_candidates, map_keyring_read_error, parse_model_list_candidates,
+        parse_router_output,
+        remove_auto_model_routing_credential_with, resolve_router_selection,
+        save_auto_model_routing_credential_with, AutoModelRoutingCredentialInput,
         AutoModelRoutingCredentialStatus, AutoModelRoutingCredentialStorageKind,
         AutoModelRoutingDecision, AutoModelRoutingProvider, RouterOutput,
     };
@@ -1357,6 +1564,110 @@ mod tests {
             extract_response_text(&response).expect("text"),
             "{\"task_type\":\"editing\"}".to_string()
         );
+    }
+
+    #[test]
+    fn extract_response_text_reads_top_level_output_text_array() {
+        let response = json!({
+            "output_text": [
+                {
+                    "type": "output_text",
+                    "text": {
+                        "value": "{\"task_type\":\"editing\"}"
+                    }
+                }
+            ]
+        });
+
+        assert_eq!(
+            extract_response_text(&response).expect("text"),
+            "{\"task_type\":\"editing\"}".to_string()
+        );
+    }
+
+    #[test]
+    fn extract_response_text_reads_direct_output_item_without_content_array() {
+        let response = json!({
+            "output": [
+                {
+                    "type": "output_text",
+                    "text": "{\"task_type\":\"editing\"}"
+                }
+            ]
+        });
+
+        assert_eq!(
+            extract_response_text(&response).expect("text"),
+            "{\"task_type\":\"editing\"}".to_string()
+        );
+    }
+
+    #[test]
+    fn extract_response_text_candidates_keep_output_items_separate() {
+        let response = json!({
+            "output": [
+                {
+                    "type": "message",
+                    "text": "Here is the routing decision:"
+                },
+                {
+                    "type": "output_text",
+                    "text": "{\"task_type\":\"editing\"}"
+                }
+            ]
+        });
+
+        assert_eq!(
+            extract_response_text_candidates(&response).expect("candidates"),
+            vec![
+                "Here is the routing decision:".to_string(),
+                "{\"task_type\":\"editing\"}".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_router_output_accepts_markdown_fenced_json() {
+        let output = parse_router_output(
+            "```json\n{\"task_type\":\"editing\",\"complexity\":\"low\",\"ambiguity\":\"low\",\"needs_tools\":false,\"needs_large_context\":false,\"selected_model\":\"gpt-5.4-mini\",\"selected_reasoning\":\"low\",\"confidence\":0.8,\"reason\":\"Quick task.\"}\n```",
+        )
+        .expect("fenced json parses");
+
+        assert_eq!(output.selected_model, "gpt-5.4-mini");
+        assert_eq!(output.selected_reasoning, "low");
+    }
+
+    #[test]
+    fn parse_router_output_extracts_json_after_leading_prose() {
+        let output = parse_router_output(
+            "Here is the routing decision:\n{\"task_type\":\"editing\",\"complexity\":\"low\",\"ambiguity\":\"low\",\"needs_tools\":false,\"needs_large_context\":false,\"selected_model\":\"gpt-5.4-mini\",\"selected_reasoning\":\"low\",\"confidence\":0.8,\"reason\":\"Quick task.\"}\nThanks.",
+        )
+        .expect("embedded json parses");
+
+        assert_eq!(output.task_type, "editing");
+        assert_eq!(output.reason, "Quick task.");
+    }
+
+    #[test]
+    fn parse_router_output_ignores_non_schema_braces_before_real_json() {
+        let output = parse_router_output(
+            "Use {braces} carefully.\n{\"task_type\":\"editing\",\"complexity\":\"low\",\"ambiguity\":\"low\",\"needs_tools\":false,\"needs_large_context\":false,\"selected_model\":\"gpt-5.4-mini\",\"selected_reasoning\":\"low\",\"confidence\":0.8,\"reason\":\"Quick task.\"}",
+        )
+        .expect("schema-shaped json parses");
+
+        assert_eq!(output.selected_model, "gpt-5.4-mini");
+        assert_eq!(output.reason, "Quick task.");
+    }
+
+    #[test]
+    fn parse_router_output_rejects_wrong_type_object_before_real_json() {
+        let output = parse_router_output(
+            "{\"task_type\":1,\"complexity\":\"low\",\"ambiguity\":\"low\",\"needs_tools\":false,\"needs_large_context\":false,\"selected_model\":\"gpt-5.4-mini\",\"selected_reasoning\":\"low\",\"confidence\":0.8,\"reason\":\"Wrong types.\"}\n{\"task_type\":\"editing\",\"complexity\":\"low\",\"ambiguity\":\"low\",\"needs_tools\":false,\"needs_large_context\":false,\"selected_model\":\"gpt-5.4-mini\",\"selected_reasoning\":\"low\",\"confidence\":0.8,\"reason\":\"Quick task.\"}",
+        )
+        .expect("schema-typed json parses");
+
+        assert_eq!(output.task_type, "editing");
+        assert_eq!(output.reason, "Quick task.");
     }
 
     #[test]
