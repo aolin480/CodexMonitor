@@ -989,6 +989,71 @@ describe("useThreads UX integration", () => {
     expect(sendUserMessageService).not.toHaveBeenCalled();
   });
 
+  it("stores backend routing decisions in active thread state after send", async () => {
+    vi.mocked(sendUserMessageService).mockResolvedValue({
+      result: {
+        turn: { id: "turn-routing-1" },
+        routingDecision: {
+          mode: "responsive",
+          provider: "openai",
+          selectedModel: "gpt-5.4",
+          selectedReasoningEffort: "medium",
+          fallbackUsed: false,
+          reason: "Matched a balanced coding task.",
+          confidence: 0.81,
+          taskType: "coding",
+          complexity: "medium",
+          ambiguity: "low",
+          needsTools: true,
+          needsLargeContext: false,
+          policyNote: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof sendUserMessageService>>);
+
+    const { result } = renderHook(() =>
+      useThreads({
+        activeWorkspace: workspace,
+        onWorkspaceConnected: vi.fn(),
+      }),
+    );
+
+    act(() => {
+      result.current.setActiveThreadId("thread-1");
+    });
+
+    await act(async () => {
+      const sendResult = await result.current.sendUserMessage("Route this");
+      expect(sendResult).toEqual(
+        expect.objectContaining({
+          status: "sent",
+          routingDecision: expect.objectContaining({
+            selectedModel: "gpt-5.4",
+            selectedReasoningEffort: "medium",
+            fallbackUsed: false,
+          }),
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.autoModelRoutingDecisionByThread["thread-1"]).toEqual(
+        expect.objectContaining({
+          selectedModel: "gpt-5.4",
+          selectedReasoningEffort: "medium",
+          fallbackUsed: false,
+        }),
+      );
+      expect(result.current.activeAutoModelRoutingDecision).toEqual(
+        expect.objectContaining({
+          selectedModel: "gpt-5.4",
+          selectedReasoningEffort: "medium",
+          fallbackUsed: false,
+        }),
+      );
+    });
+  });
+
   it("links detached review thread to its parent", async () => {
     vi.mocked(startReview).mockResolvedValue({
       result: { reviewThreadId: "thread-review-1" },
