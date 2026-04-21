@@ -23,6 +23,12 @@ import { DEFAULT_COMMIT_MESSAGE_PROMPT } from "@utils/commitMessagePrompt";
 const allowedThemes = new Set(["system", "light", "dark", "dim"]);
 const allowedPersonality = new Set(["friendly", "pragmatic"]);
 const allowedFollowUpMessageBehavior = new Set(["queue", "steer"]);
+const allowedAutoModelRoutingModes = new Set([
+  "responsive",
+  "cost-efficient",
+  "genius",
+]);
+const allowedAutoModelRoutingProviders = new Set(["openai"]);
 const DEFAULT_REMOTE_BACKEND_HOST = "127.0.0.1:4732";
 const DEFAULT_REMOTE_BACKEND_ID = "remote-default";
 const DEFAULT_REMOTE_BACKEND_NAME = "Primary remote";
@@ -191,6 +197,10 @@ function buildDefaultSettings(): AppSettings {
     pauseQueuedMessagesWhenResponseRequired: true,
     unifiedExecEnabled: true,
     experimentalAppsEnabled: false,
+    autoModelRoutingEnabled: false,
+    autoModelRoutingMode: "responsive",
+    autoModelRoutingProvider: "openai",
+    autoModelRoutingShowDiagnostics: false,
     personality: "friendly",
     dictationEnabled: false,
     dictationModelId: "base",
@@ -274,6 +284,24 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
         : true,
     reviewDeliveryMode:
       settings.reviewDeliveryMode === "detached" ? "detached" : "inline",
+    autoModelRoutingEnabled:
+      typeof settings.autoModelRoutingEnabled === "boolean"
+        ? settings.autoModelRoutingEnabled
+        : false,
+    autoModelRoutingMode: allowedAutoModelRoutingModes.has(
+      settings.autoModelRoutingMode,
+    )
+      ? settings.autoModelRoutingMode
+      : "responsive",
+    autoModelRoutingProvider: allowedAutoModelRoutingProviders.has(
+      settings.autoModelRoutingProvider,
+    )
+      ? settings.autoModelRoutingProvider
+      : "openai",
+    autoModelRoutingShowDiagnostics:
+      typeof settings.autoModelRoutingShowDiagnostics === "boolean"
+        ? settings.autoModelRoutingShowDiagnostics
+        : false,
     chatHistoryScrollbackItems,
     commitMessagePrompt,
     openAppTargets: normalizedTargets,

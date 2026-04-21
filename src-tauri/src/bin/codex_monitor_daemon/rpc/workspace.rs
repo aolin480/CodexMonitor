@@ -241,6 +241,33 @@ pub(super) async fn try_handle(
             };
             Some(serialize_result(state.update_app_settings(settings)).await)
         }
+        "get_auto_model_routing_credential_status" => Some(
+            serialize_result(state.get_auto_model_routing_credential_status()).await,
+        ),
+        "save_auto_model_routing_credential" => {
+            let input_value = match params {
+                Value::Object(map) => map.get("input").cloned().unwrap_or(Value::Null),
+                _ => Value::Null,
+            };
+            let input: crate::types::AutoModelRoutingCredentialInput =
+                match serde_json::from_value(input_value) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err.to_string())),
+                };
+            Some(serialize_result(state.save_auto_model_routing_credential(input)).await)
+        }
+        "remove_auto_model_routing_credential" => {
+            let provider_value = match params {
+                Value::Object(map) => map.get("provider").cloned().unwrap_or(Value::Null),
+                _ => Value::Null,
+            };
+            let provider: crate::types::AutoModelRoutingProvider =
+                match serde_json::from_value(provider_value) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err.to_string())),
+                };
+            Some(serialize_result(state.remove_auto_model_routing_credential(provider)).await)
+        }
         "apply_worktree_changes" => {
             let request = parse_request_or_err!(params, workspace_rpc::WorkspaceIdRequest);
             Some(serialize_ok(state.apply_worktree_changes(request.workspace_id)).await)

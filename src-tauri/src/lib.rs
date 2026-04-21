@@ -21,6 +21,7 @@ mod menu;
 #[path = "menu_mobile.rs"]
 mod menu;
 mod notifications;
+mod prompt_routing;
 mod prompts;
 mod remote_backend;
 mod rules;
@@ -191,6 +192,9 @@ pub fn run() {
             settings::get_app_settings,
             settings::update_app_settings,
             settings::get_codex_config_path,
+            prompt_routing::get_auto_model_routing_credential_status,
+            prompt_routing::save_auto_model_routing_credential,
+            prompt_routing::remove_auto_model_routing_credential,
             files::file_read,
             files::file_write,
             files::read_image_as_data_url,

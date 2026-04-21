@@ -588,6 +588,26 @@ impl DaemonState {
             .await
     }
 
+    async fn get_auto_model_routing_credential_status(
+        &self,
+    ) -> Result<types::AutoModelRoutingCredentialStatus, String> {
+        shared::prompt_routing_core::get_auto_model_routing_credential_status_core()
+    }
+
+    async fn save_auto_model_routing_credential(
+        &self,
+        input: types::AutoModelRoutingCredentialInput,
+    ) -> Result<types::AutoModelRoutingCredentialStatus, String> {
+        shared::prompt_routing_core::save_auto_model_routing_credential_core(input)
+    }
+
+    async fn remove_auto_model_routing_credential(
+        &self,
+        provider: types::AutoModelRoutingProvider,
+    ) -> Result<types::AutoModelRoutingCredentialStatus, String> {
+        shared::prompt_routing_core::remove_auto_model_routing_credential_core(provider)
+    }
+
     async fn set_codex_feature_flag(
         &self,
         feature_key: String,

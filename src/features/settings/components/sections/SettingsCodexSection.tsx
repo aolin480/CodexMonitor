@@ -3,6 +3,7 @@ import Stethoscope from "lucide-react/dist/esm/icons/stethoscope";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   AppSettings,
+  AutoModelRoutingCredentialStatus,
   CodexDoctorResult,
   CodexUpdateResult,
   ModelOption,
@@ -10,6 +11,7 @@ import type {
 import {
   SettingsSection,
   SettingsToggleRow,
+  SettingsToggleSwitch,
 } from "@/features/design-system/components/settings/SettingsPrimitives";
 import { FileEditorCard } from "@/features/shared/components/FileEditorCard";
 
@@ -33,6 +35,11 @@ type SettingsCodexSectionProps = {
     status: "idle" | "running" | "done";
     result: CodexUpdateResult | null;
   };
+  autoModelRoutingCredentialStatus: AutoModelRoutingCredentialStatus | null;
+  autoModelRoutingCredentialStatusLoading: boolean;
+  autoModelRoutingCredentialBusyAction: "save" | "remove" | null;
+  autoModelRoutingCredentialDraft: string;
+  autoModelRoutingCredentialError: string | null;
   globalAgentsMeta: string;
   globalAgentsError: string | null;
   globalAgentsContent: string;
@@ -49,12 +56,16 @@ type SettingsCodexSectionProps = {
   globalConfigSaveLabel: string;
   onSetCodexPathDraft: Dispatch<SetStateAction<string>>;
   onSetCodexArgsDraft: Dispatch<SetStateAction<string>>;
+  onSetAutoModelRoutingCredentialDraft: Dispatch<SetStateAction<string>>;
   onSetGlobalAgentsContent: (value: string) => void;
   onSetGlobalConfigContent: (value: string) => void;
   onBrowseCodex: () => Promise<void>;
   onSaveCodexSettings: () => Promise<void>;
   onRunDoctor: () => Promise<void>;
   onRunCodexUpdate: () => Promise<void>;
+  onRefreshAutoModelRoutingCredentialStatus: () => Promise<void>;
+  onSaveAutoModelRoutingCredential: () => Promise<void>;
+  onRemoveAutoModelRoutingCredential: () => Promise<void>;
   onRefreshGlobalAgents: () => void;
   onSaveGlobalAgents: () => void;
   onRefreshGlobalConfig: () => void;
@@ -119,6 +130,11 @@ export function SettingsCodexSection({
   isSavingSettings,
   doctorState,
   codexUpdateState,
+  autoModelRoutingCredentialStatus,
+  autoModelRoutingCredentialStatusLoading,
+  autoModelRoutingCredentialBusyAction,
+  autoModelRoutingCredentialDraft,
+  autoModelRoutingCredentialError,
   globalAgentsMeta,
   globalAgentsError,
   globalAgentsContent,
@@ -135,12 +151,16 @@ export function SettingsCodexSection({
   globalConfigSaveLabel,
   onSetCodexPathDraft,
   onSetCodexArgsDraft,
+  onSetAutoModelRoutingCredentialDraft,
   onSetGlobalAgentsContent,
   onSetGlobalConfigContent,
   onBrowseCodex,
   onSaveCodexSettings,
   onRunDoctor,
   onRunCodexUpdate,
+  onRefreshAutoModelRoutingCredentialStatus,
+  onSaveAutoModelRoutingCredential,
+  onRemoveAutoModelRoutingCredential,
   onRefreshGlobalAgents,
   onSaveGlobalAgents,
   onRefreshGlobalConfig,
@@ -184,6 +204,13 @@ export function SettingsCodexSection({
     }
     return reasoningOptions[0] ?? "";
   }, [reasoningOptions, reasoningSupported, savedEffort, selectedModel]);
+  const credentialHostLabel =
+    appSettings.backendMode === "remote" ? "connected remote backend host" : "local backend host";
+  const credentialConfigured = autoModelRoutingCredentialStatus?.configured ?? false;
+  const credentialStorageSupported =
+    autoModelRoutingCredentialStatus?.storageSupported ?? true;
+  const credentialSaveBusy = autoModelRoutingCredentialBusyAction === "save";
+  const credentialRemoveBusy = autoModelRoutingCredentialBusyAction === "remove";
 
   const didNormalizeDefaultsRef = useRef(false);
   useEffect(() => {
@@ -521,6 +548,163 @@ export function SettingsCodexSection({
           Choose whether <code>/review</code> runs in the current thread or a detached review
           thread.
         </div>
+      </div>
+
+      <div className="settings-divider" />
+      <div className="settings-field-label settings-field-label--section">
+        Auto model routing
+      </div>
+
+      <SettingsToggleRow
+        title="Enable auto model routing"
+        subtitle="Route each new send through the configured classifier before Codex. The original prompt still goes to Codex unchanged."
+      >
+        <SettingsToggleSwitch
+          pressed={appSettings.autoModelRoutingEnabled}
+          onClick={() =>
+            void onUpdateAppSettings({
+              ...appSettings,
+              autoModelRoutingEnabled: !appSettings.autoModelRoutingEnabled,
+            })
+          }
+          aria-label="Toggle auto model routing"
+        />
+      </SettingsToggleRow>
+
+      <div className="settings-field">
+        <label className="settings-field-label" htmlFor="auto-model-routing-mode">
+          Routing mode
+        </label>
+        <select
+          id="auto-model-routing-mode"
+          className="settings-select"
+          value={appSettings.autoModelRoutingMode}
+          disabled={!appSettings.autoModelRoutingEnabled}
+          onChange={(event) =>
+            void onUpdateAppSettings({
+              ...appSettings,
+              autoModelRoutingMode: event.target.value as AppSettings["autoModelRoutingMode"],
+            })
+          }
+        >
+          <option value="responsive">Responsive</option>
+          <option value="cost-efficient">Cost-efficient</option>
+          <option value="genius">Genius</option>
+        </select>
+        <div className="settings-help">
+          Applies globally in V1 and only affects new turns.
+        </div>
+      </div>
+
+      <SettingsToggleRow
+        title="Show routing diagnostics"
+        subtitle="Displays the resolved route in debug surfaces and the compact composer indicator."
+      >
+        <SettingsToggleSwitch
+          pressed={appSettings.autoModelRoutingShowDiagnostics}
+          disabled={!appSettings.autoModelRoutingEnabled}
+          onClick={() =>
+            void onUpdateAppSettings({
+              ...appSettings,
+              autoModelRoutingShowDiagnostics: !appSettings.autoModelRoutingShowDiagnostics,
+            })
+          }
+          aria-label="Toggle routing diagnostics"
+        />
+      </SettingsToggleRow>
+
+      <div className="settings-field">
+        <label className="settings-field-label" htmlFor="auto-model-routing-provider">
+          Router provider
+        </label>
+        <select
+          id="auto-model-routing-provider"
+          className="settings-select"
+          value={appSettings.autoModelRoutingProvider}
+          disabled={!appSettings.autoModelRoutingEnabled}
+          onChange={(event) =>
+            void onUpdateAppSettings({
+              ...appSettings,
+              autoModelRoutingProvider: event.target.value as AppSettings["autoModelRoutingProvider"],
+            })
+          }
+        >
+          <option value="openai">OpenAI</option>
+        </select>
+        <div className="settings-help">
+          The credential is stored on the {credentialHostLabel}, not in local app settings.
+        </div>
+      </div>
+
+      <div className="settings-field">
+        <label className="settings-field-label" htmlFor="auto-model-routing-credential">
+          Router credential
+        </label>
+        <div className="settings-field-row">
+          <input
+            id="auto-model-routing-credential"
+            className="settings-input"
+            type="password"
+            autoComplete="off"
+            value={autoModelRoutingCredentialDraft}
+            placeholder="Paste provider credential"
+            onChange={(event) => onSetAutoModelRoutingCredentialDraft(event.target.value)}
+          />
+          <button
+            type="button"
+            className="ghost"
+            disabled={
+              autoModelRoutingCredentialStatusLoading ||
+              !credentialStorageSupported ||
+              credentialSaveBusy ||
+              !autoModelRoutingCredentialDraft.trim()
+            }
+            onClick={() => {
+              void onSaveAutoModelRoutingCredential();
+            }}
+          >
+            {credentialSaveBusy ? "Saving…" : "Save"}
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            disabled={
+              autoModelRoutingCredentialStatusLoading ||
+              !credentialStorageSupported ||
+              credentialRemoveBusy ||
+              !credentialConfigured
+            }
+            onClick={() => {
+              void onRemoveAutoModelRoutingCredential();
+            }}
+          >
+            {credentialRemoveBusy ? "Removing…" : "Remove"}
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            disabled={autoModelRoutingCredentialStatusLoading}
+            onClick={() => {
+              void onRefreshAutoModelRoutingCredentialStatus();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+        {autoModelRoutingCredentialStatusLoading ? (
+          <div className="settings-help">Loading credential status from the {credentialHostLabel}…</div>
+        ) : autoModelRoutingCredentialStatus?.message ? (
+          <div className="settings-help">{autoModelRoutingCredentialStatus.message}</div>
+        ) : null}
+        {autoModelRoutingCredentialError ? (
+          <div className="settings-help ds-text-danger">{autoModelRoutingCredentialError}</div>
+        ) : null}
+        {!autoModelRoutingCredentialStatusLoading && !credentialConfigured ? (
+          <div className="settings-help ds-text-danger">
+            No router credential is configured on the {credentialHostLabel}. Auto mode will fall
+            back deterministically at send time.
+          </div>
+        ) : null}
       </div>
 
       <FileEditorCard

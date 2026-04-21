@@ -392,6 +392,44 @@ pub(crate) struct RemoteBackendTarget {
     pub(crate) last_connected_at_ms: Option<i64>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum AutoModelRoutingProvider {
+    Openai,
+}
+
+impl AutoModelRoutingProvider {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::Openai => "openai",
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum AutoModelRoutingCredentialStorageKind {
+    OsKeyring,
+    Unsupported,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AutoModelRoutingCredentialStatus {
+    pub(crate) provider: AutoModelRoutingProvider,
+    pub(crate) configured: bool,
+    pub(crate) storage_kind: AutoModelRoutingCredentialStorageKind,
+    pub(crate) storage_supported: bool,
+    pub(crate) message: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AutoModelRoutingCredentialInput {
+    pub(crate) provider: AutoModelRoutingProvider,
+    pub(crate) credential: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct AppSettings {
     #[serde(default, rename = "codexBin")]
@@ -604,6 +642,26 @@ pub(crate) struct AppSettings {
         rename = "experimentalAppsEnabled"
     )]
     pub(crate) experimental_apps_enabled: bool,
+    #[serde(
+        default = "default_auto_model_routing_enabled",
+        rename = "autoModelRoutingEnabled"
+    )]
+    pub(crate) auto_model_routing_enabled: bool,
+    #[serde(
+        default = "default_auto_model_routing_mode",
+        rename = "autoModelRoutingMode"
+    )]
+    pub(crate) auto_model_routing_mode: String,
+    #[serde(
+        default = "default_auto_model_routing_provider",
+        rename = "autoModelRoutingProvider"
+    )]
+    pub(crate) auto_model_routing_provider: String,
+    #[serde(
+        default = "default_auto_model_routing_show_diagnostics",
+        rename = "autoModelRoutingShowDiagnostics"
+    )]
+    pub(crate) auto_model_routing_show_diagnostics: bool,
     #[serde(default = "default_personality", rename = "personality")]
     pub(crate) personality: String,
     #[serde(default = "default_dictation_enabled", rename = "dictationEnabled")]
@@ -963,6 +1021,22 @@ fn default_experimental_apps_enabled() -> bool {
     false
 }
 
+fn default_auto_model_routing_enabled() -> bool {
+    false
+}
+
+fn default_auto_model_routing_mode() -> String {
+    "responsive".to_string()
+}
+
+fn default_auto_model_routing_provider() -> String {
+    "openai".to_string()
+}
+
+fn default_auto_model_routing_show_diagnostics() -> bool {
+    false
+}
+
 fn default_personality() -> String {
     "friendly".to_string()
 }
@@ -1199,6 +1273,10 @@ impl Default for AppSettings {
                 default_pause_queued_messages_when_response_required(),
             unified_exec_enabled: true,
             experimental_apps_enabled: false,
+            auto_model_routing_enabled: default_auto_model_routing_enabled(),
+            auto_model_routing_mode: default_auto_model_routing_mode(),
+            auto_model_routing_provider: default_auto_model_routing_provider(),
+            auto_model_routing_show_diagnostics: default_auto_model_routing_show_diagnostics(),
             personality: default_personality(),
             dictation_enabled: false,
             dictation_model_id: default_dictation_model_id(),
@@ -1227,7 +1305,7 @@ impl Default for AppSettings {
 mod tests {
     use super::{
         AppSettings, BackendMode, RemoteBackendProvider, WorkspaceEntry, WorkspaceGroup,
-        WorkspaceKind, WorkspaceSettings,
+        WorkspaceKind, WorkspaceSettings, WorkspaceThreadColor,
     };
 
     #[test]

@@ -210,6 +210,11 @@ export type AccessMode = "read-only" | "current" | "full-access";
 export type ServiceTier = "fast" | "flex";
 export type BackendMode = "local" | "remote";
 export type RemoteBackendProvider = "tcp";
+export type AutoModelRoutingMode = "responsive" | "cost-efficient" | "genius";
+export type AutoModelRoutingProvider = "openai";
+export type AutoModelRoutingCredentialStorageKind =
+  | "os-keyring"
+  | "unsupported";
 export type RemoteBackendTarget = {
   id: string;
   name: string;
@@ -217,6 +222,19 @@ export type RemoteBackendTarget = {
   host: string;
   token: string | null;
   lastConnectedAtMs?: number | null;
+};
+
+export type AutoModelRoutingCredentialStatus = {
+  provider: AutoModelRoutingProvider;
+  configured: boolean;
+  storageKind: AutoModelRoutingCredentialStorageKind;
+  storageSupported: boolean;
+  message: string | null;
+};
+
+export type AutoModelRoutingCredentialInput = {
+  provider: AutoModelRoutingProvider;
+  credential: string;
 };
 export type ThemePreference = "system" | "light" | "dark" | "dim";
 export type PersonalityPreference = "friendly" | "pragmatic";
@@ -306,6 +324,10 @@ export type AppSettings = {
   pauseQueuedMessagesWhenResponseRequired: boolean;
   unifiedExecEnabled: boolean;
   experimentalAppsEnabled: boolean;
+  autoModelRoutingEnabled: boolean;
+  autoModelRoutingMode: AutoModelRoutingMode;
+  autoModelRoutingProvider: AutoModelRoutingProvider;
+  autoModelRoutingShowDiagnostics: boolean;
   personality: PersonalityPreference;
   dictationEnabled: boolean;
   dictationModelId: string;

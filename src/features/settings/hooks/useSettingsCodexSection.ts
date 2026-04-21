@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
   AppSettings,
+  AutoModelRoutingCredentialStatus,
   CodexDoctorResult,
   CodexUpdateResult,
   WorkspaceInfo,
@@ -12,6 +13,11 @@ import { useGlobalCodexConfigToml } from "./useGlobalCodexConfigToml";
 import { useSettingsDefaultModels } from "./useSettingsDefaultModels";
 import { buildEditorContentMeta } from "@settings/components/settingsViewHelpers";
 import { normalizeCodexArgsInput } from "@/utils/codexArgsInput";
+import {
+  getAutoModelRoutingCredentialStatus,
+  removeAutoModelRoutingCredential,
+  saveAutoModelRoutingCredential,
+} from "@services/tauri";
 
 type UseSettingsCodexSectionArgs = {
   appSettings: AppSettings;
@@ -47,6 +53,11 @@ export type SettingsCodexSectionProps = {
     status: "idle" | "running" | "done";
     result: CodexUpdateResult | null;
   };
+  autoModelRoutingCredentialStatus: AutoModelRoutingCredentialStatus | null;
+  autoModelRoutingCredentialStatusLoading: boolean;
+  autoModelRoutingCredentialBusyAction: "save" | "remove" | null;
+  autoModelRoutingCredentialDraft: string;
+  autoModelRoutingCredentialError: string | null;
   globalAgentsMeta: string;
   globalAgentsError: string | null;
   globalAgentsContent: string;
@@ -63,12 +74,16 @@ export type SettingsCodexSectionProps = {
   globalConfigSaveLabel: string;
   onSetCodexPathDraft: Dispatch<SetStateAction<string>>;
   onSetCodexArgsDraft: Dispatch<SetStateAction<string>>;
+  onSetAutoModelRoutingCredentialDraft: Dispatch<SetStateAction<string>>;
   onSetGlobalAgentsContent: (value: string) => void;
   onSetGlobalConfigContent: (value: string) => void;
   onBrowseCodex: () => Promise<void>;
   onSaveCodexSettings: () => Promise<void>;
   onRunDoctor: () => Promise<void>;
   onRunCodexUpdate: () => Promise<void>;
+  onRefreshAutoModelRoutingCredentialStatus: () => Promise<void>;
+  onSaveAutoModelRoutingCredential: () => Promise<void>;
+  onRemoveAutoModelRoutingCredential: () => Promise<void>;
   onRefreshGlobalAgents: () => void;
   onSaveGlobalAgents: () => void;
   onRefreshGlobalConfig: () => void;
@@ -93,6 +108,16 @@ export const useSettingsCodexSection = ({
     status: "idle" | "running" | "done";
     result: CodexUpdateResult | null;
   }>({ status: "idle", result: null });
+  const [autoModelRoutingCredentialStatus, setAutoModelRoutingCredentialStatus] =
+    useState<AutoModelRoutingCredentialStatus | null>(null);
+  const [autoModelRoutingCredentialStatusLoading, setAutoModelRoutingCredentialStatusLoading] =
+    useState(true);
+  const [autoModelRoutingCredentialBusyAction, setAutoModelRoutingCredentialBusyAction] =
+    useState<"save" | "remove" | null>(null);
+  const [autoModelRoutingCredentialDraft, setAutoModelRoutingCredentialDraft] = useState("");
+  const [autoModelRoutingCredentialError, setAutoModelRoutingCredentialError] = useState<string | null>(
+    null,
+  );
 
   const {
     models: defaultModels,
@@ -151,6 +176,39 @@ export const useSettingsCodexSection = ({
   useEffect(() => {
     setCodexArgsDraft(appSettings.codexArgs ?? "");
   }, [appSettings.codexArgs]);
+
+  useEffect(() => {
+    let active = true;
+    setAutoModelRoutingCredentialStatusLoading(true);
+    setAutoModelRoutingCredentialError(null);
+    void (async () => {
+      try {
+        const status = await getAutoModelRoutingCredentialStatus();
+        if (active) {
+          setAutoModelRoutingCredentialStatus(status);
+        }
+      } catch (error) {
+        if (active) {
+          setAutoModelRoutingCredentialStatus(null);
+          setAutoModelRoutingCredentialError(
+            error instanceof Error ? error.message : "Unable to load router credential status.",
+          );
+        }
+      } finally {
+        if (active) {
+          setAutoModelRoutingCredentialStatusLoading(false);
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [
+    appSettings.backendMode,
+    appSettings.remoteBackendHost,
+    appSettings.activeRemoteBackendId,
+    appSettings.autoModelRoutingProvider,
+  ]);
 
   const nextCodexBin = codexPathDraft.trim() ? codexPathDraft.trim() : null;
   const nextCodexArgs = normalizeCodexArgsInput(codexArgsDraft);
@@ -241,6 +299,64 @@ export const useSettingsCodexSection = ({
     }
   };
 
+  const handleRefreshAutoModelRoutingCredentialStatus = async () => {
+    setAutoModelRoutingCredentialStatusLoading(true);
+    setAutoModelRoutingCredentialError(null);
+    try {
+      const status = await getAutoModelRoutingCredentialStatus();
+      setAutoModelRoutingCredentialStatus(status);
+    } catch (error) {
+      setAutoModelRoutingCredentialStatus(null);
+      setAutoModelRoutingCredentialError(
+        error instanceof Error ? error.message : "Unable to load router credential status.",
+      );
+    } finally {
+      setAutoModelRoutingCredentialStatusLoading(false);
+    }
+  };
+
+  const handleSaveAutoModelRoutingCredential = async () => {
+    const credential = autoModelRoutingCredentialDraft.trim();
+    if (!credential) {
+      setAutoModelRoutingCredentialError("Enter a router credential before saving.");
+      return;
+    }
+    setAutoModelRoutingCredentialBusyAction("save");
+    setAutoModelRoutingCredentialError(null);
+    try {
+      const status = await saveAutoModelRoutingCredential({
+        provider: appSettings.autoModelRoutingProvider,
+        credential,
+      });
+      setAutoModelRoutingCredentialStatus(status);
+      setAutoModelRoutingCredentialDraft("");
+    } catch (error) {
+      setAutoModelRoutingCredentialError(
+        error instanceof Error ? error.message : "Unable to save router credential.",
+      );
+    } finally {
+      setAutoModelRoutingCredentialBusyAction(null);
+    }
+  };
+
+  const handleRemoveAutoModelRoutingCredential = async () => {
+    setAutoModelRoutingCredentialBusyAction("remove");
+    setAutoModelRoutingCredentialError(null);
+    try {
+      const status = await removeAutoModelRoutingCredential(
+        appSettings.autoModelRoutingProvider,
+      );
+      setAutoModelRoutingCredentialStatus(status);
+      setAutoModelRoutingCredentialDraft("");
+    } catch (error) {
+      setAutoModelRoutingCredentialError(
+        error instanceof Error ? error.message : "Unable to remove router credential.",
+      );
+    } finally {
+      setAutoModelRoutingCredentialBusyAction(null);
+    }
+  };
+
   return {
     appSettings,
     onUpdateAppSettings,
@@ -257,6 +373,11 @@ export const useSettingsCodexSection = ({
     isSavingSettings,
     doctorState,
     codexUpdateState,
+    autoModelRoutingCredentialStatus,
+    autoModelRoutingCredentialStatusLoading,
+    autoModelRoutingCredentialBusyAction,
+    autoModelRoutingCredentialDraft,
+    autoModelRoutingCredentialError,
     globalAgentsMeta: globalAgentsEditorMeta.meta,
     globalAgentsError,
     globalAgentsContent,
@@ -273,12 +394,16 @@ export const useSettingsCodexSection = ({
     globalConfigSaveLabel: globalConfigEditorMeta.saveLabel,
     onSetCodexPathDraft: setCodexPathDraft,
     onSetCodexArgsDraft: setCodexArgsDraft,
+    onSetAutoModelRoutingCredentialDraft: setAutoModelRoutingCredentialDraft,
     onSetGlobalAgentsContent: setGlobalAgentsContent,
     onSetGlobalConfigContent: setGlobalConfigContent,
     onBrowseCodex: handleBrowseCodex,
     onSaveCodexSettings: handleSaveCodexSettings,
     onRunDoctor: handleRunDoctor,
     onRunCodexUpdate: handleRunCodexUpdate,
+    onRefreshAutoModelRoutingCredentialStatus: handleRefreshAutoModelRoutingCredentialStatus,
+    onSaveAutoModelRoutingCredential: handleSaveAutoModelRoutingCredential,
+    onRemoveAutoModelRoutingCredential: handleRemoveAutoModelRoutingCredential,
     onRefreshGlobalAgents: () => {
       void refreshGlobalAgents();
     },

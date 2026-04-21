@@ -3,6 +3,8 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import type { Options as NotificationOptions } from "@tauri-apps/plugin-notification";
 import type {
   AppSettings,
+  AutoModelRoutingCredentialInput,
+  AutoModelRoutingCredentialStatus,
   CodexUpdateResult,
   CodexDoctorResult,
   DictationModelStatus,
@@ -871,6 +873,26 @@ export async function isMobileRuntime(): Promise<boolean> {
 
 export async function updateAppSettings(settings: AppSettings): Promise<AppSettings> {
   return invoke<AppSettings>("update_app_settings", { settings });
+}
+
+export async function getAutoModelRoutingCredentialStatus(): Promise<AutoModelRoutingCredentialStatus> {
+  return invoke<AutoModelRoutingCredentialStatus>("get_auto_model_routing_credential_status");
+}
+
+export async function saveAutoModelRoutingCredential(
+  input: AutoModelRoutingCredentialInput,
+): Promise<AutoModelRoutingCredentialStatus> {
+  return invoke<AutoModelRoutingCredentialStatus>("save_auto_model_routing_credential", {
+    input,
+  });
+}
+
+export async function removeAutoModelRoutingCredential(
+  provider: AutoModelRoutingCredentialInput["provider"],
+): Promise<AutoModelRoutingCredentialStatus> {
+  return invoke<AutoModelRoutingCredentialStatus>("remove_auto_model_routing_credential", {
+    provider,
+  });
 }
 
 export async function tailscaleStatus(): Promise<TailscaleStatus> {
