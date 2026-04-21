@@ -870,6 +870,7 @@ impl DaemonState {
         codex_core::send_user_message_core(
             &self.sessions,
             &self.workspaces,
+            &self.app_settings,
             workspace_id,
             thread_id,
             text,

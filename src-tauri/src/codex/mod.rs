@@ -428,6 +428,7 @@ pub(crate) async fn send_user_message(
     codex_core::send_user_message_core(
         &state.sessions,
         &state.workspaces,
+        &state.app_settings,
         workspace_id,
         thread_id,
         text,

@@ -1,9 +1,106 @@
+use std::time::Duration;
+
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+#[cfg(test)]
+use std::sync::{Mutex as StdMutex, OnceLock};
+
 use crate::types::{
-    AutoModelRoutingCredentialInput, AutoModelRoutingCredentialStatus,
+    AppSettings, AutoModelRoutingCredentialInput, AutoModelRoutingCredentialStatus,
     AutoModelRoutingCredentialStorageKind, AutoModelRoutingProvider,
 };
 
 const AUTO_MODEL_ROUTING_KEYCHAIN_SERVICE: &str = "com.codexmonitor.auto-model-routing";
+const OPENAI_ROUTER_URL: &str = "https://api.openai.com/v1/responses";
+const OPENAI_ROUTER_MODEL: &str = "gpt-5.4-nano";
+const OPENAI_ROUTER_TIMEOUT: Duration = Duration::from_secs(15);
+const OPENAI_ROUTER_SYSTEM_PROMPT: &str = concat!(
+    "You classify prompts for CodexMonitor model routing. ",
+    "Do not solve the task. ",
+    "Choose only from the provided candidates. ",
+    "Return strict JSON that matches the schema."
+);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ModelTier {
+    Cheap,
+    Balanced,
+    Strong,
+}
+
+impl ModelTier {
+    fn rank(&self) -> u8 {
+        match self {
+            Self::Cheap => 0,
+            Self::Balanced => 1,
+            Self::Strong => 2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RoutingCandidate {
+    model: String,
+    supported_reasoning_efforts: Vec<String>,
+    default_reasoning_effort: Option<String>,
+    is_default: bool,
+    tier: ModelTier,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AutoModelRoutingDecision {
+    pub(crate) mode: String,
+    pub(crate) provider: AutoModelRoutingProvider,
+    pub(crate) selected_model: String,
+    pub(crate) selected_reasoning_effort: Option<String>,
+    pub(crate) fallback_used: bool,
+    pub(crate) reason: String,
+    pub(crate) confidence: Option<f64>,
+    pub(crate) task_type: String,
+    pub(crate) complexity: String,
+    pub(crate) ambiguity: String,
+    pub(crate) needs_tools: bool,
+    pub(crate) needs_large_context: bool,
+    pub(crate) policy_note: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub(crate) struct RouterOutput {
+    pub(crate) task_type: String,
+    pub(crate) complexity: String,
+    pub(crate) ambiguity: String,
+    pub(crate) needs_tools: bool,
+    pub(crate) needs_large_context: bool,
+    pub(crate) selected_model: String,
+    pub(crate) selected_reasoning: String,
+    pub(crate) confidence: f64,
+    pub(crate) reason: String,
+}
+
+#[cfg(test)]
+static TEST_ROUTER_RESULT: OnceLock<StdMutex<Option<Result<RouterOutput, String>>>> =
+    OnceLock::new();
+#[cfg(test)]
+static TEST_ROUTER_CREDENTIAL_RESULT: OnceLock<StdMutex<Option<Result<String, String>>>> =
+    OnceLock::new();
+
+#[derive(Debug, Clone)]
+struct RouterRequestPayload {
+    auto_mode: String,
+    user_prompt: String,
+    has_images: bool,
+    has_app_mentions: bool,
+    candidates: Vec<RouterRequestCandidate>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RouterRequestCandidate {
+    model: String,
+    reasoning: Vec<String>,
+}
 
 pub(crate) fn get_auto_model_routing_credential_status_core(
 ) -> Result<AutoModelRoutingCredentialStatus, String> {
@@ -13,9 +110,11 @@ pub(crate) fn get_auto_model_routing_credential_status_core(
 pub(crate) fn save_auto_model_routing_credential_core(
     input: AutoModelRoutingCredentialInput,
 ) -> Result<AutoModelRoutingCredentialStatus, String> {
-    save_auto_model_routing_credential_with(input, write_auto_model_routing_credential, |provider| {
-        read_auto_model_routing_credential_status(provider)
-    })
+    save_auto_model_routing_credential_with(
+        input,
+        write_auto_model_routing_credential,
+        |provider| read_auto_model_routing_credential_status(provider),
+    )
 }
 
 pub(crate) fn remove_auto_model_routing_credential_core(
@@ -26,6 +125,120 @@ pub(crate) fn remove_auto_model_routing_credential_core(
         delete_auto_model_routing_credential,
         read_auto_model_routing_credential_status,
     )
+}
+
+pub(crate) async fn resolve_auto_model_routing_for_turn_start(
+    settings: &AppSettings,
+    text: &str,
+    requested_model: Option<&str>,
+    requested_effort: Option<&str>,
+    images: Option<&[String]>,
+    app_mentions: Option<&[Value]>,
+    model_list_response: &Value,
+) -> Result<Option<AutoModelRoutingDecision>, String> {
+    if !settings.auto_model_routing_enabled {
+        return Ok(None);
+    }
+
+    let provider = normalize_provider(settings.auto_model_routing_provider.as_str())?;
+    let mode = normalize_mode(settings.auto_model_routing_mode.as_str());
+    let candidates = parse_model_list_candidates(model_list_response);
+    if candidates.is_empty() {
+        return Ok(Some(build_skipped_routing_decision(
+            mode.as_str(),
+            provider,
+            requested_model,
+            requested_effort,
+            "Routing skipped because no runtime model candidates were available.".to_string(),
+            Some("model/list returned no candidates.".to_string()),
+        )));
+    }
+
+    let requested_model = normalize_optional_string(requested_model);
+    let requested_effort = normalize_optional_string(requested_effort);
+    let has_images = images.is_some_and(|items| !items.is_empty());
+    let has_app_mentions = app_mentions.is_some_and(|items| !items.is_empty());
+
+    let router_decision = match get_auto_model_routing_credential(&provider) {
+        Ok(credential) => {
+            let payload = RouterRequestPayload {
+                auto_mode: mode.clone(),
+                user_prompt: text.trim().to_string(),
+                has_images,
+                has_app_mentions,
+                candidates: candidates
+                    .iter()
+                    .map(|candidate| RouterRequestCandidate {
+                        model: candidate.model.clone(),
+                        reasoning: candidate.supported_reasoning_efforts.clone(),
+                    })
+                    .collect(),
+            };
+            match route_prompt_with_openai(&credential, payload).await {
+                Ok(output) => Some(output),
+                Err(error) => {
+                    let mut decision = build_fallback_decision(
+                        mode.as_str(),
+                        provider.clone(),
+                        &candidates,
+                        requested_model.as_deref(),
+                        requested_effort.as_deref(),
+                        "Router request failed; using deterministic fallback.".to_string(),
+                    );
+                    decision.policy_note = Some(error);
+                    return Ok(Some(decision));
+                }
+            }
+        }
+        Err(error) => {
+            let mut decision = build_fallback_decision(
+                mode.as_str(),
+                provider.clone(),
+                &candidates,
+                requested_model.as_deref(),
+                requested_effort.as_deref(),
+                "Router credential unavailable; using deterministic fallback.".to_string(),
+            );
+            decision.policy_note = Some(error);
+            return Ok(Some(decision));
+        }
+    };
+
+    let decision = if let Some(output) = router_decision {
+        resolve_router_selection(
+            mode.as_str(),
+            provider.clone(),
+            &candidates,
+            requested_model.as_deref(),
+            requested_effort.as_deref(),
+            output,
+        )
+    } else {
+        build_fallback_decision(
+            mode.as_str(),
+            provider,
+            &candidates,
+            requested_model.as_deref(),
+            requested_effort.as_deref(),
+            "Router unavailable; using deterministic fallback.".to_string(),
+        )
+    };
+
+    Ok(Some(decision))
+}
+
+pub(crate) fn attach_auto_model_routing_decision(
+    response: &mut Value,
+    decision: &AutoModelRoutingDecision,
+) {
+    let routing_value = json!(decision);
+    if let Some(root) = response.as_object_mut() {
+        if let Some(result) = root.get_mut("result").and_then(Value::as_object_mut) {
+            result.insert("routingDecision".to_string(), routing_value);
+            return;
+        }
+        root.insert("routingDecision".to_string(), routing_value);
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -56,7 +269,9 @@ fn read_auto_model_routing_credential_status(
         configured: false,
         storage_kind: AutoModelRoutingCredentialStorageKind::Unsupported,
         storage_supported: false,
-        message: Some("Secure router credential storage is not available on this backend host.".to_string()),
+        message: Some(
+            "Secure router credential storage is not available on this backend host.".to_string(),
+        ),
     })
 }
 
@@ -145,6 +360,645 @@ where
     read_status(provider)
 }
 
+fn normalize_optional_string(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn normalize_mode(value: &str) -> String {
+    match value.trim() {
+        "cost-efficient" => "cost-efficient".to_string(),
+        "genius" => "genius".to_string(),
+        _ => "responsive".to_string(),
+    }
+}
+
+fn normalize_provider(value: &str) -> Result<AutoModelRoutingProvider, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "openai" => Ok(AutoModelRoutingProvider::Openai),
+        _ => Err("Unsupported auto model routing provider.".to_string()),
+    }
+}
+
+pub(crate) fn build_skipped_routing_decision(
+    mode: &str,
+    provider: AutoModelRoutingProvider,
+    requested_model: Option<&str>,
+    requested_effort: Option<&str>,
+    reason: String,
+    policy_note: Option<String>,
+) -> AutoModelRoutingDecision {
+    AutoModelRoutingDecision {
+        mode: mode.to_string(),
+        provider,
+        selected_model: requested_model
+            .and_then(normalize_optional_string_ref)
+            .unwrap_or("unknown")
+            .to_string(),
+        selected_reasoning_effort: requested_effort
+            .and_then(normalize_optional_string_ref)
+            .map(ToString::to_string),
+        fallback_used: true,
+        reason,
+        confidence: None,
+        task_type: "fallback".to_string(),
+        complexity: "unknown".to_string(),
+        ambiguity: "unknown".to_string(),
+        needs_tools: false,
+        needs_large_context: false,
+        policy_note,
+    }
+}
+
+fn parse_model_list_candidates(response: &Value) -> Vec<RoutingCandidate> {
+    extract_model_items(response)
+        .into_iter()
+        .filter_map(parse_model_candidate)
+        .collect()
+}
+
+fn extract_model_items(response: &Value) -> Vec<&Value> {
+    let Some(root) = response.as_object() else {
+        return Vec::new();
+    };
+
+    if let Some(items) = root
+        .get("result")
+        .and_then(Value::as_object)
+        .and_then(|result| result.get("data"))
+        .and_then(Value::as_array)
+    {
+        return items.iter().collect();
+    }
+
+    root.get("data")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().collect())
+        .unwrap_or_default()
+}
+
+fn parse_model_candidate(item: &Value) -> Option<RoutingCandidate> {
+    let record = item.as_object()?;
+    let model = record
+        .get("model")
+        .or_else(|| record.get("id"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?
+        .to_string();
+    let default_reasoning_effort = normalize_optional_string(
+        record
+            .get("defaultReasoningEffort")
+            .or_else(|| record.get("default_reasoning_effort"))
+            .and_then(Value::as_str),
+    );
+    let supported_reasoning_efforts = parse_supported_reasoning_efforts(record);
+    Some(RoutingCandidate {
+        tier: infer_model_tier(&model),
+        model,
+        supported_reasoning_efforts,
+        default_reasoning_effort,
+        is_default: record
+            .get("isDefault")
+            .or_else(|| record.get("is_default"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    })
+}
+
+fn parse_supported_reasoning_efforts(
+    record: &serde_json::Map<String, Value>,
+) -> Vec<String> {
+    record
+        .get("supportedReasoningEfforts")
+        .or_else(|| record.get("supported_reasoning_efforts"))
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| {
+                    entry.as_object().and_then(|object| {
+                        normalize_optional_string(
+                            object
+                                .get("reasoningEffort")
+                                .or_else(|| object.get("reasoning_effort"))
+                                .and_then(Value::as_str),
+                        )
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn infer_model_tier(model: &str) -> ModelTier {
+    let normalized = model.trim().to_ascii_lowercase();
+    if normalized.contains("nano") {
+        return ModelTier::Cheap;
+    }
+    if normalized.contains("mini") {
+        return ModelTier::Balanced;
+    }
+    ModelTier::Strong
+}
+
+fn mode_max_tier(mode: &str) -> ModelTier {
+    match mode {
+        "cost-efficient" => ModelTier::Cheap,
+        "responsive" => ModelTier::Balanced,
+        _ => ModelTier::Strong,
+    }
+}
+
+fn mode_default_effort(mode: &str) -> Option<&'static str> {
+    match mode {
+        "cost-efficient" => Some("low"),
+        "genius" => Some("medium"),
+        _ => Some("low"),
+    }
+}
+
+fn mode_max_effort_rank(mode: &str) -> u8 {
+    match mode {
+        "cost-efficient" => effort_rank("medium"),
+        "genius" => effort_rank("high"),
+        _ => effort_rank("low"),
+    }
+}
+
+fn effort_rank(value: &str) -> u8 {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "none" => 0,
+        "low" => 1,
+        "medium" => 2,
+        "high" => 3,
+        "xhigh" => 4,
+        _ => u8::MAX,
+    }
+}
+
+fn build_fallback_decision(
+    mode: &str,
+    provider: AutoModelRoutingProvider,
+    candidates: &[RoutingCandidate],
+    requested_model: Option<&str>,
+    requested_effort: Option<&str>,
+    reason: String,
+) -> AutoModelRoutingDecision {
+    let candidate = select_fallback_candidate(candidates, requested_model)
+        .or_else(|| candidates.first())
+        .expect("fallback requires at least one candidate");
+    let selected_reasoning_effort =
+        resolve_fallback_effort(candidate, requested_effort, mode_default_effort(mode));
+
+    AutoModelRoutingDecision {
+        mode: mode.to_string(),
+        provider,
+        selected_model: candidate.model.clone(),
+        selected_reasoning_effort,
+        fallback_used: true,
+        reason,
+        confidence: None,
+        task_type: "fallback".to_string(),
+        complexity: "unknown".to_string(),
+        ambiguity: "unknown".to_string(),
+        needs_tools: false,
+        needs_large_context: false,
+        policy_note: None,
+    }
+}
+
+fn select_fallback_candidate<'a>(
+    candidates: &'a [RoutingCandidate],
+    requested_model: Option<&str>,
+) -> Option<&'a RoutingCandidate> {
+    if let Some(requested_model) = requested_model.and_then(normalize_optional_string_ref) {
+        if let Some(candidate) = candidates
+            .iter()
+            .find(|candidate| candidate.model == requested_model)
+        {
+            return Some(candidate);
+        }
+    }
+    candidates
+        .iter()
+        .find(|candidate| candidate.is_default)
+        .or_else(|| candidates.first())
+}
+
+fn normalize_optional_string_ref(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then_some(trimmed)
+}
+
+fn resolve_fallback_effort(
+    candidate: &RoutingCandidate,
+    requested_effort: Option<&str>,
+    mode_default_effort: Option<&str>,
+) -> Option<String> {
+    let requested_effort = requested_effort.and_then(normalize_optional_string_ref);
+    if let Some(requested_effort) = requested_effort {
+        if candidate
+            .supported_reasoning_efforts
+            .iter()
+            .any(|effort| effort == requested_effort)
+        {
+            return Some(requested_effort.to_string());
+        }
+    }
+
+    if let Some(default_effort) = candidate.default_reasoning_effort.as_ref() {
+        if candidate
+            .supported_reasoning_efforts
+            .iter()
+            .any(|effort| effort == default_effort)
+        {
+            return Some(default_effort.clone());
+        }
+    }
+
+    if let Some(mode_default_effort) = mode_default_effort {
+        if candidate
+            .supported_reasoning_efforts
+            .iter()
+            .any(|effort| effort == mode_default_effort)
+        {
+            return Some(mode_default_effort.to_string());
+        }
+    }
+
+    candidate.supported_reasoning_efforts.first().cloned()
+}
+
+fn resolve_router_selection(
+    mode: &str,
+    provider: AutoModelRoutingProvider,
+    candidates: &[RoutingCandidate],
+    requested_model: Option<&str>,
+    requested_effort: Option<&str>,
+    output: RouterOutput,
+) -> AutoModelRoutingDecision {
+    let mut policy_note = None;
+    let mut fallback_used = false;
+
+    let Some(router_candidate) = candidates
+        .iter()
+        .find(|candidate| candidate.model == output.selected_model.trim())
+    else {
+        return build_fallback_decision(
+            mode,
+            provider,
+            candidates,
+            requested_model,
+            requested_effort,
+            "Router returned a model outside the runtime candidate list; using fallback."
+                .to_string(),
+        );
+    };
+
+    let final_candidate = enforce_mode_tier_policy(mode, candidates, router_candidate);
+    if final_candidate.model != router_candidate.model {
+        policy_note = Some(format!(
+            "Mode policy downgraded router selection from {} to {}.",
+            router_candidate.model, final_candidate.model
+        ));
+        fallback_used = true;
+    }
+
+    let selected_reasoning_effort =
+        resolve_router_effort(final_candidate, output.selected_reasoning.as_str(), mode);
+
+    AutoModelRoutingDecision {
+        mode: mode.to_string(),
+        provider,
+        selected_model: final_candidate.model.clone(),
+        selected_reasoning_effort,
+        fallback_used,
+        reason: output.reason.trim().to_string(),
+        confidence: Some(output.confidence),
+        task_type: output.task_type.trim().to_string(),
+        complexity: output.complexity.trim().to_string(),
+        ambiguity: output.ambiguity.trim().to_string(),
+        needs_tools: output.needs_tools,
+        needs_large_context: output.needs_large_context,
+        policy_note,
+    }
+}
+
+fn enforce_mode_tier_policy<'a>(
+    mode: &str,
+    candidates: &'a [RoutingCandidate],
+    selected: &'a RoutingCandidate,
+) -> &'a RoutingCandidate {
+    let max_tier = mode_max_tier(mode);
+    if selected.tier.rank() <= max_tier.rank() {
+        return selected;
+    }
+
+    candidates
+        .iter()
+        .filter(|candidate| candidate.tier.rank() <= max_tier.rank())
+        .max_by_key(|candidate| candidate.tier.rank())
+        .unwrap_or(selected)
+}
+
+fn resolve_router_effort(
+    candidate: &RoutingCandidate,
+    requested_effort: &str,
+    mode: &str,
+) -> Option<String> {
+    let max_rank = mode_max_effort_rank(mode);
+    let requested_effort = normalize_optional_string_ref(requested_effort);
+    if let Some(requested_effort) = requested_effort {
+        if effort_rank(requested_effort) <= max_rank
+            && candidate
+                .supported_reasoning_efforts
+                .iter()
+                .any(|effort| effort == requested_effort)
+        {
+            return Some(requested_effort.to_string());
+        }
+    }
+
+    if let Some(default_effort) = candidate.default_reasoning_effort.as_ref() {
+        if effort_rank(default_effort) <= max_rank
+            && candidate
+                .supported_reasoning_efforts
+                .iter()
+                .any(|effort| effort == default_effort)
+        {
+            return Some(default_effort.clone());
+        }
+    }
+
+    if let Some(mode_default_effort) = mode_default_effort(mode) {
+        if effort_rank(mode_default_effort) <= max_rank
+            && candidate
+                .supported_reasoning_efforts
+                .iter()
+                .any(|effort| effort == mode_default_effort)
+        {
+            return Some(mode_default_effort.to_string());
+        }
+    }
+
+    candidate
+        .supported_reasoning_efforts
+        .iter()
+        .filter(|effort| effort_rank(effort.as_str()) <= max_rank)
+        .min_by(|left, right| {
+            effort_rank(left.as_str()).cmp(&effort_rank(right.as_str()))
+        })
+        .cloned()
+}
+
+async fn route_prompt_with_openai(
+    credential: &str,
+    payload: RouterRequestPayload,
+) -> Result<RouterOutput, String> {
+    #[cfg(test)]
+    if let Some(result) = take_test_router_result() {
+        return result;
+    }
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(OPENAI_ROUTER_TIMEOUT)
+        .build()
+        .map_err(|error| format!("Failed to initialize auto-routing client: {error}"))?;
+    let request_body = build_openai_request_body(payload)?;
+    let response = client
+        .post(OPENAI_ROUTER_URL)
+        .header(AUTHORIZATION, format!("Bearer {}", credential.trim()))
+        .header(CONTENT_TYPE, "application/json")
+        .body(request_body)
+        .send()
+        .await
+        .map_err(|error| format!("Auto-routing request failed: {error}"))?;
+    let status = response.status();
+    let body = response
+        .bytes()
+        .await
+        .map_err(|error| format!("Failed to read auto-routing response: {error}"))?;
+    let value: Value = serde_json::from_slice(&body)
+        .map_err(|error| format!("Failed to parse auto-routing response JSON: {error}"))?;
+    if !status.is_success() {
+        let error_message = extract_openai_error_message(&value)
+            .unwrap_or_else(|| format!("OpenAI router request failed with status {}", status));
+        return Err(error_message);
+    }
+    let text = extract_response_text(&value)?;
+    serde_json::from_str::<RouterOutput>(text.as_str())
+        .map_err(|error| format!("Failed to parse router decision JSON: {error}"))
+}
+
+fn build_openai_request_body(payload: RouterRequestPayload) -> Result<String, String> {
+    let payload_json = serde_json::to_string(&json!({
+        "auto_mode": payload.auto_mode,
+        "user_prompt": payload.user_prompt,
+        "has_images": payload.has_images,
+        "has_app_mentions": payload.has_app_mentions,
+        "candidates": payload.candidates,
+    }))
+    .map_err(|error| format!("Failed to encode auto-routing payload: {error}"))?;
+
+    serde_json::to_string(&json!({
+        "model": OPENAI_ROUTER_MODEL,
+        "input": [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": OPENAI_ROUTER_SYSTEM_PROMPT
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": payload_json
+                    }
+                ]
+            }
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": "codex_monitor_prompt_route",
+                "strict": true,
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "task_type": { "type": "string" },
+                        "complexity": { "type": "string", "enum": ["low", "medium", "high"] },
+                        "ambiguity": { "type": "string", "enum": ["low", "medium", "high"] },
+                        "needs_tools": { "type": "boolean" },
+                        "needs_large_context": { "type": "boolean" },
+                        "selected_model": { "type": "string" },
+                        "selected_reasoning": { "type": "string" },
+                        "confidence": { "type": "number" },
+                        "reason": { "type": "string" }
+                    },
+                    "required": [
+                        "task_type",
+                        "complexity",
+                        "ambiguity",
+                        "needs_tools",
+                        "needs_large_context",
+                        "selected_model",
+                        "selected_reasoning",
+                        "confidence",
+                        "reason"
+                    ]
+                }
+            }
+        }
+    }))
+    .map_err(|error| format!("Failed to encode OpenAI router request: {error}"))
+}
+
+fn extract_openai_error_message(value: &Value) -> Option<String> {
+    value
+        .get("error")
+        .and_then(Value::as_object)
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .map(|message| message.trim().to_string())
+        .filter(|message| !message.is_empty())
+}
+
+fn extract_response_text(value: &Value) -> Result<String, String> {
+    if let Some(text) = value.get("output_text").and_then(Value::as_str) {
+        let text = text.trim();
+        if !text.is_empty() {
+            return Ok(text.to_string());
+        }
+    }
+
+    let Some(outputs) = value.get("output").and_then(Value::as_array) else {
+        return Err("Auto-routing response did not contain output text.".to_string());
+    };
+
+    let mut parts = Vec::new();
+    for output in outputs {
+        let Some(content) = output.get("content").and_then(Value::as_array) else {
+            continue;
+        };
+        for item in content {
+            if let Some(text) = item.get("text").and_then(Value::as_str) {
+                let trimmed = text.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                    continue;
+                }
+            }
+            if let Some(text) = item
+                .get("text")
+                .and_then(Value::as_object)
+                .and_then(|object| object.get("value"))
+                .and_then(Value::as_str)
+            {
+                let trimmed = text.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                }
+            }
+        }
+    }
+
+    if parts.is_empty() {
+        return Err("Auto-routing response did not contain output text.".to_string());
+    }
+
+    Ok(parts.join("\n"))
+}
+
+#[cfg(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows",
+    target_os = "linux"
+))]
+fn get_auto_model_routing_credential(
+    provider: &AutoModelRoutingProvider,
+) -> Result<String, String> {
+    #[cfg(test)]
+    if let Some(result) = take_test_router_credential_result() {
+        return result;
+    }
+    match build_keyring_entry(provider)?.get_password() {
+        Ok(credential) => {
+            let credential = credential.trim().to_string();
+            if credential.is_empty() {
+                Err("Router credential is empty.".to_string())
+            } else {
+                Ok(credential)
+            }
+        }
+        Err(keyring::Error::NoEntry) => Err("Router credential is not configured.".to_string()),
+        Err(error) => Err(format!(
+            "Failed to read router credential from the OS credential store: {error}"
+        )),
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn set_test_router_result(result: Result<RouterOutput, String>) {
+    let store = TEST_ROUTER_RESULT.get_or_init(|| StdMutex::new(None));
+    *store.lock().expect("router test lock") = Some(result);
+}
+
+#[cfg(test)]
+pub(crate) fn clear_test_router_result() {
+    if let Some(store) = TEST_ROUTER_RESULT.get() {
+        *store.lock().expect("router test lock") = None;
+    }
+}
+
+#[cfg(test)]
+fn take_test_router_result() -> Option<Result<RouterOutput, String>> {
+    TEST_ROUTER_RESULT
+        .get()
+        .and_then(|store| store.lock().ok().and_then(|mut guard| guard.take()))
+}
+
+#[cfg(test)]
+pub(crate) fn set_test_router_credential_result(result: Result<String, String>) {
+    let store = TEST_ROUTER_CREDENTIAL_RESULT.get_or_init(|| StdMutex::new(None));
+    *store.lock().expect("router credential test lock") = Some(result);
+}
+
+#[cfg(test)]
+pub(crate) fn clear_test_router_credential_result() {
+    if let Some(store) = TEST_ROUTER_CREDENTIAL_RESULT.get() {
+        *store.lock().expect("router credential test lock") = None;
+    }
+}
+
+#[cfg(test)]
+fn take_test_router_credential_result() -> Option<Result<String, String>> {
+    TEST_ROUTER_CREDENTIAL_RESULT
+        .get()
+        .and_then(|store| store.lock().ok().and_then(|mut guard| guard.take()))
+}
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows",
+    target_os = "linux"
+)))]
+fn get_auto_model_routing_credential(
+    _provider: &AutoModelRoutingProvider,
+) -> Result<String, String> {
+    Err("Secure router credential storage is not available on this backend host.".to_string())
+}
+
 #[cfg(any(
     target_os = "macos",
     target_os = "ios",
@@ -180,7 +1034,9 @@ fn write_keyring_credential(
 ) -> Result<(), String> {
     build_keyring_entry(provider)?
         .set_password(credential)
-        .map_err(|error| format!("Failed to store router credential in the OS credential store: {error}"))
+        .map_err(|error| {
+            format!("Failed to store router credential in the OS credential store: {error}")
+        })
 }
 
 #[cfg(any(
@@ -275,11 +1131,13 @@ fn map_keyring_read_error(
 #[cfg(test)]
 mod tests {
     use super::{
-        map_keyring_read_error, remove_auto_model_routing_credential_with,
-        save_auto_model_routing_credential_with, AutoModelRoutingCredentialInput,
+        attach_auto_model_routing_decision, build_fallback_decision, extract_response_text,
+        map_keyring_read_error, parse_model_list_candidates, remove_auto_model_routing_credential_with,
+        resolve_router_selection, save_auto_model_routing_credential_with, AutoModelRoutingCredentialInput,
         AutoModelRoutingCredentialStatus, AutoModelRoutingCredentialStorageKind,
-        AutoModelRoutingProvider,
+        AutoModelRoutingDecision, AutoModelRoutingProvider, RouterOutput,
     };
+    use serde_json::json;
     use std::cell::RefCell;
     use std::io;
 
@@ -291,6 +1149,35 @@ mod tests {
             storage_supported: true,
             message: Some("configured".to_string()),
         }
+    }
+
+    fn candidate_response() -> serde_json::Value {
+        json!({
+            "result": {
+                "data": [
+                    {
+                        "id": "gpt-5.4-mini",
+                        "model": "gpt-5.4-mini",
+                        "supportedReasoningEfforts": [
+                            { "reasoningEffort": "low", "description": "" },
+                            { "reasoningEffort": "medium", "description": "" }
+                        ],
+                        "defaultReasoningEffort": "medium",
+                        "isDefault": true
+                    },
+                    {
+                        "id": "gpt-5.4",
+                        "model": "gpt-5.4",
+                        "supported_reasoning_efforts": [
+                            { "reasoning_effort": "medium", "description": "" },
+                            { "reasoning_effort": "high", "description": "" }
+                        ],
+                        "default_reasoning_effort": "high",
+                        "is_default": false
+                    }
+                ]
+            }
+        })
     }
 
     #[test]
@@ -358,6 +1245,118 @@ mod tests {
 
         assert!(*deleted.borrow());
         assert!(!result.configured);
+    }
+
+    #[test]
+    fn parse_model_list_candidates_handles_camel_and_snake_case() {
+        let candidates = parse_model_list_candidates(&candidate_response());
+
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0].model, "gpt-5.4-mini");
+        assert_eq!(
+            candidates[0].supported_reasoning_efforts,
+            vec!["low".to_string(), "medium".to_string()]
+        );
+        assert_eq!(candidates[1].default_reasoning_effort.as_deref(), Some("high"));
+    }
+
+    #[test]
+    fn fallback_prefers_requested_model_when_valid() {
+        let candidates = parse_model_list_candidates(&candidate_response());
+        let decision = build_fallback_decision(
+            "cost-efficient",
+            AutoModelRoutingProvider::Openai,
+            &candidates,
+            Some("gpt-5.4"),
+            Some("medium"),
+            "fallback".to_string(),
+        );
+
+        assert_eq!(decision.selected_model, "gpt-5.4");
+        assert_eq!(decision.selected_reasoning_effort.as_deref(), Some("medium"));
+        assert!(decision.fallback_used);
+    }
+
+    #[test]
+    fn router_selection_downgrades_strong_model_in_responsive_mode() {
+        let candidates = parse_model_list_candidates(&candidate_response());
+        let decision = resolve_router_selection(
+            "responsive",
+            AutoModelRoutingProvider::Openai,
+            &candidates,
+            Some("gpt-5.4"),
+            Some("high"),
+            RouterOutput {
+                task_type: "debugging".to_string(),
+                complexity: "high".to_string(),
+                ambiguity: "medium".to_string(),
+                needs_tools: true,
+                needs_large_context: true,
+                selected_model: "gpt-5.4".to_string(),
+                selected_reasoning: "high".to_string(),
+                confidence: 0.92,
+                reason: "Needs tools.".to_string(),
+            },
+        );
+
+        assert_eq!(decision.selected_model, "gpt-5.4-mini");
+        assert_eq!(decision.selected_reasoning_effort.as_deref(), Some("low"));
+        assert!(decision.fallback_used);
+        assert!(decision.policy_note.is_some());
+    }
+
+    #[test]
+    fn attach_auto_model_routing_decision_writes_into_result_object() {
+        let mut response = json!({
+            "result": {
+                "turn": {
+                    "id": "turn-1"
+                }
+            }
+        });
+        let decision = AutoModelRoutingDecision {
+            mode: "responsive".to_string(),
+            provider: AutoModelRoutingProvider::Openai,
+            selected_model: "gpt-5.4-mini".to_string(),
+            selected_reasoning_effort: Some("low".to_string()),
+            fallback_used: false,
+            reason: "Quick task.".to_string(),
+            confidence: Some(0.8),
+            task_type: "editing".to_string(),
+            complexity: "low".to_string(),
+            ambiguity: "low".to_string(),
+            needs_tools: false,
+            needs_large_context: false,
+            policy_note: None,
+        };
+
+        attach_auto_model_routing_decision(&mut response, &decision);
+
+        assert_eq!(
+            response["result"]["routingDecision"]["selectedModel"].as_str(),
+            Some("gpt-5.4-mini")
+        );
+    }
+
+    #[test]
+    fn extract_response_text_reads_output_array_text() {
+        let response = json!({
+            "output": [
+                {
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "{\"task_type\":\"editing\"}"
+                        }
+                    ]
+                }
+            ]
+        });
+
+        assert_eq!(
+            extract_response_text(&response).expect("text"),
+            "{\"task_type\":\"editing\"}".to_string()
+        );
     }
 
     #[test]
