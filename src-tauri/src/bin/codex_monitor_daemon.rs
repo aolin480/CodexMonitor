@@ -1619,16 +1619,23 @@ fn parse_args() -> Result<DaemonConfig, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shared::prompt_routing_core::{
+        clear_test_router_credential_result, clear_test_router_result,
+        set_test_router_credential_result, set_test_router_result, RouterOutput,
+    };
     use crate::shared::process_core::kill_child_process_tree;
     use crate::storage::write_workspaces;
     use crate::types::WorkspaceKind;
     use serde_json::json;
+    use std::fs::File;
     use std::future::Future;
+    use std::path::Path;
     use std::path::PathBuf;
     use std::process::Stdio;
-    use std::sync::atomic::AtomicU64;
+    use std::sync::{atomic::AtomicU64, Mutex as StdMutex, OnceLock};
     use std::sync::Arc;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use tokio::time::sleep;
     use tokio::process::Command;
 
     fn run_async_test<F>(future: F)
@@ -1734,6 +1741,124 @@ mod tests {
             workspace_roots: Mutex::new(HashMap::new()),
             owner_workspace_id,
         })
+    }
+
+    fn make_session_with_transcript(
+        workspace_id: &str,
+        transcript_path: &Path,
+    ) -> Arc<WorkspaceSession> {
+        let transcript_file = File::create(transcript_path).expect("create transcript file");
+        let mut cmd = if cfg!(windows) {
+            let mut cmd = Command::new("cmd");
+            cmd.args(["/C", "more"]);
+            cmd
+        } else {
+            let cmd = Command::new("cat");
+            cmd
+        };
+
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::from(transcript_file))
+            .stderr(Stdio::null());
+
+        let mut child = cmd.spawn().expect("spawn transcript child");
+        let stdin = child.stdin.take().expect("transcript child stdin");
+
+        Arc::new(WorkspaceSession {
+            codex_args: None,
+            child: Mutex::new(child),
+            stdin: Mutex::new(stdin),
+            pending: Mutex::new(HashMap::new()),
+            request_context: Mutex::new(HashMap::new()),
+            thread_workspace: Mutex::new(HashMap::new()),
+            hidden_thread_ids: Mutex::new(HashSet::new()),
+            next_id: AtomicU64::new(0),
+            background_thread_callbacks: Mutex::new(HashMap::new()),
+            workspace_ids: Mutex::new(HashSet::from([workspace_id.to_string()])),
+            workspace_roots: Mutex::new(HashMap::new()),
+            owner_workspace_id: workspace_id.to_string(),
+        })
+    }
+
+    fn transcript_path(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "codex-monitor-daemon-{label}-{}-{unique}.jsonl",
+            std::process::id()
+        ))
+    }
+
+    async fn respond_to_pending_request(
+        session: &Arc<WorkspaceSession>,
+        id: u64,
+        response: Value,
+    ) {
+        for _ in 0..100 {
+            let sender = {
+                let mut pending = session.pending.lock().await;
+                pending.remove(&id)
+            };
+            if let Some(sender) = sender {
+                session.request_context.lock().await.remove(&id);
+                sender.send(response).expect("send mock response");
+                return;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+        panic!("timed out waiting for pending request id {id}");
+    }
+
+    fn read_transcript(path: &Path) -> Vec<Value> {
+        let raw = std::fs::read_to_string(path).expect("read transcript");
+        raw.lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| serde_json::from_str(line).expect("parse transcript line"))
+            .collect()
+    }
+
+    fn routing_candidate_response() -> Value {
+        json!({
+            "result": {
+                "data": [
+                    {
+                        "id": "gpt-5.4-mini",
+                        "model": "gpt-5.4-mini",
+                        "supportedReasoningEfforts": [
+                            { "reasoningEffort": "low", "description": "" },
+                            { "reasoningEffort": "medium", "description": "" }
+                        ],
+                        "defaultReasoningEffort": "medium",
+                        "isDefault": true
+                    },
+                    {
+                        "id": "gpt-5.4",
+                        "model": "gpt-5.4",
+                        "supportedReasoningEfforts": [
+                            { "reasoningEffort": "medium", "description": "" },
+                            { "reasoningEffort": "high", "description": "" }
+                        ],
+                        "defaultReasoningEffort": "high",
+                        "isDefault": false
+                    }
+                ]
+            }
+        })
+    }
+
+    fn clear_router_test_state() {
+        clear_test_router_credential_result();
+        clear_test_router_result();
+    }
+
+    fn send_routing_test_guard() -> std::sync::MutexGuard<'static, ()> {
+        static TEST_GUARD: OnceLock<StdMutex<()>> = OnceLock::new();
+        TEST_GUARD
+            .get_or_init(|| StdMutex::new(()))
+            .lock()
+            .expect("daemon send routing test guard")
     }
 
     #[test]
@@ -1843,6 +1968,102 @@ mod tests {
                 result.get("version").and_then(Value::as_str),
                 Some(env!("CARGO_PKG_VERSION"))
             );
+            let _ = std::fs::remove_dir_all(&tmp);
+        });
+    }
+
+    #[test]
+    fn rpc_send_user_message_preserves_routing_decision_and_turn_start_override() {
+        run_async_test(async {
+            let _guard = send_routing_test_guard();
+            clear_router_test_state();
+            let tmp = make_temp_dir("rpc-send-user-message-routing");
+            let workspace_id = "ws-routing";
+            let workspace_dir = tmp.join("workspace");
+            std::fs::create_dir_all(&workspace_dir).expect("create workspace dir");
+            let transcript = transcript_path("rpc-send-user-message-routing");
+
+            let state = Arc::new(test_state(&tmp));
+            insert_workspace(&state, workspace_id, &workspace_dir.to_string_lossy()).await;
+            let session = make_session_with_transcript(workspace_id, &transcript);
+            {
+                let mut sessions = state.sessions.lock().await;
+                sessions.insert(workspace_id.to_string(), Arc::clone(&session));
+            }
+            {
+                let mut settings = state.app_settings.lock().await;
+                settings.auto_model_routing_enabled = true;
+                settings.auto_model_routing_mode = "genius".to_string();
+            }
+
+            set_test_router_credential_result(Ok("sk-test".to_string()));
+            set_test_router_result(Ok(RouterOutput {
+                task_type: "debugging".to_string(),
+                complexity: "high".to_string(),
+                ambiguity: "medium".to_string(),
+                needs_tools: true,
+                needs_large_context: true,
+                selected_model: "gpt-5.4".to_string(),
+                selected_reasoning: "high".to_string(),
+                confidence: 0.91,
+                reason: "Use the strongest candidate.".to_string(),
+            }));
+
+            let rpc_task = tokio::spawn({
+                let state = Arc::clone(&state);
+                async move {
+                    rpc::handle_rpc_request(
+                        &state,
+                        "send_user_message",
+                        json!({
+                            "workspaceId": workspace_id,
+                            "threadId": "thread-1",
+                            "text": "debug this",
+                            "model": "gpt-5.4-mini",
+                            "effort": "low"
+                        }),
+                        "daemon-test".to_string(),
+                    )
+                    .await
+                }
+            });
+
+            respond_to_pending_request(&session, 0, routing_candidate_response()).await;
+            respond_to_pending_request(
+                &session,
+                1,
+                json!({ "result": { "turn": { "id": "turn-1" } } }),
+            )
+            .await;
+
+            let response = rpc_task
+                .await
+                .expect("task join")
+                .expect("rpc send succeeds");
+            let transcript_lines = read_transcript(&transcript);
+
+            assert_eq!(transcript_lines.len(), 2);
+            assert_eq!(transcript_lines[0]["method"].as_str(), Some("model/list"));
+            assert_eq!(transcript_lines[1]["method"].as_str(), Some("turn/start"));
+            assert_eq!(
+                transcript_lines[1]["params"]["model"].as_str(),
+                Some("gpt-5.4")
+            );
+            assert_eq!(
+                transcript_lines[1]["params"]["effort"].as_str(),
+                Some("high")
+            );
+            assert_eq!(
+                response["result"]["routingDecision"]["selectedModel"].as_str(),
+                Some("gpt-5.4")
+            );
+            assert_eq!(
+                response["result"]["routingDecision"]["selectedReasoningEffort"].as_str(),
+                Some("high")
+            );
+
+            clear_router_test_state();
+            let _ = std::fs::remove_file(&transcript);
             let _ = std::fs::remove_dir_all(&tmp);
         });
     }
