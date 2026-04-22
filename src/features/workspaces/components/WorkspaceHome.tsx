@@ -53,8 +53,11 @@ type WorkspaceHomeProps = {
   runMode: WorkspaceRunMode;
   onRunModeChange: (mode: WorkspaceRunMode) => void;
   models: ModelOption[];
+  selectedModelSelectionMode: "auto" | "manual";
   selectedModelId: string | null;
-  onSelectModel: (modelId: string) => void;
+  onSelectModel: (modelId: string | null) => void;
+  autoModelRoutingCredentialConfigured: boolean | null;
+  onOpenAutoModelRoutingSettings: () => void;
   modelSelections: Record<string, number>;
   onToggleModel: (modelId: string) => void;
   onModelCountChange: (modelId: string, count: number) => void;
@@ -117,8 +120,11 @@ export function WorkspaceHome({
   runMode,
   onRunModeChange,
   models,
+  selectedModelSelectionMode,
   selectedModelId,
   onSelectModel,
+  autoModelRoutingCredentialConfigured,
+  onOpenAutoModelRoutingSettings,
   modelSelections,
   onToggleModel,
   onModelCountChange,
@@ -534,8 +540,11 @@ export function WorkspaceHome({
         runMode={runMode}
         onRunModeChange={onRunModeChange}
         models={models}
+        selectedModelSelectionMode={selectedModelSelectionMode}
         selectedModelId={selectedModelId}
         onSelectModel={onSelectModel}
+        autoModelRoutingCredentialConfigured={autoModelRoutingCredentialConfigured}
+        onOpenAutoModelRoutingSettings={onOpenAutoModelRoutingSettings}
         modelSelections={modelSelections}
         onToggleModel={onToggleModel}
         onModelCountChange={onModelCountChange}

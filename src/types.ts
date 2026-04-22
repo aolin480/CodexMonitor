@@ -212,6 +212,11 @@ export type BackendMode = "local" | "remote";
 export type RemoteBackendProvider = "tcp";
 export type AutoModelRoutingMode = "responsive" | "cost-efficient" | "genius";
 export type AutoModelRoutingProvider = "openai";
+export type ModelSelectionMode = "auto" | "manual";
+export type AutoModelRoutingOverrideScope =
+  | "auto"
+  | "manual-next-send"
+  | "manual-session";
 export type AutoModelRoutingCredentialStorageKind =
   | "os-keyring"
   | "unsupported";

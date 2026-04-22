@@ -15,13 +15,15 @@ type ComposerMetaBarProps = {
   onSelectCollaborationMode: (id: string | null) => void;
   models: { id: string; displayName: string; model: string }[];
   selectedModelId: string | null;
-  onSelectModel: (id: string) => void;
+  onSelectModel: (id: string | null) => void;
   reasoningOptions: string[];
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
   selectedServiceTier: ServiceTier | null;
   activeAutoModelRoutingDecision?: AutoModelRoutingDecision | null;
   reasoningSupported: boolean;
+  autoModelRoutingCredentialConfigured: boolean | null;
+  onOpenAutoModelRoutingSettings: () => void;
   accessMode: AccessMode;
   onSelectAccessMode: (mode: AccessMode) => void;
   codexArgsOptions?: CodexArgsOption[];
@@ -220,6 +222,8 @@ export function ComposerMetaBar({
   selectedServiceTier,
   activeAutoModelRoutingDecision = null,
   reasoningSupported,
+  autoModelRoutingCredentialConfigured,
+  onOpenAutoModelRoutingSettings,
   accessMode,
   onSelectAccessMode,
   codexArgsOptions = [],
@@ -230,8 +234,14 @@ export function ComposerMetaBar({
 }: ComposerMetaBarProps) {
   const selectedModel =
     models.find((model) => model.id === selectedModelId) ?? null;
+  const autoRoutingUnavailable = autoModelRoutingCredentialConfigured === false;
+  const autoOptionLabel = autoRoutingUnavailable
+    ? "Auto (add credential in Settings)"
+    : "Auto (prompt intent)";
   const selectedModelLabel =
-    selectedModel?.displayName || selectedModel?.model || "No models";
+    selectedModelId === null
+      ? autoOptionLabel
+      : selectedModel?.displayName || selectedModel?.model || "No models";
   const modelSelectStyle = {
     "--composer-model-select-width": `${Math.max(selectedModelLabel.length + 2, 8)}ch`,
   } as CSSProperties;
@@ -359,11 +369,21 @@ export function ComposerMetaBar({
           <select
             className="composer-select composer-select--model"
             aria-label="Model"
-            value={selectedModelId ?? ""}
-            onChange={(event) => onSelectModel(event.target.value)}
+            value={selectedModelId ?? "__auto__"}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              if (nextValue === "__auto__") {
+                onSelectModel(null);
+                return;
+              }
+              onSelectModel(nextValue);
+            }}
             disabled={disabled}
             style={modelSelectStyle}
           >
+            <option value="__auto__" disabled={autoRoutingUnavailable}>
+              {autoOptionLabel}
+            </option>
             {models.length === 0 && <option value="">No models</option>}
             {models.map((model) => (
               <option key={model.id} value={model.id}>
@@ -371,6 +391,16 @@ export function ComposerMetaBar({
               </option>
             ))}
           </select>
+          {autoRoutingUnavailable && (
+            <button
+              type="button"
+              className="ghost composer-auto-setup-button"
+              onClick={onOpenAutoModelRoutingSettings}
+              disabled={disabled}
+            >
+              Set up
+            </button>
+          )}
           {selectedServiceTier === "fast" && (
             <span
               className="composer-fast-indicator"
@@ -382,25 +412,27 @@ export function ComposerMetaBar({
             </span>
           )}
         </div>
-        <div className="composer-select-wrap composer-select-wrap--effort">
-          <span className="composer-icon composer-icon--effort" aria-hidden>
-            <BrainCog size={14} strokeWidth={1.8} />
-          </span>
-          <select
-            className="composer-select composer-select--effort"
-            aria-label="Thinking mode"
-            value={selectedEffort ?? ""}
-            onChange={(event) => onSelectEffort(event.target.value)}
-            disabled={disabled || !reasoningSupported}
-          >
-            {reasoningOptions.length === 0 && <option value="">Default</option>}
-            {reasoningOptions.map((effort) => (
-              <option key={effort} value={effort}>
-                {effort}
-              </option>
-            ))}
-          </select>
-        </div>
+        {selectedModelId !== null && (
+          <div className="composer-select-wrap composer-select-wrap--effort">
+            <span className="composer-icon composer-icon--effort" aria-hidden>
+              <BrainCog size={14} strokeWidth={1.8} />
+            </span>
+            <select
+              className="composer-select composer-select--effort"
+              aria-label="Thinking mode"
+              value={selectedEffort ?? ""}
+              onChange={(event) => onSelectEffort(event.target.value)}
+              disabled={disabled || !reasoningSupported}
+            >
+              {reasoningOptions.length === 0 && <option value="">Default</option>}
+              {reasoningOptions.map((effort) => (
+                <option key={effort} value={effort}>
+                  {effort}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {activeAutoModelRoutingDecision && (
           <ComposerRoutingBadge decision={activeAutoModelRoutingDecision} />
         )}

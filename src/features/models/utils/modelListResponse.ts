@@ -1,4 +1,5 @@
 import type { ModelOption } from "../../../types";
+import { isBlacklistedModelSlug } from "./modelBlacklist";
 
 export function normalizeEffortValue(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -82,6 +83,9 @@ export function parseModelListResponse(response: unknown): ModelOption[] {
       }
       const record = item as Record<string, unknown>;
       const modelSlug = String(record.model ?? record.id ?? "");
+      if (isBlacklistedModelSlug(modelSlug)) {
+        return null;
+      }
       const rawDisplayName = String(record.displayName || record.display_name || "");
       const displayName = rawDisplayName.trim().length > 0 ? rawDisplayName : modelSlug;
       return {

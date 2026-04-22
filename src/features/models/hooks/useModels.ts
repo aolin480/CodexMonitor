@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DebugEntry, ModelOption, WorkspaceInfo } from "../../../types";
+import type {
+  DebugEntry,
+  ModelOption,
+  ModelSelectionMode,
+  WorkspaceInfo,
+} from "../../../types";
 import { getConfigModel, getModelList } from "../../../services/tauri";
 import {
   normalizeEffortValue,
   parseModelListResponse,
 } from "../utils/modelListResponse";
+import { isBlacklistedModelSlug } from "../utils/modelBlacklist";
 
 type UseModelsOptions = {
   activeWorkspace: WorkspaceInfo | null;
   onDebug?: (entry: DebugEntry) => void;
+  preferredModelSelectionMode?: ModelSelectionMode;
   preferredModelId?: string | null;
   preferredEffort?: string | null;
   selectionKey?: string | null;
@@ -39,18 +46,24 @@ const pickDefaultModel = (models: ModelOption[], configModel: string | null) =>
 export function useModels({
   activeWorkspace,
   onDebug,
+  preferredModelSelectionMode = "manual",
   preferredModelId = null,
   preferredEffort = null,
   selectionKey = null,
 }: UseModelsOptions) {
   const [models, setModels] = useState<ModelOption[]>([]);
   const [configModel, setConfigModel] = useState<string | null>(null);
+  const [selectedModelSelectionMode, setSelectedModelSelectionModeState] =
+    useState<ModelSelectionMode>("manual");
   const [selectedModelId, setSelectedModelIdState] = useState<string | null>(null);
   const [selectedEffort, setSelectedEffortState] = useState<string | null>(null);
   const lastFetchedWorkspaceId = useRef<string | null>(null);
   const inFlight = useRef(false);
   const hasUserSelectedModel = useRef(false);
   const hasUserSelectedEffort = useRef(false);
+  const selectedModelSelectionModeRef = useRef<ModelSelectionMode>("manual");
+  const selectedModelIdRef = useRef<string | null>(null);
+  const selectedEffortRef = useRef<string | null>(null);
   const lastWorkspaceId = useRef<string | null>(null);
   const lastSelectionKey = useRef<string | null>(null);
 
@@ -64,7 +77,14 @@ export function useModels({
     lastSelectionKey.current = selectionKey;
     hasUserSelectedModel.current = false;
     hasUserSelectedEffort.current = false;
-  }, [selectionKey]);
+    setSelectedModelSelectionModeState(preferredModelSelectionMode);
+    setSelectedModelIdState(
+      preferredModelSelectionMode === "auto" ? null : preferredModelId,
+    );
+    setSelectedEffortState(
+      preferredModelSelectionMode === "auto" ? null : preferredEffort,
+    );
+  }, [preferredEffort, preferredModelId, preferredModelSelectionMode, selectionKey]);
 
   useEffect(() => {
     if (workspaceId === lastWorkspaceId.current) {
@@ -74,7 +94,18 @@ export function useModels({
     hasUserSelectedEffort.current = false;
     lastWorkspaceId.current = workspaceId;
     setConfigModel(null);
-  }, [workspaceId]);
+    setSelectedModelSelectionModeState(preferredModelSelectionMode);
+    setSelectedModelIdState(
+      preferredModelSelectionMode === "auto" ? null : preferredModelId,
+    );
+    setSelectedEffortState(
+      preferredModelSelectionMode === "auto" ? null : preferredEffort,
+    );
+  }, [preferredEffort, preferredModelId, preferredModelSelectionMode, workspaceId]);
+
+  useEffect(() => {
+    selectedModelSelectionModeRef.current = selectedModelSelectionMode;
+  }, [selectedModelSelectionMode]);
 
   useEffect(() => {
     if (selectedEffort === null) {
@@ -87,10 +118,13 @@ export function useModels({
     setSelectedEffortState(null);
   }, [selectedEffort]);
 
-  const setSelectedModelId = useCallback((next: string | null) => {
-    hasUserSelectedModel.current = true;
-    setSelectedModelIdState(next);
-  }, []);
+  useEffect(() => {
+    selectedModelIdRef.current = selectedModelId;
+  }, [selectedModelId]);
+
+  useEffect(() => {
+    selectedEffortRef.current = selectedEffort;
+  }, [selectedEffort]);
 
   const setSelectedEffort = useCallback((next: string | null) => {
     hasUserSelectedEffort.current = true;
@@ -124,11 +158,15 @@ export function useModels({
   }, [selectedModel]);
 
   const resolveEffort = useCallback(
-    (model: ModelOption, preferCurrent: boolean) => {
+    (
+      model: ModelOption,
+      preferCurrent: boolean,
+      currentSelectedEffort: string | null = selectedEffort,
+    ) => {
       const supportedEfforts = model.supportedReasoningEfforts.map(
         (effort) => effort.reasoningEffort,
       );
-      const currentEffort = normalizeEffortValue(selectedEffort);
+      const currentEffort = normalizeEffortValue(currentSelectedEffort);
       if (preferCurrent && currentEffort) {
         return currentEffort;
       }
@@ -142,6 +180,31 @@ export function useModels({
       return normalizeEffortValue(model.defaultReasoningEffort);
     },
     [preferredEffort, selectedEffort],
+  );
+
+  const setSelectedModelId = useCallback(
+    (next: string | null) => {
+      hasUserSelectedModel.current = true;
+      setSelectedModelSelectionModeState(next === null ? "auto" : "manual");
+      setSelectedModelIdState(next);
+
+      if (next === null) {
+        hasUserSelectedEffort.current = false;
+        setSelectedEffortState(null);
+        return;
+      }
+
+      const nextModel = findModelByIdOrModel(models, next);
+      if (!nextModel) {
+        return;
+      }
+      const nextEffort = resolveEffort(nextModel, hasUserSelectedEffort.current);
+      if (nextEffort !== selectedEffort) {
+        hasUserSelectedEffort.current = false;
+        setSelectedEffortState(nextEffort);
+      }
+    },
+    [models, resolveEffort, selectedEffort],
   );
 
   const refreshModels = useCallback(async () => {
@@ -204,7 +267,7 @@ export function useModels({
       setConfigModel(configModelFromConfig);
       const dataFromServer: ModelOption[] = parseModelListResponse(response);
       const data = (() => {
-        if (!configModelFromConfig) {
+        if (!configModelFromConfig || isBlacklistedModelSlug(configModelFromConfig)) {
           return dataFromServer;
         }
         const hasConfigModel = dataFromServer.some(
@@ -227,27 +290,43 @@ export function useModels({
       setModels(data);
       lastFetchedWorkspaceId.current = workspaceId;
       const defaultModel = pickDefaultModel(data, configModelFromConfig);
-      const existingSelection = findModelByIdOrModel(data, selectedModelId);
-      if (selectedModelId && !existingSelection) {
+      const currentSelectionMode = selectedModelSelectionModeRef.current;
+      const currentSelectedModelId = selectedModelIdRef.current;
+      const currentSelectedEffort = selectedEffortRef.current;
+      const existingSelection = findModelByIdOrModel(data, currentSelectedModelId);
+      if (currentSelectedModelId && !existingSelection) {
         hasUserSelectedModel.current = false;
       }
       const preferredSelection = findModelByIdOrModel(data, preferredModelId);
       const shouldKeepExisting =
-        hasUserSelectedModel.current && existingSelection !== null;
-      const nextSelection =
-        (shouldKeepExisting ? existingSelection : null) ??
-        preferredSelection ??
-        defaultModel ??
-        existingSelection;
-      if (nextSelection) {
-        if (nextSelection.id !== selectedModelId) {
+        hasUserSelectedModel.current &&
+        (currentSelectionMode === "auto" || existingSelection !== null);
+      const nextSelection = shouldKeepExisting
+        ? currentSelectionMode === "auto"
+          ? null
+          : existingSelection
+        : preferredModelSelectionMode === "auto"
+          ? null
+          : preferredSelection ?? defaultModel ?? existingSelection;
+      if (nextSelection === null) {
+        setSelectedModelSelectionModeState("auto");
+        if (currentSelectedModelId !== null) {
+          setSelectedModelIdState(null);
+        }
+        if (currentSelectedEffort !== null) {
+          setSelectedEffortState(null);
+        }
+      } else {
+        if (nextSelection.id !== currentSelectedModelId) {
           setSelectedModelIdState(nextSelection.id);
         }
+        setSelectedModelSelectionModeState("manual");
         const nextEffort = resolveEffort(
           nextSelection,
           hasUserSelectedEffort.current,
+          currentSelectedEffort,
         );
-        if (nextEffort !== selectedEffort) {
+        if (nextEffort !== currentSelectedEffort) {
           setSelectedEffortState(nextEffort);
         }
       }
@@ -257,9 +336,8 @@ export function useModels({
   }, [
     isConnected,
     onDebug,
+    preferredModelSelectionMode,
     preferredModelId,
-    selectedEffort,
-    selectedModelId,
     resolveEffort,
     workspaceId,
   ]);
@@ -294,6 +372,7 @@ export function useModels({
     if (!models.length) {
       return;
     }
+    const currentSelectionMode = selectedModelSelectionModeRef.current;
     const preferredSelection = findModelByIdOrModel(models, preferredModelId);
     const defaultModel = pickDefaultModel(models, configModel);
     const existingSelection = findModelByIdOrModel(models, selectedModelId);
@@ -301,18 +380,29 @@ export function useModels({
       hasUserSelectedModel.current = false;
     }
     const shouldKeepUserSelection =
-      hasUserSelectedModel.current && existingSelection !== null;
+      hasUserSelectedModel.current &&
+      (currentSelectionMode === "auto" || existingSelection !== null);
     if (shouldKeepUserSelection) {
       return;
     }
     const nextSelection =
-      preferredSelection ?? defaultModel ?? existingSelection ?? null;
-    if (!nextSelection) {
+      preferredModelSelectionMode === "auto"
+        ? null
+        : preferredSelection ?? defaultModel ?? existingSelection ?? null;
+    if (nextSelection === null) {
+      setSelectedModelSelectionModeState("auto");
+      if (selectedModelId !== null) {
+        setSelectedModelIdState(null);
+      }
+      if (selectedEffort !== null) {
+        setSelectedEffortState(null);
+      }
       return;
     }
     if (nextSelection.id !== selectedModelId) {
       setSelectedModelIdState(nextSelection.id);
     }
+    setSelectedModelSelectionModeState("manual");
     const nextEffort = resolveEffort(nextSelection, hasUserSelectedEffort.current);
     if (nextEffort !== selectedEffort) {
       setSelectedEffortState(nextEffort);
@@ -320,6 +410,7 @@ export function useModels({
   }, [
     configModel,
     models,
+    preferredModelSelectionMode,
     preferredModelId,
     selectedEffort,
     selectedModelId,
@@ -329,6 +420,7 @@ export function useModels({
   return {
     models,
     selectedModel,
+    selectedModelSelectionMode,
     reasoningSupported,
     selectedModelId,
     setSelectedModelId,

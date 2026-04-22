@@ -16,6 +16,8 @@ const AUTO_MODEL_ROUTING_KEYCHAIN_SERVICE: &str = "com.codexmonitor.auto-model-r
 const OPENAI_ROUTER_URL: &str = "https://api.openai.com/v1/responses";
 const OPENAI_ROUTER_MODEL: &str = "gpt-5.4-nano";
 const OPENAI_ROUTER_TIMEOUT: Duration = Duration::from_secs(15);
+const CHATGPT_ACCOUNT_UNSUPPORTED_MODEL_ERROR: &str =
+    "model is not supported when using Codex with a ChatGPT account";
 const OPENAI_ROUTER_SYSTEM_PROMPT: &str = concat!(
     "You classify prompts for CodexMonitor model routing. ",
     "Do not solve the task. ",
@@ -134,9 +136,10 @@ pub(crate) async fn resolve_auto_model_routing_for_turn_start(
     requested_effort: Option<&str>,
     images: Option<&[String]>,
     app_mentions: Option<&[Value]>,
+    auto_model_routing_bypass: bool,
     model_list_response: &Value,
 ) -> Result<Option<AutoModelRoutingDecision>, String> {
-    if !settings.auto_model_routing_enabled {
+    if !settings.auto_model_routing_enabled || auto_model_routing_bypass {
         return Ok(None);
     }
 
@@ -412,6 +415,51 @@ pub(crate) fn build_skipped_routing_decision(
     }
 }
 
+pub(crate) fn is_chatgpt_account_unsupported_model_error(error: &str) -> bool {
+    error
+        .trim()
+        .to_ascii_lowercase()
+        .contains(CHATGPT_ACCOUNT_UNSUPPORTED_MODEL_ERROR)
+}
+
+pub(crate) fn build_chatgpt_account_retry_decision(
+    settings: &AppSettings,
+    requested_model: Option<&str>,
+    requested_effort: Option<&str>,
+    rejected_model: Option<&str>,
+    model_list_response: &Value,
+) -> Option<AutoModelRoutingDecision> {
+    let provider = normalize_provider(settings.auto_model_routing_provider.as_str()).ok()?;
+    let mode = normalize_mode(settings.auto_model_routing_mode.as_str());
+    let rejected_model = rejected_model.and_then(normalize_optional_string_ref);
+    let candidates = parse_model_list_candidates(model_list_response);
+    let filtered_candidates = candidates
+        .into_iter()
+        .filter(|candidate| {
+            let is_rejected = rejected_model.is_some_and(|value| value == candidate.model);
+            !is_rejected
+        })
+        .collect::<Vec<_>>();
+    if filtered_candidates.is_empty() {
+        return None;
+    }
+    let mut decision = build_fallback_decision(
+        mode.as_str(),
+        provider,
+        &filtered_candidates,
+        requested_model,
+        requested_effort,
+        "Selected model was not supported for this ChatGPT account; retried with fallback."
+            .to_string(),
+    );
+    decision.policy_note = rejected_model.map(|model| {
+        format!(
+            "Retrying turn/start after ChatGPT-account model rejection for {model}."
+        )
+    });
+    Some(decision)
+}
+
 fn parse_model_list_candidates(response: &Value) -> Vec<RoutingCandidate> {
     extract_model_items(response)
         .into_iter()
@@ -448,6 +496,9 @@ fn parse_model_candidate(item: &Value) -> Option<RoutingCandidate> {
         .map(str::trim)
         .filter(|value| !value.is_empty())?
         .to_string();
+    if is_filtered_routing_model(model.as_str()) {
+        return None;
+    }
     let default_reasoning_effort = normalize_optional_string(
         record
             .get("defaultReasoningEffort")
@@ -466,6 +517,10 @@ fn parse_model_candidate(item: &Value) -> Option<RoutingCandidate> {
             .and_then(Value::as_bool)
             .unwrap_or(false),
     })
+}
+
+fn is_filtered_routing_model(model: &str) -> bool {
+    matches!(model.trim().to_ascii_lowercase().as_str(), "gpt-5.1-codex-max")
 }
 
 fn parse_supported_reasoning_efforts(
@@ -1336,14 +1391,15 @@ fn map_keyring_read_error(
 #[cfg(test)]
 mod tests {
     use super::{
-        attach_auto_model_routing_decision, build_fallback_decision, extract_response_text,
-        extract_response_text_candidates, map_keyring_read_error, parse_model_list_candidates,
-        parse_router_output,
+        attach_auto_model_routing_decision, build_chatgpt_account_retry_decision,
+        build_fallback_decision, extract_response_text, extract_response_text_candidates,
+        map_keyring_read_error, parse_model_list_candidates, parse_router_output,
         remove_auto_model_routing_credential_with, resolve_router_selection,
         save_auto_model_routing_credential_with, AutoModelRoutingCredentialInput,
         AutoModelRoutingCredentialStatus, AutoModelRoutingCredentialStorageKind,
         AutoModelRoutingDecision, AutoModelRoutingProvider, RouterOutput,
     };
+    use crate::types::AppSettings;
     use serde_json::json;
     use std::cell::RefCell;
     use std::io;
@@ -1465,6 +1521,61 @@ mod tests {
             vec!["low".to_string(), "medium".to_string()]
         );
         assert_eq!(candidates[1].default_reasoning_effort.as_deref(), Some("high"));
+    }
+
+    #[test]
+    fn parse_model_list_candidates_filters_chatgpt_unsupported_codex_max() {
+        let response = json!({
+            "result": {
+                "data": [
+                    {
+                        "id": "gpt-5.1-codex-max",
+                        "model": "gpt-5.1-codex-max",
+                        "supportedReasoningEfforts": [
+                            { "reasoningEffort": "medium", "description": "" }
+                        ],
+                        "defaultReasoningEffort": "medium",
+                        "isDefault": false
+                    },
+                    {
+                        "id": "gpt-5.1-codex",
+                        "model": "gpt-5.1-codex",
+                        "supportedReasoningEfforts": [
+                            { "reasoningEffort": "medium", "description": "" }
+                        ],
+                        "defaultReasoningEffort": "medium",
+                        "isDefault": true
+                    }
+                ]
+            }
+        });
+
+        let candidates = parse_model_list_candidates(&response);
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].model, "gpt-5.1-codex");
+    }
+
+    #[test]
+    fn chatgpt_account_retry_prefers_requested_supported_model() {
+        let mut settings = AppSettings::default();
+        settings.auto_model_routing_mode = "genius".to_string();
+
+        let decision = build_chatgpt_account_retry_decision(
+            &settings,
+            Some("gpt-5.4-mini"),
+            Some("medium"),
+            Some("gpt-5.4"),
+            &candidate_response(),
+        )
+        .expect("retry decision");
+
+        assert_eq!(decision.selected_model, "gpt-5.4-mini");
+        assert_eq!(decision.selected_reasoning_effort.as_deref(), Some("medium"));
+        assert!(decision.fallback_used);
+        assert!(decision
+            .reason
+            .contains("Selected model was not supported for this ChatGPT account"));
     }
 
     #[test]

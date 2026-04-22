@@ -12,19 +12,20 @@ tags: [feature, routing, prompt-intent, auto-model-selection]
 
 ![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
 
-This plan extends Prompt Intent so CodexMonitor can select between runtime-available models automatically based on the user's prompt, while still preserving manual overrides for the next send or the whole app session.
+This plan extends Prompt Intent so CodexMonitor can select between runtime-available models automatically based on the user's prompt, while exposing a single composer selector with one `Auto (prompt intent)` entry plus concrete manual models.
 
 ## 1. Requirements & Constraints
 
-- **REQ-001**: `Auto` mode must classify the prompt first and then select the best runtime-available model/reasoning pair.
-- **REQ-002**: `Manual next send` must apply the user-selected model to exactly one send, then return to `Auto`.
-- **REQ-003**: `Manual for session` must apply the user-selected model until the app restarts.
-- **REQ-004**: The user must be able to switch back to `Auto` at any time.
+- **REQ-001**: `Auto (prompt intent)` must classify the prompt first and then select the best runtime-available model/reasoning pair.
+- **REQ-002**: Selecting a concrete model must bypass prompt-intent routing until the user switches back to `Auto (prompt intent)`.
+- **REQ-003**: The user must be able to switch back to `Auto (prompt intent)` at any time.
 - **REQ-005**: The backend host must remain the source of truth for selection decisions.
 - **REQ-006**: The runtime `model/list` output must remain the source of truth for selectable candidates.
 - **REQ-007**: The classifier must return intent metadata, not a final hardcoded model choice.
 - **REQ-008**: Manual overrides must always take precedence over automatic selection.
 - **REQ-009**: Auto selection must not overwrite saved manual defaults unless the user explicitly saves them.
+- **REQ-010**: The composer reasoning selector must be hidden when `Auto (prompt intent)` is selected.
+- **REQ-011**: The composer reasoning selector must be shown again when a concrete selected model supports reasoning.
 - **CON-001**: The feature must preserve app/daemon parity for backend behavior.
 - **CON-002**: The feature must not block sending when the classifier or router is unavailable.
 - **CON-003**: The feature must keep fallback behavior deterministic and silent unless diagnostics are enabled.
@@ -36,14 +37,14 @@ This plan extends Prompt Intent so CodexMonitor can select between runtime-avail
 
 ### Implementation Phase 1
 
-- GOAL-001: Define the routing-mode contract and frontend state surface for `Auto`, `Manual next send`, and `Manual for session`.
+- GOAL-001: Define the selector contract and frontend state surface for `Auto (prompt intent)` versus persistent manual model selection.
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-001 | Extend `src/types.ts` with explicit routing-mode and override-scope types for the new two-level manual override behavior. |  |  |
-| TASK-002 | Extend `src-tauri/src/types.rs` with matching backend settings/state types so frontend and backend remain contract-aligned. |  |  |
-| TASK-003 | Update `src/features/settings/hooks/useAppSettings.ts` so persisted settings can represent the new routing mode and override scope. |  |  |
-| TASK-004 | Update `src/features/settings/hooks/useSettingsCodexSection.ts` and `src/features/settings/components/sections/SettingsCodexSection.tsx` so the UI can display and edit the three routing states. |  |  |
+| TASK-001 | Extend `src/types.ts` with a model-source type that can represent `auto` versus concrete model selection in the composer. |  |  |
+| TASK-002 | Extend `src-tauri/src/types.rs` with matching persisted settings fields only if backend settings need to track the selected model source explicitly. |  |  |
+| TASK-003 | Update `src/features/settings/hooks/useAppSettings.ts` only for the settings that remain user-facing after the selector move: credential status, diagnostics, and any default fallback model fields. |  |  |
+| TASK-004 | Remove the old user-facing `Responsive / Cost-efficient / Genius` control from `src/features/settings/hooks/useSettingsCodexSection.ts` and `src/features/settings/components/sections/SettingsCodexSection.tsx`. |  |  |
 
 ### Implementation Phase 2
 
@@ -58,13 +59,13 @@ This plan extends Prompt Intent so CodexMonitor can select between runtime-avail
 
 ### Implementation Phase 3
 
-- GOAL-003: Wire the frontend send path and composer state so routing mode and manual override scope behave correctly.
+- GOAL-003: Wire the frontend send path and composer state so the model selector can switch between `Auto (prompt intent)` and persistent manual model selection.
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-009 | Update `src/features/threads/hooks/useThreadMessaging.ts` so the send path respects `Auto`, `Manual next send`, and `Manual for session` before issuing the backend send call. |  |  |
+| TASK-009 | Update `src/features/threads/hooks/useThreadMessaging.ts` so the send path respects either `Auto (prompt intent)` or a concrete selected model before issuing the backend send call. |  |  |
 | TASK-010 | Update `src/features/threads/hooks/useThreads.ts` and any thread-state reducers needed so routing state remains visible to the active composer without mutating saved manual defaults. |  |  |
-| TASK-011 | Update `src/features/composer/components/Composer.tsx` and `src/features/composer/components/ComposerMetaBar.tsx` so the active routing state and override scope are visible and user-switchable. |  |  |
+| TASK-011 | Update `src/features/composer/components/Composer.tsx` and `src/features/composer/components/ComposerMetaBar.tsx` so the model selector contains `Auto (prompt intent)` plus concrete models, and reasoning visibility follows the selected option. |  |  |
 | TASK-012 | Update `src/services/tauri.ts` so the frontend request/response contract can carry the routing decision metadata without changing the stable send API shape. |  |  |
 
 ### Implementation Phase 4
@@ -75,14 +76,14 @@ This plan extends Prompt Intent so CodexMonitor can select between runtime-avail
 |------|-------------|-----------|------|
 | TASK-013 | Add Rust unit tests in `src-tauri/src/shared/prompt_routing_core.rs` for simple-edit, code-change, high-reasoning, and fallback classification outcomes. |  |  |
 | TASK-014 | Extend `src-tauri/src/bin/codex_monitor_daemon.rs` tests to assert daemon RPC parity for the routed model, reasoning effort, and routing metadata. |  |  |
-| TASK-015 | Extend `src/features/threads/hooks/useThreads.integration.test.tsx` and `src/features/threads/hooks/useThreadMessaging.test.tsx` to cover active-thread state, next-send override, and session override behavior. |  |  |
+| TASK-015 | Extend `src/features/threads/hooks/useThreads.integration.test.tsx` and `src/features/threads/hooks/useThreadMessaging.test.tsx` to cover `Auto (prompt intent)`, pinned manual model behavior, and reasoning visibility changes. |  |  |
 | TASK-016 | Verify the feature with `npm run typecheck`, targeted frontend tests, `cd src-tauri && cargo test --lib prompt_routing_core`, and targeted daemon integration tests. |  |  |
 
 ## 3. Alternatives
 
 - **ALT-001**: Directly let the classifier choose the final model and reasoning pair. Rejected because it makes CodexMonitor dependent on the classifier's model preferences instead of keeping policy in the app.
 - **ALT-002**: Use a purely local heuristic router with no classifier call. Rejected because prompt nuance matters and the design goal is prompt-aware selection rather than a static rules table.
-- **ALT-003**: Make manual override sticky until the user clears it. Rejected because the requested behavior is a bounded `next send` mode plus an app-session mode.
+- **ALT-003**: Use separate `Manual next send` and `Manual for session` modes. Rejected because the user wants the selector itself to be the source of truth, with manual model selection persisting until they switch back to `Auto (prompt intent)`.
 
 ## 4. Dependencies
 
@@ -94,11 +95,11 @@ This plan extends Prompt Intent so CodexMonitor can select between runtime-avail
 
 ## 5. Files
 
-- **FILE-001**: `src/types.ts` - frontend routing mode and override scope contract.
-- **FILE-002**: `src-tauri/src/types.rs` - backend settings/state contract mirroring the frontend.
-- **FILE-003**: `src/features/settings/hooks/useAppSettings.ts` - persisted settings loading/normalization.
-- **FILE-004**: `src/features/settings/hooks/useSettingsCodexSection.ts` - settings section state wiring.
-- **FILE-005**: `src/features/settings/components/sections/SettingsCodexSection.tsx` - UI controls for routing mode and override scope.
+- **FILE-001**: `src/types.ts` - frontend selector-mode and routing contract.
+- **FILE-002**: `src-tauri/src/types.rs` - backend settings/state contract if persisted model-source state is needed.
+- **FILE-003**: `src/features/settings/hooks/useAppSettings.ts` - persisted settings loading/normalization for diagnostics and credential state.
+- **FILE-004**: `src/features/settings/hooks/useSettingsCodexSection.ts` - settings section state wiring after removing the old auto-policy dropdown.
+- **FILE-005**: `src/features/settings/components/sections/SettingsCodexSection.tsx` - reduced settings UI after moving auto selection to the composer.
 - **FILE-006**: `src-tauri/src/shared/prompt_routing_core.rs` - classifier and policy engine.
 - **FILE-007**: `src-tauri/src/shared/codex_core.rs` - shared send-path decision application.
 - **FILE-008**: `src-tauri/src/prompt_routing.rs` - app command surface for routing state and decisions.
@@ -116,7 +117,7 @@ This plan extends Prompt Intent so CodexMonitor can select between runtime-avail
 ## 6. Testing
 
 - **TEST-001**: `npm run typecheck` must pass after the contract changes.
-- **TEST-002**: `npm run test -- src/features/threads/hooks/useThreadMessaging.test.tsx src/features/threads/hooks/useThreads.integration.test.tsx` must cover `Auto`, `Manual next send`, and `Manual for session` behavior.
+- **TEST-002**: `npm run test -- src/features/threads/hooks/useThreadMessaging.test.tsx src/features/threads/hooks/useThreads.integration.test.tsx` must cover `Auto (prompt intent)` versus pinned manual model behavior.
 - **TEST-003**: `cd src-tauri && cargo test --lib prompt_routing_core` must validate classification and policy selection.
 - **TEST-004**: `cd src-tauri && cargo test --bin codex_monitor_daemon <targeted-routing-test>` must prove daemon RPC parity for routed model and routing metadata.
 - **TEST-005**: `npm run tauri:dev` must still launch cleanly after the routing-mode wiring changes.
@@ -124,11 +125,11 @@ This plan extends Prompt Intent so CodexMonitor can select between runtime-avail
 ## 7. Risks & Assumptions
 
 - **RISK-001**: The prompt classifier may return ambiguous intent for borderline prompts, which can produce surprising model choices unless the fallback policy is conservative.
-- **RISK-002**: Manual override behavior can become confusing if the composer does not make the active scope visible enough.
+- **RISK-002**: Selector behavior can become confusing if the composer does not make it obvious whether `Auto (prompt intent)` or a pinned concrete model is active.
 - **RISK-003**: Changes to routing state must not mutate saved defaults unintentionally, or the feature will feel unstable across sends.
 - **ASSUMPTION-001**: The current backend-host credential storage is sufficient for the classifier/router API key path and does not require a new secret backend.
 - **ASSUMPTION-002**: The runtime `model/list` shape continues to expose enough reasoning metadata to choose among the available candidates.
-- **ASSUMPTION-003**: A global routing mode is acceptable for V1, with no per-thread override persistence beyond the app session.
+- **ASSUMPTION-003**: The selected model source is global for V1, not per-thread.
 
 ## 8. Related Specifications / Further Reading
 

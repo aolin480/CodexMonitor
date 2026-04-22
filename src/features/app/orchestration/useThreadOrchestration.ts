@@ -6,6 +6,7 @@ import type {
   AppMention,
   AppSettings,
   ComposerSendIntent,
+  ModelSelectionMode,
   ServiceTier,
 } from "@/types";
 import { normalizeCodexArgsInput } from "@/utils/codexArgsInput";
@@ -26,6 +27,7 @@ type SetState<T> = Dispatch<SetStateAction<T>>;
 type PersistThreadCodexParams = (
   patch: {
     modelId?: string | null;
+    modelSelectionMode?: "auto" | "manual" | null;
     effort?: string | null;
     serviceTier?: ServiceTier | null | undefined;
     accessMode?: AccessMode | null;
@@ -57,13 +59,17 @@ type UseThreadCodexSyncOrchestrationParams = {
   activeThreadId: string | null;
   appSettings: Pick<
     AppSettings,
-    "defaultAccessMode" | "lastComposerModelId" | "lastComposerReasoningEffort"
+    | "defaultAccessMode"
+    | "lastComposerModelId"
+    | "lastComposerReasoningEffort"
+    | "autoModelRoutingEnabled"
   >;
   threadCodexParamsVersion: number;
   getThreadCodexParams: ReturnType<typeof useThreadCodexParams>["getThreadCodexParams"];
   patchThreadCodexParams: ReturnType<typeof useThreadCodexParams>["patchThreadCodexParams"];
   setThreadCodexSelectionKey: SetState<string | null>;
   setAccessMode: SetState<AccessMode>;
+  setPreferredModelSelectionMode: SetState<ModelSelectionMode>;
   setPreferredModelId: SetState<string | null>;
   setPreferredEffort: SetState<string | null>;
   setPreferredServiceTier: SetState<ServiceTier | null | undefined>;
@@ -71,6 +77,7 @@ type UseThreadCodexSyncOrchestrationParams = {
   setPreferredCodexArgsOverride?: SetState<string | null>;
   activeThreadIdRef: MutableRefObject<string | null>;
   pendingNewThreadSeedRef: MutableRefObject<PendingNewThreadSeed | null>;
+  selectedModelSelectionMode: ModelSelectionMode;
   selectedModelId: string | null;
   resolvedEffort: string | null;
   selectedServiceTier: ServiceTier | null | undefined;
@@ -131,6 +138,7 @@ export function useThreadCodexSyncOrchestration({
   patchThreadCodexParams,
   setThreadCodexSelectionKey,
   setAccessMode,
+  setPreferredModelSelectionMode,
   setPreferredModelId,
   setPreferredEffort,
   setPreferredServiceTier,
@@ -138,6 +146,7 @@ export function useThreadCodexSyncOrchestration({
   setPreferredCodexArgsOverride,
   activeThreadIdRef,
   pendingNewThreadSeedRef,
+  selectedModelSelectionMode,
   selectedModelId,
   resolvedEffort,
   selectedServiceTier,
@@ -163,6 +172,7 @@ export function useThreadCodexSyncOrchestration({
       workspaceId,
       threadId,
       defaultAccessMode: appSettings.defaultAccessMode,
+      autoModelRoutingEnabled: appSettings.autoModelRoutingEnabled,
       lastComposerModelId: appSettings.lastComposerModelId,
       lastComposerReasoningEffort: appSettings.lastComposerReasoningEffort,
       stored,
@@ -172,6 +182,7 @@ export function useThreadCodexSyncOrchestration({
 
     setThreadCodexSelectionKey(resolved.scopeKey);
     setAccessMode(resolved.accessMode);
+    setPreferredModelSelectionMode(resolved.preferredModelSelectionMode);
     setPreferredModelId(resolved.preferredModelId);
     setPreferredEffort(resolved.preferredEffort);
     setPreferredServiceTier(resolved.preferredServiceTier);
@@ -181,12 +192,14 @@ export function useThreadCodexSyncOrchestration({
     activeThreadId,
     activeWorkspaceId,
     appSettings.defaultAccessMode,
+    appSettings.autoModelRoutingEnabled,
     appSettings.lastComposerModelId,
     appSettings.lastComposerReasoningEffort,
     getThreadCodexParams,
     setPreferredCollabModeId,
     setPreferredCodexArgsOverride,
     setPreferredEffort,
+    setPreferredModelSelectionMode,
     setPreferredModelId,
     setPreferredServiceTier,
     setThreadCodexSelectionKey,
@@ -223,6 +236,7 @@ export function useThreadCodexSyncOrchestration({
       buildThreadCodexSeedPatch({
         workspaceId,
         selectedModelId,
+        modelSelectionMode: selectedModelSelectionMode,
         resolvedEffort,
         accessMode,
         selectedCollaborationModeId,
@@ -244,6 +258,7 @@ export function useThreadCodexSyncOrchestration({
     patchThreadCodexParams,
     resolvedEffort,
     selectedCollaborationModeId,
+    selectedModelSelectionMode,
     selectedCodexArgsOverride,
     selectedModelId,
     pendingNewThreadSeedRef,
@@ -289,18 +304,27 @@ export function useThreadSelectionHandlersOrchestration({
   const handleSelectModel = useCallback(
     (id: string | null) => {
       setSelectedModelId(id);
+      const nextModelSelectionMode: ModelSelectionMode =
+        id === null ? "auto" : "manual";
       const hasActiveThread = Boolean(activeThreadIdRef.current);
-      if (!appSettingsLoading && !hasActiveThread) {
+      if (!appSettingsLoading && !hasActiveThread && id !== null) {
         setAppSettings((current) => {
           if (current.lastComposerModelId === id) {
             return current;
           }
-          const nextSettings = { ...current, lastComposerModelId: id };
+          const nextSettings = {
+            ...current,
+            lastComposerModelId: id,
+          };
           void queueSaveSettings(nextSettings);
           return nextSettings;
         });
       }
-      persistThreadCodexParams({ modelId: id });
+      persistThreadCodexParams({
+        modelId: id,
+        modelSelectionMode: nextModelSelectionMode,
+        ...(nextModelSelectionMode === "auto" ? { effort: null } : {}),
+      });
     },
     [
       activeThreadIdRef,

@@ -59,6 +59,7 @@ function makeSyncParams(
       defaultAccessMode: "current",
       lastComposerModelId: "gpt-5",
       lastComposerReasoningEffort: "medium",
+      autoModelRoutingEnabled: false,
     },
     threadCodexParamsVersion: 0,
     getThreadCodexParams,
@@ -67,6 +68,9 @@ function makeSyncParams(
       SetStateAction<string | null>
     >,
     setAccessMode: vi.fn() as unknown as Dispatch<SetStateAction<AccessMode>>,
+    setPreferredModelSelectionMode: vi.fn() as unknown as Dispatch<
+      SetStateAction<"auto" | "manual">
+    >,
     setPreferredModelId: vi.fn() as unknown as Dispatch<SetStateAction<string | null>>,
     setPreferredEffort: vi.fn() as unknown as Dispatch<SetStateAction<string | null>>,
     setPreferredServiceTier: vi.fn() as unknown as Dispatch<
@@ -82,6 +86,7 @@ function makeSyncParams(
     pendingNewThreadSeedRef: {
       current: null,
     } as MutableRefObject<PendingNewThreadSeed | null>,
+    selectedModelSelectionMode: "manual",
     selectedModelId: "gpt-5",
     resolvedEffort: "high",
     selectedServiceTier: undefined,
@@ -146,6 +151,38 @@ describe("useThreadSelectionHandlersOrchestration codex args selection", () => {
     expect(params.persistThreadCodexParams).toHaveBeenCalledWith({
       serviceTier: "fast",
     });
+  });
+
+  it("does not mutate the global auto-routing flag when selecting Auto", () => {
+    const params = makeSelectionParams();
+    const { result } = renderHook(() => useThreadSelectionHandlersOrchestration(params));
+
+    act(() => {
+      result.current.handleSelectModel(null);
+    });
+
+    expect(params.persistThreadCodexParams).toHaveBeenCalledWith({
+      modelId: null,
+      modelSelectionMode: "auto",
+      effort: null,
+    });
+    expect(params.setSelectedModelId).toHaveBeenCalledWith(null);
+    expect(params.setAppSettings).not.toHaveBeenCalled();
+  });
+
+  it("updates the legacy last manual model only for no-thread manual selections", () => {
+    const params = makeSelectionParams();
+    const { result } = renderHook(() => useThreadSelectionHandlersOrchestration(params));
+
+    act(() => {
+      result.current.handleSelectModel("gpt-5.4");
+    });
+
+    expect(params.persistThreadCodexParams).toHaveBeenCalledWith({
+      modelId: "gpt-5.4",
+      modelSelectionMode: "manual",
+    });
+    expect(params.setAppSettings).toHaveBeenCalledTimes(1);
   });
 
   it("normalizes smart quotes/dashes before persisting selected override", () => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ModelOption, WorkspaceInfo } from "@/types";
 import { connectWorkspace, getConfigModel, getModelList } from "@services/tauri";
 import { parseModelListResponse } from "@/features/models/utils/modelListResponse";
+import { isBlacklistedModelSlug } from "@/features/models/utils/modelBlacklist";
 
 type SettingsDefaultModelsState = {
   models: ModelOption[];
@@ -132,7 +133,7 @@ export function useSettingsDefaultModels(projects: WorkspaceInfo[]) {
           ),
       );
       const models = (
-        hasConfigModel || !configModel
+        hasConfigModel || !configModel || isBlacklistedModelSlug(configModel)
           ? modelsFromList
           : [
               {

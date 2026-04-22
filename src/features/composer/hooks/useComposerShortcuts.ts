@@ -13,7 +13,7 @@ type UseComposerShortcutsOptions = {
   models: ModelOption[];
   collaborationModes: { id: string; label: string }[];
   selectedModelId: string | null;
-  onSelectModel: (id: string) => void;
+  onSelectModel: (id: string | null) => void;
   selectedCollaborationModeId: string | null;
   onSelectCollaborationMode: (id: string | null) => void;
   accessMode: AccessMode;
@@ -55,15 +55,11 @@ export function useComposerShortcuts({
       }
       if (matchesShortcut(event, modelShortcut)) {
         event.preventDefault();
-        if (models.length === 0) {
-          return;
-        }
-        const currentIndex = models.findIndex((model) => model.id === selectedModelId);
-        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % models.length : 0;
-        const nextModel = models[nextIndex];
-        if (nextModel) {
-          onSelectModel(nextModel.id);
-        }
+        const cycleOptions = [null, ...models.map((model) => model.id)];
+        const currentIndex = cycleOptions.findIndex((id) => id === selectedModelId);
+        const nextIndex =
+          currentIndex >= 0 ? (currentIndex + 1) % cycleOptions.length : 0;
+        onSelectModel(cycleOptions[nextIndex] ?? null);
         return;
       }
       if (matchesShortcut(event, accessShortcut)) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AccessMode, ServiceTier } from "@/types";
+import type { AccessMode, ModelSelectionMode, ServiceTier } from "@/types";
 import {
   STORAGE_KEY_THREAD_CODEX_PARAMS,
   type ThreadCodexParams,
@@ -13,6 +13,7 @@ type ThreadCodexParamsPatch = Partial<
   Pick<
     ThreadCodexParams,
     | "modelId"
+    | "modelSelectionMode"
     | "effort"
     | "serviceTier"
     | "accessMode"
@@ -34,6 +35,7 @@ type UseThreadCodexParamsResult = {
 
 const DEFAULT_ENTRY: ThreadCodexParams = {
   modelId: null,
+  modelSelectionMode: null,
   effort: null,
   serviceTier: undefined,
   accessMode: null,
@@ -51,6 +53,13 @@ function coerceAccessMode(value: unknown): AccessMode | null {
 
 function coerceServiceTier(value: unknown): ServiceTier | null {
   if (value === "fast" || value === "flex") {
+    return value;
+  }
+  return null;
+}
+
+function coerceModelSelectionMode(value: unknown): ModelSelectionMode | null {
+  if (value === "auto" || value === "manual") {
     return value;
   }
   return null;
@@ -82,6 +91,7 @@ function sanitizeEntry(value: unknown): ThreadCodexParams | null {
     : undefined;
   return {
     modelId: typeof entry.modelId === "string" ? entry.modelId : null,
+    modelSelectionMode: coerceModelSelectionMode(entry.modelSelectionMode),
     effort: typeof entry.effort === "string" ? entry.effort : null,
     serviceTier,
     accessMode: coerceAccessMode(entry.accessMode),

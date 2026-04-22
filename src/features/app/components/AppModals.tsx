@@ -129,6 +129,7 @@ export type AppModalsProps = {
   onBranchSwitcherCancel: () => void;
   settingsOpen: boolean;
   settingsSection: SettingsViewProps["initialSection"] | null;
+  settingsTarget: SettingsViewProps["initialTarget"] | null;
   onCloseSettings: () => void;
   SettingsViewComponent: ComponentType<SettingsViewProps>;
   settingsProps: Omit<SettingsViewProps, "initialSection" | "onClose">;
@@ -186,6 +187,7 @@ export const AppModals = memo(function AppModals({
   onBranchSwitcherCancel,
   settingsOpen,
   settingsSection,
+  settingsTarget,
   onCloseSettings,
   SettingsViewComponent,
   settingsProps,
@@ -328,6 +330,7 @@ export const AppModals = memo(function AppModals({
             {...settingsProps}
             onClose={onCloseSettings}
             initialSection={settingsSection ?? undefined}
+            initialTarget={settingsTarget ?? undefined}
           />
         </Suspense>
       )}

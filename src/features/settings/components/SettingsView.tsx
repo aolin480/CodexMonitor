@@ -14,7 +14,7 @@ import { useSettingsViewNavigation } from "@settings/hooks/useSettingsViewNaviga
 import { useSettingsViewOrchestration } from "@settings/hooks/useSettingsViewOrchestration";
 import { ModalShell } from "@/features/design-system/components/modal/ModalShell";
 import { SettingsNav } from "./SettingsNav";
-import type { CodexSection } from "./settingsTypes";
+import type { CodexSection, SettingsTarget } from "./settingsTypes";
 import { SETTINGS_SECTION_LABELS } from "./settingsViewConstants";
 import { SettingsSectionContainers } from "./sections/SettingsSectionContainers";
 
@@ -65,6 +65,7 @@ export type SettingsViewProps = {
   onCancelDictationDownload?: () => void;
   onRemoveDictationModel?: () => void;
   initialSection?: CodexSection;
+  initialTarget?: SettingsTarget;
 };
 
 export function SettingsView({
@@ -98,6 +99,7 @@ export function SettingsView({
   onCancelDictationDownload,
   onRemoveDictationModel,
   initialSection,
+  initialTarget,
 }: SettingsViewProps) {
   const {
     activeSection,
@@ -195,6 +197,7 @@ export function SettingsView({
               <SettingsSectionContainers
                 activeSection={activeSection}
                 orchestration={orchestration}
+                settingsTarget={initialTarget}
               />
             </div>
           </div>

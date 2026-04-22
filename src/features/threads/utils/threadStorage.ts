@@ -1,4 +1,4 @@
-import type { AccessMode, ServiceTier } from "@/types";
+import type { AccessMode, ModelSelectionMode, ServiceTier } from "@/types";
 
 const STORAGE_KEY_THREAD_ACTIVITY = "codexmonitor.threadLastUserActivity";
 export const STORAGE_KEY_PINNED_THREADS = "codexmonitor.pinnedThreads";
@@ -16,6 +16,7 @@ type DetachedReviewLinksMap = Record<string, Record<string, string>>;
 // These are UI-level preferences (not server state) and are best-effort persisted.
 export type ThreadCodexParams = {
   modelId: string | null;
+  modelSelectionMode: ModelSelectionMode | null;
   effort: string | null;
   // string => explicit per-thread tier override
   // null => explicit "Default/off" override

@@ -80,6 +80,7 @@ import {
 import { useAppShellOrchestration } from "@app/orchestration/useLayoutOrchestration";
 import { normalizeCodexArgsInput } from "@/utils/codexArgsInput";
 import { subscribeTrayOpenThread } from "@services/events";
+import { getAutoModelRoutingCredentialStatus } from "@services/tauri";
 
 const SettingsView = lazy(() =>
   import("@settings/components/SettingsView").then((module) => ({
@@ -194,6 +195,8 @@ export default function MainApp() {
     patchThreadCodexParams,
     accessMode,
     setAccessMode,
+    preferredModelSelectionMode,
+    setPreferredModelSelectionMode,
     preferredModelId,
     setPreferredModelId,
     preferredEffort,
@@ -280,6 +283,7 @@ export default function MainApp() {
   const {
     models,
     selectedModel,
+    selectedModelSelectionMode,
     selectedModelId,
     setSelectedModelId,
     reasoningSupported,
@@ -289,6 +293,7 @@ export default function MainApp() {
   } = useModels({
     activeWorkspace,
     onDebug: addDebugEntry,
+    preferredModelSelectionMode,
     preferredModelId,
     preferredEffort,
     selectionKey: threadCodexSelectionKey,
@@ -671,12 +676,14 @@ export default function MainApp() {
       defaultAccessMode: appSettings.defaultAccessMode,
       lastComposerModelId: appSettings.lastComposerModelId,
       lastComposerReasoningEffort: appSettings.lastComposerReasoningEffort,
+      autoModelRoutingEnabled: appSettings.autoModelRoutingEnabled,
     },
     threadCodexParamsVersion,
     getThreadCodexParams,
     patchThreadCodexParams,
     setThreadCodexSelectionKey,
     setAccessMode,
+    setPreferredModelSelectionMode,
     setPreferredModelId,
     setPreferredEffort,
     setPreferredServiceTier,
@@ -684,6 +691,7 @@ export default function MainApp() {
     setPreferredCodexArgsOverride,
     activeThreadIdRef,
     pendingNewThreadSeedRef,
+    selectedModelSelectionMode,
     selectedModelId,
     resolvedEffort,
     selectedServiceTier,
@@ -1025,6 +1033,34 @@ export default function MainApp() {
       dictationModel,
     },
   });
+  const [
+    autoModelRoutingCredentialConfigured,
+    setAutoModelRoutingCredentialConfigured,
+  ] = useState<boolean | null>(null);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const status = await getAutoModelRoutingCredentialStatus();
+        if (active) {
+          setAutoModelRoutingCredentialConfigured(status.configured);
+        }
+      } catch {
+        if (active) {
+          setAutoModelRoutingCredentialConfigured(false);
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [
+    appModalsProps.settingsOpen,
+    appSettings.activeRemoteBackendId,
+    appSettings.autoModelRoutingProvider,
+    appSettings.backendMode,
+    appSettings.remoteBackendHost,
+  ]);
 
   useBranchSwitcherShortcut({
     shortcut: appSettings.branchSwitcherShortcut,
@@ -1129,6 +1165,7 @@ export default function MainApp() {
     },
     models: {
       models,
+      selectedModelSelectionMode,
       selectedModelId,
       resolvedEffort,
       selectedServiceTier,
@@ -1523,8 +1560,12 @@ export default function MainApp() {
           runMode: workspaceRunMode,
           onRunModeChange: setWorkspaceRunMode,
           models,
+          selectedModelSelectionMode,
           selectedModelId,
           onSelectModel: setSelectedModelId,
+          autoModelRoutingCredentialConfigured,
+          onOpenAutoModelRoutingSettings: () =>
+            modalActions.openSettings("codex", "auto-model-routing-credential"),
           modelSelections: workspaceModelSelections,
           onToggleModel: toggleWorkspaceModelSelection,
           onModelCountChange: setWorkspaceModelCount,
@@ -1716,6 +1757,9 @@ export default function MainApp() {
     selectedEffort,
     onSelectEffort: handleSelectEffort,
     reasoningSupported,
+    autoModelRoutingCredentialConfigured,
+    onOpenAutoModelRoutingSettings: () =>
+      modalActions.openSettings("codex", "auto-model-routing-credential"),
     codexArgsOptions,
     selectedCodexArgsOverride,
     onSelectCodexArgsOverride: handleSelectCodexArgsOverride,

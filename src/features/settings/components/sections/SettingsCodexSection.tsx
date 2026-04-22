@@ -14,8 +14,10 @@ import {
   SettingsToggleSwitch,
 } from "@/features/design-system/components/settings/SettingsPrimitives";
 import { FileEditorCard } from "@/features/shared/components/FileEditorCard";
+import type { SettingsTarget } from "@settings/components/settingsTypes";
 
 type SettingsCodexSectionProps = {
+  focusTarget?: SettingsTarget;
   appSettings: AppSettings;
   onUpdateAppSettings: (next: AppSettings) => Promise<void>;
   defaultModels: ModelOption[];
@@ -117,6 +119,7 @@ const getReasoningOptions = (model: ModelOption | null): string[] => {
 };
 
 export function SettingsCodexSection({
+  focusTarget,
   appSettings,
   onUpdateAppSettings,
   defaultModels,
@@ -211,6 +214,8 @@ export function SettingsCodexSection({
     autoModelRoutingCredentialStatus?.storageSupported ?? true;
   const credentialSaveBusy = autoModelRoutingCredentialBusyAction === "save";
   const credentialRemoveBusy = autoModelRoutingCredentialBusyAction === "remove";
+  const credentialFieldRef = useRef<HTMLDivElement | null>(null);
+  const credentialInputRef = useRef<HTMLInputElement | null>(null);
 
   const didNormalizeDefaultsRef = useRef(false);
   useEffect(() => {
@@ -253,6 +258,28 @@ export function SettingsCodexSection({
     selectedModelSlug,
     selectedEffort,
   ]);
+
+  useEffect(() => {
+    if (focusTarget !== "auto-model-routing-credential") {
+      return;
+    }
+    if (autoModelRoutingCredentialStatusLoading) {
+      return;
+    }
+
+    let frameId = 0;
+    frameId = window.requestAnimationFrame(() => {
+      credentialFieldRef.current?.scrollIntoView?.({
+        behavior: "smooth",
+        block: "center",
+      });
+      credentialInputRef.current?.focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [autoModelRoutingCredentialStatusLoading, focusTarget]);
 
   return (
     <SettingsSection
@@ -556,53 +583,11 @@ export function SettingsCodexSection({
       </div>
 
       <SettingsToggleRow
-        title="Enable auto model routing"
-        subtitle="Route each new send through the configured classifier before Codex. The original prompt still goes to Codex unchanged."
-      >
-        <SettingsToggleSwitch
-          pressed={appSettings.autoModelRoutingEnabled}
-          onClick={() =>
-            void onUpdateAppSettings({
-              ...appSettings,
-              autoModelRoutingEnabled: !appSettings.autoModelRoutingEnabled,
-            })
-          }
-          aria-label="Toggle auto model routing"
-        />
-      </SettingsToggleRow>
-
-      <div className="settings-field">
-        <label className="settings-field-label" htmlFor="auto-model-routing-mode">
-          Routing mode
-        </label>
-        <select
-          id="auto-model-routing-mode"
-          className="settings-select"
-          value={appSettings.autoModelRoutingMode}
-          disabled={!appSettings.autoModelRoutingEnabled}
-          onChange={(event) =>
-            void onUpdateAppSettings({
-              ...appSettings,
-              autoModelRoutingMode: event.target.value as AppSettings["autoModelRoutingMode"],
-            })
-          }
-        >
-          <option value="responsive">Responsive</option>
-          <option value="cost-efficient">Cost-efficient</option>
-          <option value="genius">Genius</option>
-        </select>
-        <div className="settings-help">
-          Applies globally in V1 and only affects new turns.
-        </div>
-      </div>
-
-      <SettingsToggleRow
         title="Show routing diagnostics"
-        subtitle="Displays the resolved route in debug surfaces and the compact composer indicator."
+        subtitle="Displays the resolved route in debug surfaces and the compact composer indicator when Auto is selected in the model picker."
       >
         <SettingsToggleSwitch
           pressed={appSettings.autoModelRoutingShowDiagnostics}
-          disabled={!appSettings.autoModelRoutingEnabled}
           onClick={() =>
             void onUpdateAppSettings({
               ...appSettings,
@@ -621,7 +606,6 @@ export function SettingsCodexSection({
           id="auto-model-routing-provider"
           className="settings-select"
           value={appSettings.autoModelRoutingProvider}
-          disabled={!appSettings.autoModelRoutingEnabled}
           onChange={(event) =>
             void onUpdateAppSettings({
               ...appSettings,
@@ -636,13 +620,14 @@ export function SettingsCodexSection({
         </div>
       </div>
 
-      <div className="settings-field">
+      <div className="settings-field" ref={credentialFieldRef}>
         <label className="settings-field-label" htmlFor="auto-model-routing-credential">
           Router credential
         </label>
         <div className="settings-field-row">
           <input
             id="auto-model-routing-credential"
+            ref={credentialInputRef}
             className="settings-input"
             type="password"
             autoComplete="off"

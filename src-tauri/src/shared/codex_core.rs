@@ -17,7 +17,8 @@ use crate::codex::home::{resolve_default_codex_home, resolve_workspace_codex_hom
 use crate::rules;
 use crate::shared::account::{build_account_response, read_auth_account};
 use crate::shared::prompt_routing_core::{
-    attach_auto_model_routing_decision, build_skipped_routing_decision,
+    attach_auto_model_routing_decision, build_chatgpt_account_retry_decision,
+    build_skipped_routing_decision, is_chatgpt_account_unsupported_model_error,
     resolve_auto_model_routing_for_turn_start,
 };
 use crate::types::{AppSettings, AutoModelRoutingProvider, WorkspaceEntry};
@@ -63,6 +64,17 @@ fn should_inline_image_path_for_codex(path: &str) -> bool {
         image_extension_for_path(path).as_deref(),
         Some("heic") | Some("heif")
     )
+}
+
+fn extract_turn_start_error_message(response: &Value) -> Option<String> {
+    response
+        .get("error")
+        .and_then(Value::as_object)
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|message| !message.is_empty())
+        .map(ToString::to_string)
 }
 
 #[cfg(target_os = "macos")]
@@ -489,35 +501,43 @@ pub(crate) async fn send_user_message_core(
     images: Option<Vec<String>>,
     app_mentions: Option<Vec<Value>>,
     collaboration_mode: Option<Value>,
+    auto_model_routing_bypass: bool,
 ) -> Result<Value, String> {
     let session = get_session_clone(sessions, &workspace_id).await?;
     let settings = app_settings.lock().await.clone();
-    let routing_decision = if settings.auto_model_routing_enabled {
+    let requested_model = model.clone();
+    let requested_effort = effort.clone();
+    let mut model_list_response_for_retry = None;
+    let mut routing_decision = if settings.auto_model_routing_enabled {
         match session
             .send_request_for_workspace(&workspace_id, "model/list", json!({}))
             .await
         {
-            Ok(model_list_response) => match resolve_auto_model_routing_for_turn_start(
-                &settings,
-                text.as_str(),
-                model.as_deref(),
-                effort.as_deref(),
-                images.as_deref(),
-                app_mentions.as_deref(),
-                &model_list_response,
-            )
-            .await
-            {
-                Ok(decision) => decision,
-                Err(error) => Some(build_skipped_routing_decision(
-                    settings.auto_model_routing_mode.as_str(),
-                    AutoModelRoutingProvider::Openai,
+            Ok(model_list_response) => {
+                model_list_response_for_retry = Some(model_list_response.clone());
+                match resolve_auto_model_routing_for_turn_start(
+                    &settings,
+                    text.as_str(),
                     model.as_deref(),
                     effort.as_deref(),
-                    "Routing skipped because backend routing setup was invalid.".to_string(),
-                    Some(error),
-                )),
-            },
+                    images.as_deref(),
+                    app_mentions.as_deref(),
+                    auto_model_routing_bypass,
+                    &model_list_response,
+                )
+                .await
+                {
+                    Ok(decision) => decision,
+                    Err(error) => Some(build_skipped_routing_decision(
+                        settings.auto_model_routing_mode.as_str(),
+                        AutoModelRoutingProvider::Openai,
+                        model.as_deref(),
+                        effort.as_deref(),
+                        "Routing skipped because backend routing setup was invalid.".to_string(),
+                        Some(error),
+                    )),
+                }
+            }
             Err(error) => Some(build_skipped_routing_decision(
                 settings.auto_model_routing_mode.as_str(),
                 AutoModelRoutingProvider::Openai,
@@ -573,9 +593,92 @@ pub(crate) async fn send_user_message_core(
             params.insert("collaborationMode".to_string(), mode);
         }
     }
-    let mut response = session
-        .send_request_for_workspace(&workspace_id, "turn/start", Value::Object(params))
-        .await?;
+    let mut response = match session
+        .send_request_for_workspace(&workspace_id, "turn/start", Value::Object(params.clone()))
+        .await
+    {
+        Ok(response) => {
+            let response_text = response.to_string();
+            let retry_decision = if is_chatgpt_account_unsupported_model_error(response_text.as_str())
+                || extract_turn_start_error_message(&response).is_some_and(|message| {
+                    is_chatgpt_account_unsupported_model_error(message.as_str())
+                })
+            {
+                    if model_list_response_for_retry.is_none() {
+                        model_list_response_for_retry = session
+                            .send_request_for_workspace(&workspace_id, "model/list", json!({}))
+                            .await
+                            .ok();
+                    }
+                    model_list_response_for_retry.as_ref().and_then(|model_list_response| {
+                        build_chatgpt_account_retry_decision(
+                            &settings,
+                            requested_model.as_deref(),
+                            requested_effort.as_deref(),
+                            selected_model.as_deref(),
+                            model_list_response,
+                        )
+                    })
+            } else {
+                None
+            };
+
+            if let Some(retry_decision) = retry_decision {
+                routing_decision = Some(retry_decision.clone());
+                params.insert(
+                    "model".to_string(),
+                    json!(Some(retry_decision.selected_model.clone())),
+                );
+                params.insert(
+                    "effort".to_string(),
+                    json!(retry_decision.selected_reasoning_effort.clone()),
+                );
+                session
+                    .send_request_for_workspace(&workspace_id, "turn/start", Value::Object(params))
+                    .await?
+            } else {
+                response
+            }
+        }
+        Err(error) => {
+            let retry_decision = if is_chatgpt_account_unsupported_model_error(error.as_str()) {
+                if model_list_response_for_retry.is_none() {
+                    model_list_response_for_retry = session
+                        .send_request_for_workspace(&workspace_id, "model/list", json!({}))
+                        .await
+                        .ok();
+                }
+                model_list_response_for_retry.as_ref().and_then(|model_list_response| {
+                    build_chatgpt_account_retry_decision(
+                        &settings,
+                        requested_model.as_deref(),
+                        requested_effort.as_deref(),
+                        selected_model.as_deref(),
+                        model_list_response,
+                    )
+                })
+            } else {
+                None
+            };
+
+            if let Some(retry_decision) = retry_decision {
+                routing_decision = Some(retry_decision.clone());
+                params.insert(
+                    "model".to_string(),
+                    json!(Some(retry_decision.selected_model.clone())),
+                );
+                params.insert(
+                    "effort".to_string(),
+                    json!(retry_decision.selected_reasoning_effort.clone()),
+                );
+                session
+                    .send_request_for_workspace(&workspace_id, "turn/start", Value::Object(params))
+                    .await?
+            } else {
+                return Err(error);
+            }
+        }
+    };
     if let Some(decision) = routing_decision.as_ref() {
         attach_auto_model_routing_decision(&mut response, decision);
     }
@@ -1277,6 +1380,7 @@ mod tests {
                         None,
                         None,
                         None,
+                        false,
                     )
                     .await
                 }
@@ -1355,6 +1459,7 @@ mod tests {
                         None,
                         None,
                         None,
+                        false,
                     )
                     .await
                 }
@@ -1425,6 +1530,7 @@ mod tests {
                         None,
                         None,
                         None,
+                        false,
                     )
                     .await
                 }
@@ -1506,6 +1612,7 @@ mod tests {
                         None,
                         None,
                         None,
+                        false,
                     )
                     .await
                 }
@@ -1538,4 +1645,5 @@ mod tests {
             let _ = std::fs::remove_file(&transcript);
         });
     }
+
 }

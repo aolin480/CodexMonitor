@@ -179,4 +179,23 @@ describe("useSettingsDefaultModels", () => {
       expect(getModelListMock).not.toHaveBeenCalled();
     });
   });
+
+  it("does not inject a blacklisted config model into the settings list", async () => {
+    getConfigModelMock.mockResolvedValueOnce("gpt-5.1-codex-max");
+    getModelListMock.mockResolvedValueOnce(modelListResponse("gpt-5.1-codex"));
+
+    const { result } = renderHook(
+      ({ projects }: { projects: WorkspaceInfo[] }) => useSettingsDefaultModels(projects),
+      {
+        initialProps: {
+          projects: [workspace("w1", true)],
+        },
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.models).toHaveLength(1);
+      expect(result.current.models[0]?.model).toBe("gpt-5.1-codex");
+    });
+  });
 });

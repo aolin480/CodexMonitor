@@ -177,6 +177,8 @@ pub(super) async fn try_handle(
             let app_mentions = parse_optional_value(params, "appMentions")
                 .and_then(|value| value.as_array().cloned());
             let collaboration_mode = parse_optional_value(params, "collaborationMode");
+            let auto_model_routing_bypass =
+                parse_optional_bool(params, "autoModelRoutingBypass").unwrap_or(false);
             Some(
                 state
                     .send_user_message(
@@ -190,6 +192,7 @@ pub(super) async fn try_handle(
                         images,
                         app_mentions,
                         collaboration_mode,
+                        auto_model_routing_bypass,
                     )
                     .await,
             )

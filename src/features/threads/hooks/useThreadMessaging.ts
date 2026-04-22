@@ -167,6 +167,7 @@ export function useThreadMessaging({
         queueIntentRequested,
         shouldSteer,
         requestMode,
+        autoModelRoutingBypass,
       } = resolveSendMessageOptions({
         options,
         defaults: {
@@ -274,6 +275,7 @@ export function useThreadMessaging({
               serviceTier: resolvedServiceTier,
               collaborationMode: sanitizedCollaborationMode,
               accessMode: resolvedAccessMode,
+              autoModelRoutingBypass,
               images,
               appMentions,
             }),

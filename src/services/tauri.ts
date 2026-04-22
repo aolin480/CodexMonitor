@@ -460,6 +460,7 @@ export async function sendUserMessage(
     images?: string[];
     collaborationMode?: Record<string, unknown> | null;
     appMentions?: AppMention[];
+    autoModelRoutingBypass?: boolean;
   },
 ): Promise<SendUserMessageResponse> {
   const images = await normalizeImagesForRpc(options?.images);
@@ -480,6 +481,9 @@ export async function sendUserMessage(
   }
   if (options?.appMentions && options.appMentions.length > 0) {
     payload.appMentions = options.appMentions;
+  }
+  if (options?.autoModelRoutingBypass) {
+    payload.autoModelRoutingBypass = true;
   }
   return invoke<SendUserMessageResponse>("send_user_message", payload);
 }

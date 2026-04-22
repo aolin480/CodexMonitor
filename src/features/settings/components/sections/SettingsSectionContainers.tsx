@@ -11,17 +11,19 @@ import { SettingsServerSection } from "./SettingsServerSection";
 import { SettingsShortcutsSection } from "./SettingsShortcutsSection";
 import { SettingsAgentsSection } from "./SettingsAgentsSection";
 import { SettingsAboutSection } from "./SettingsAboutSection";
-import type { CodexSection } from "@settings/components/settingsTypes";
+import type { CodexSection, SettingsTarget } from "@settings/components/settingsTypes";
 import type { SettingsViewOrchestration } from "@settings/hooks/useSettingsViewOrchestration";
 
 type SettingsSectionContainersProps = {
   activeSection: CodexSection;
   orchestration: SettingsViewOrchestration;
+  settingsTarget?: SettingsTarget;
 };
 
 export function SettingsSectionContainers({
   activeSection,
   orchestration,
+  settingsTarget,
 }: SettingsSectionContainersProps) {
   if (activeSection === "projects") {
     return <SettingsProjectsSection {...orchestration.projectsSectionProps} />;
@@ -57,7 +59,12 @@ export function SettingsSectionContainers({
     return <SettingsAgentsSection {...orchestration.agentsSectionProps} />;
   }
   if (activeSection === "codex") {
-    return <SettingsCodexSection {...orchestration.codexSectionProps} />;
+    return (
+      <SettingsCodexSection
+        {...orchestration.codexSectionProps}
+        focusTarget={settingsTarget}
+      />
+    );
   }
   if (activeSection === "features") {
     return <SettingsFeaturesSection {...orchestration.featuresSectionProps} />;

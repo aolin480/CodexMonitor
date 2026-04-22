@@ -61,6 +61,7 @@ describe("useWorkspaceHome", () => {
       useWorkspaceHome({
         activeWorkspace: workspace,
         models,
+        selectedModelSelectionMode: "auto",
         selectedModelId: null,
         seedThreadCodexParams,
         addWorktreeAgent,
@@ -85,10 +86,14 @@ describe("useWorkspaceHome", () => {
       "thread-1",
       "Hello worktree",
       [],
-      expect.objectContaining({ model: "gpt-5.1-max" }),
+      expect.objectContaining({
+        model: "gpt-5.1-max",
+        autoModelRoutingBypass: true,
+      }),
     );
     expect(seedThreadCodexParams).toHaveBeenCalledWith("wt-1", "thread-1", {
       modelId: "id-1",
+      modelSelectionMode: "manual",
       effort: null,
       serviceTier: undefined,
     });
@@ -109,6 +114,7 @@ describe("useWorkspaceHome", () => {
       useWorkspaceHome({
         activeWorkspace: workspace,
         models,
+        selectedModelSelectionMode: "manual",
         selectedModelId: "id-1",
         seedThreadCodexParams,
         addWorktreeAgent,
@@ -128,10 +134,62 @@ describe("useWorkspaceHome", () => {
       "thread-1",
       "",
       ["img-1"],
-      expect.objectContaining({ model: "gpt-5.1-max" }),
+      expect.objectContaining({
+        model: "gpt-5.1-max",
+        autoModelRoutingBypass: true,
+      }),
     );
     expect(seedThreadCodexParams).toHaveBeenCalledWith("ws-1", "thread-1", {
       modelId: "id-1",
+      modelSelectionMode: "manual",
+      effort: null,
+      serviceTier: undefined,
+    });
+  });
+
+  it("keeps prompt-intent routing enabled for local Auto runs", async () => {
+    const addWorktreeAgent = vi.fn();
+    const connectWorkspace = vi.fn().mockResolvedValue(undefined);
+    const startThreadForWorkspace = vi.fn().mockResolvedValue("thread-1");
+    const sendUserMessageToThread = vi.fn().mockResolvedValue(undefined);
+    const seedThreadCodexParams = vi.fn();
+    vi.mocked(generateRunMetadata).mockResolvedValue({
+      title: "Auto run",
+      worktreeName: "feat/auto",
+    });
+
+    const { result } = renderHook(() =>
+      useWorkspaceHome({
+        activeWorkspace: workspace,
+        models,
+        selectedModelSelectionMode: "auto",
+        selectedModelId: null,
+        seedThreadCodexParams,
+        addWorktreeAgent,
+        connectWorkspace,
+        startThreadForWorkspace,
+        sendUserMessageToThread,
+      }),
+    );
+
+    act(() => {
+      result.current.setDraft("Use auto");
+    });
+
+    await act(async () => {
+      await result.current.startRun();
+    });
+
+    expect(sendUserMessageToThread).toHaveBeenCalledWith(
+      workspace,
+      "thread-1",
+      "Use auto",
+      [],
+      expect.not.objectContaining({ autoModelRoutingBypass: true }),
+    );
+    expect(seedThreadCodexParams).toHaveBeenCalledWith("ws-1", "thread-1", {
+      modelId: null,
+      modelSelectionMode: "auto",
       effort: null,
       serviceTier: undefined,
     });
@@ -151,6 +209,7 @@ describe("useWorkspaceHome", () => {
       useWorkspaceHome({
         activeWorkspace: workspace,
         models,
+        selectedModelSelectionMode: "auto",
         selectedModelId: null,
         addWorktreeAgent,
         connectWorkspace,
@@ -193,6 +252,7 @@ describe("useWorkspaceHome", () => {
       useWorkspaceHome({
         activeWorkspace: workspace,
         models,
+        selectedModelSelectionMode: "auto",
         selectedModelId: null,
         addWorktreeAgent,
         connectWorkspace,
@@ -233,6 +293,7 @@ describe("useWorkspaceHome", () => {
       useWorkspaceHome({
         activeWorkspace: workspace,
         models,
+        selectedModelSelectionMode: "manual",
         selectedModelId: "id-1",
         addWorktreeAgent,
         connectWorkspace,
@@ -273,6 +334,7 @@ describe("useWorkspaceHome", () => {
       useWorkspaceHome({
         activeWorkspace: workspace,
         models,
+        selectedModelSelectionMode: "auto",
         selectedModelId: null,
         addWorktreeAgent,
         connectWorkspace,

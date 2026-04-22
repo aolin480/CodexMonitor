@@ -154,6 +154,8 @@ type UseMainAppLayoutSurfacesArgs = {
   onSelectEffort: ComposerProps["onSelectEffort"];
   selectedServiceTier: ComposerProps["selectedServiceTier"];
   reasoningSupported: boolean;
+  autoModelRoutingCredentialConfigured: boolean | null;
+  onOpenAutoModelRoutingSettings: () => void;
   codexArgsOptions: ComposerProps["codexArgsOptions"];
   selectedCodexArgsOverride: ComposerProps["selectedCodexArgsOverride"];
   onSelectCodexArgsOverride: ComposerProps["onSelectCodexArgsOverride"];
@@ -316,6 +318,8 @@ function buildPrimarySurface({
   onSelectEffort,
   selectedServiceTier,
   reasoningSupported,
+  autoModelRoutingCredentialConfigured,
+  onOpenAutoModelRoutingSettings,
   codexArgsOptions,
   selectedCodexArgsOverride,
   onSelectCodexArgsOverride,
@@ -515,6 +519,8 @@ function buildPrimarySurface({
           activeAutoModelRoutingDecision:
             composerWorkspaceState.activeAutoModelRoutingDecision,
           reasoningSupported,
+          autoModelRoutingCredentialConfigured,
+          onOpenAutoModelRoutingSettings,
           codexArgsOptions,
           selectedCodexArgsOverride,
           onSelectCodexArgsOverride,
@@ -1036,6 +1042,8 @@ export function useMainAppLayoutSurfaces({
   onSelectEffort,
   selectedServiceTier,
   reasoningSupported,
+  autoModelRoutingCredentialConfigured,
+  onOpenAutoModelRoutingSettings,
   codexArgsOptions,
   selectedCodexArgsOverride,
   onSelectCodexArgsOverride,
@@ -1198,6 +1206,8 @@ export function useMainAppLayoutSurfaces({
     onSelectEffort,
     selectedServiceTier,
     reasoningSupported,
+    autoModelRoutingCredentialConfigured,
+    onOpenAutoModelRoutingSettings,
     codexArgsOptions,
     selectedCodexArgsOverride,
     onSelectCodexArgsOverride,

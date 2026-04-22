@@ -60,6 +60,7 @@ type UseMainAppComposerWorkspaceStateArgs = {
   >;
   models: {
     models: ModelOption[];
+    selectedModelSelectionMode: "auto" | "manual";
     selectedModelId: string | null;
     resolvedEffort: string | null;
     selectedServiceTier: ServiceTier | null | undefined;
@@ -129,6 +130,7 @@ export function useMainAppComposerWorkspaceState({
   } = thread;
   const {
     models: modelOptions,
+    selectedModelSelectionMode,
     selectedModelId,
     resolvedEffort,
     selectedServiceTier,
@@ -231,6 +233,7 @@ export function useMainAppComposerWorkspaceState({
     activeTurnId,
     activeWorkspaceId,
     activeWorkspace,
+    selectedModelSelectionMode,
     isProcessing,
     isReviewing,
     queueFlushPaused,
@@ -254,6 +257,7 @@ export function useMainAppComposerWorkspaceState({
   const workspaceHomeState = useWorkspaceHome({
     activeWorkspace,
     models: modelOptions,
+    selectedModelSelectionMode,
     selectedModelId,
     effort: resolvedEffort,
     serviceTier: selectedServiceTier,

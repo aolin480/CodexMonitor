@@ -902,6 +902,10 @@
   right: 30px;
 }
 
+.composer-select-wrap--model:has(.composer-auto-setup-button)::after {
+  right: 72px;
+}
+
 .composer-select-wrap:has(.composer-select:focus)::after {
   border-right-color: var(--text-strong);
   border-bottom-color: var(--text-strong);
@@ -909,6 +913,15 @@
 
 .composer-plan-toggle-wrap {
   padding: 2px 8px;
+}
+
+.composer-auto-setup-button {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--message-link-color);
+  white-space: nowrap;
 }
 
 .composer-plan-toggle {

@@ -19,6 +19,7 @@ export type SendMessageOptions = {
   accessMode?: AccessMode;
   appMentions?: AppMention[];
   sendIntent?: ComposerSendIntent;
+  autoModelRoutingBypass?: boolean;
 };
 
 type FastCommandAction = "toggle" | "on" | "off" | "status" | "invalid";
@@ -48,6 +49,7 @@ export type ResolvedSendMessageOptions = {
   queueIntentRequested: boolean;
   shouldSteer: boolean;
   requestMode: "start" | "steer";
+  autoModelRoutingBypass: boolean;
 };
 
 export type TurnStartPayload = {
@@ -56,6 +58,7 @@ export type TurnStartPayload = {
   serviceTier?: ServiceTier | null | undefined;
   collaborationMode?: Record<string, unknown> | null;
   accessMode?: AccessMode;
+  autoModelRoutingBypass?: boolean;
   images?: string[];
   appMentions?: AppMention[];
 };
@@ -134,6 +137,7 @@ export function resolveSendMessageOptions({
   const appMentions = options?.appMentions ?? [];
   const requestedSendIntent = options?.sendIntent ?? "default";
   const queueIntentRequested = requestedSendIntent === "queue";
+  const autoModelRoutingBypass = options?.autoModelRoutingBypass ?? false;
   const canSteerCurrentTurn =
     defaults.isProcessing && defaults.steerEnabled && Boolean(defaults.activeTurnId);
   const shouldSteer =
@@ -156,6 +160,7 @@ export function resolveSendMessageOptions({
     queueIntentRequested,
     shouldSteer,
     requestMode: shouldSteer ? "steer" : "start",
+    autoModelRoutingBypass,
   };
 }
 
@@ -165,6 +170,7 @@ export function buildTurnStartPayload({
   serviceTier,
   collaborationMode,
   accessMode,
+  autoModelRoutingBypass,
   images,
   appMentions,
 }: {
@@ -173,6 +179,7 @@ export function buildTurnStartPayload({
   serviceTier?: ServiceTier | null | undefined;
   collaborationMode?: Record<string, unknown> | null;
   accessMode?: AccessMode;
+  autoModelRoutingBypass?: boolean;
   images: string[];
   appMentions: AppMention[];
 }): TurnStartPayload {
@@ -181,6 +188,7 @@ export function buildTurnStartPayload({
     effort,
     collaborationMode,
     accessMode,
+    autoModelRoutingBypass,
     images,
   };
   if (serviceTier !== undefined) {

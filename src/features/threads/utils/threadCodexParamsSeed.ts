@@ -1,4 +1,4 @@
-import type { AccessMode, ServiceTier } from "@/types";
+import type { AccessMode, ModelSelectionMode, ServiceTier } from "@/types";
 import {
   buildEffectiveCodexArgsBadgeLabel,
   sanitizeRuntimeCodexArgs,
@@ -20,6 +20,7 @@ type ResolveThreadCodexStateInput = {
   workspaceId: string;
   threadId: string | null;
   defaultAccessMode: AccessMode;
+  autoModelRoutingEnabled: boolean;
   lastComposerModelId: string | null;
   lastComposerReasoningEffort: string | null;
   stored: ThreadCodexParams | null;
@@ -30,6 +31,7 @@ type ResolveThreadCodexStateInput = {
 type ResolvedThreadCodexState = {
   scopeKey: string;
   accessMode: AccessMode;
+  preferredModelSelectionMode: ModelSelectionMode;
   preferredModelId: string | null;
   preferredEffort: string | null;
   preferredServiceTier: ServiceTier | null | undefined;
@@ -39,6 +41,7 @@ type ResolvedThreadCodexState = {
 
 type ThreadCodexSeedPatch = {
   modelId: string | null;
+  modelSelectionMode: ModelSelectionMode | null;
   effort: string | null;
   serviceTier: ServiceTier | null | undefined;
   accessMode: AccessMode;
@@ -118,6 +121,7 @@ export function resolveThreadCodexState(
     workspaceId,
     threadId,
     defaultAccessMode,
+    autoModelRoutingEnabled,
     lastComposerModelId,
     lastComposerReasoningEffort,
     stored,
@@ -125,12 +129,65 @@ export function resolveThreadCodexState(
     pendingSeed,
   } = input;
 
+  const hasExplicitModelSelection = (value: ThreadCodexParams | null) =>
+    Boolean(
+      value &&
+        (value.modelSelectionMode === "auto" ||
+          value.modelSelectionMode === "manual" ||
+          value.modelId),
+    );
+
+  const resolvePreferredModelSelectionMode = (
+    value: ThreadCodexParams | null,
+  ): ModelSelectionMode => {
+    if (!value) {
+      return autoModelRoutingEnabled ? "auto" : "manual";
+    }
+    if (value.modelSelectionMode === "auto" || value.modelSelectionMode === "manual") {
+      return value.modelSelectionMode;
+    }
+    if (value.modelId) {
+      return "manual";
+    }
+    return "manual";
+  };
+
+  const resolvePreferredModelId = (
+    value: ThreadCodexParams | null,
+    selectionMode: ModelSelectionMode,
+  ) => {
+    if (selectionMode === "auto") {
+      return null;
+    }
+    return value?.modelId ?? lastComposerModelId ?? null;
+  };
+
+  const resolvePreferredEffort = (
+    value: ThreadCodexParams | null,
+    selectionMode: ModelSelectionMode,
+  ) => {
+    if (selectionMode === "auto") {
+      return null;
+    }
+    return value?.effort ?? lastComposerReasoningEffort ?? null;
+  };
+
   if (!threadId) {
+    const modelSource = stored;
+    const preferredModelSelectionMode =
+      resolvePreferredModelSelectionMode(modelSource);
     return {
       scopeKey: `${workspaceId}:${NO_THREAD_SCOPE_SUFFIX}`,
       accessMode: stored?.accessMode ?? defaultAccessMode,
-      preferredModelId: stored?.modelId ?? lastComposerModelId ?? null,
-      preferredEffort: stored?.effort ?? lastComposerReasoningEffort ?? null,
+      preferredModelSelectionMode,
+      preferredModelId: resolvePreferredModelId(
+        modelSource,
+        preferredModelSelectionMode,
+      ),
+      preferredEffort: resolvePreferredEffort(
+        modelSource,
+        preferredModelSelectionMode,
+      ),
       preferredServiceTier: stored?.serviceTier,
       preferredCollabModeId: stored?.collaborationModeId ?? null,
       preferredCodexArgsOverride: stored?.codexArgsOverride ?? null,
@@ -139,12 +196,24 @@ export function resolveThreadCodexState(
 
   const pendingForWorkspace =
     pendingSeed && pendingSeed.workspaceId === workspaceId ? pendingSeed : null;
+  const modelSource = hasExplicitModelSelection(stored)
+    ? stored
+    : noThreadStored ?? stored;
+  const preferredModelSelectionMode =
+    resolvePreferredModelSelectionMode(modelSource);
 
   return {
     scopeKey: makeThreadCodexParamsKey(workspaceId, threadId),
     accessMode: stored?.accessMode ?? pendingForWorkspace?.accessMode ?? defaultAccessMode,
-    preferredModelId: stored?.modelId ?? lastComposerModelId ?? null,
-    preferredEffort: stored?.effort ?? lastComposerReasoningEffort ?? null,
+    preferredModelSelectionMode,
+    preferredModelId: resolvePreferredModelId(
+      modelSource,
+      preferredModelSelectionMode,
+    ),
+    preferredEffort: resolvePreferredEffort(
+      stored?.effort !== null && stored?.effort !== undefined ? stored : modelSource,
+      preferredModelSelectionMode,
+    ),
     preferredServiceTier:
       stored?.serviceTier !== undefined
         ? stored.serviceTier
@@ -166,6 +235,7 @@ export function resolveThreadCodexState(
 export function buildThreadCodexSeedPatch(options: {
   workspaceId: string;
   selectedModelId: string | null;
+  modelSelectionMode: ModelSelectionMode;
   resolvedEffort: string | null;
   accessMode: AccessMode;
   selectedCollaborationModeId: string | null;
@@ -175,6 +245,7 @@ export function buildThreadCodexSeedPatch(options: {
   const {
     workspaceId,
     selectedModelId,
+    modelSelectionMode,
     resolvedEffort,
     accessMode,
     selectedCollaborationModeId,
@@ -187,7 +258,8 @@ export function buildThreadCodexSeedPatch(options: {
 
   return {
     modelId: selectedModelId,
-    effort: resolvedEffort,
+    modelSelectionMode,
+    effort: modelSelectionMode === "auto" ? null : resolvedEffort,
     serviceTier: pendingForWorkspace ? pendingForWorkspace.serviceTier : undefined,
     accessMode: pendingForWorkspace?.accessMode ?? accessMode,
     collaborationModeId: pendingForWorkspace

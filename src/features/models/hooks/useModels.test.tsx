@@ -122,4 +122,187 @@ describe("useModels", () => {
       expect(result.current.selectedEffort).toBe("high");
     });
   });
+
+  it("keeps an explicit manual model selection across refreshes while auto mode is enabled", async () => {
+    const response = {
+      result: {
+        data: [
+          {
+            id: "remote-1",
+            model: "gpt-5.4",
+            displayName: "GPT-5.4",
+            supportedReasoningEfforts: [
+              { reasoningEffort: "low", description: "Low" },
+              { reasoningEffort: "medium", description: "Medium" },
+            ],
+            defaultReasoningEffort: "medium",
+            isDefault: true,
+          },
+          {
+            id: "remote-2",
+            model: "gpt-5.4-mini",
+            displayName: "GPT-5.4 Mini",
+            supportedReasoningEfforts: [
+              { reasoningEffort: "low", description: "Low" },
+              { reasoningEffort: "medium", description: "Medium" },
+            ],
+            defaultReasoningEffort: "medium",
+            isDefault: false,
+          },
+        ],
+      },
+    };
+    vi.mocked(getModelList).mockResolvedValue(response);
+    vi.mocked(getConfigModel).mockResolvedValue(null);
+
+    const { result } = renderHook(() =>
+      useModels({
+        activeWorkspace: workspace,
+        preferredModelSelectionMode: "auto",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.models).toHaveLength(2);
+      expect(result.current.selectedModelId).toBeNull();
+    });
+
+    act(() => {
+      result.current.setSelectedModelId("remote-2");
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedModelId).toBe("remote-2");
+    });
+
+    await act(async () => {
+      await result.current.refreshModels();
+    });
+
+    expect(result.current.selectedModelId).toBe("remote-2");
+  });
+
+  it("keeps an explicit Auto selection on the first pick", async () => {
+    vi.mocked(getModelList).mockResolvedValue({
+      result: {
+        data: [
+          {
+            id: "remote-1",
+            model: "gpt-5.4",
+            displayName: "GPT-5.4",
+            supportedReasoningEfforts: [
+              { reasoningEffort: "low", description: "Low" },
+              { reasoningEffort: "medium", description: "Medium" },
+            ],
+            defaultReasoningEffort: "medium",
+            isDefault: true,
+          },
+          {
+            id: "remote-2",
+            model: "gpt-5.4-mini",
+            displayName: "GPT-5.4 Mini",
+            supportedReasoningEfforts: [
+              { reasoningEffort: "low", description: "Low" },
+              { reasoningEffort: "medium", description: "Medium" },
+            ],
+            defaultReasoningEffort: "medium",
+            isDefault: false,
+          },
+        ],
+      },
+    });
+    vi.mocked(getConfigModel).mockResolvedValue(null);
+
+    const { result } = renderHook(() =>
+      useModels({
+        activeWorkspace: workspace,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.models).toHaveLength(2);
+      expect(result.current.selectedModelId).toBe("remote-1");
+    });
+
+    act(() => {
+      result.current.setSelectedModelId(null);
+    });
+
+    expect(result.current.selectedModelId).toBeNull();
+  });
+
+  it("resets local Auto state when the selection context changes to a manual preference", async () => {
+    vi.mocked(getModelList).mockResolvedValue({
+      result: {
+        data: [
+          {
+            id: "remote-1",
+            model: "gpt-5.4",
+            displayName: "GPT-5.4",
+            supportedReasoningEfforts: [
+              { reasoningEffort: "low", description: "Low" },
+              { reasoningEffort: "medium", description: "Medium" },
+            ],
+            defaultReasoningEffort: "medium",
+            isDefault: true,
+          },
+          {
+            id: "remote-2",
+            model: "gpt-5.4-mini",
+            displayName: "GPT-5.4 Mini",
+            supportedReasoningEfforts: [
+              { reasoningEffort: "low", description: "Low" },
+              { reasoningEffort: "medium", description: "Medium" },
+            ],
+            defaultReasoningEffort: "medium",
+            isDefault: false,
+          },
+        ],
+      },
+    });
+    vi.mocked(getConfigModel).mockResolvedValue(null);
+
+    const { result, rerender } = renderHook(
+      (props: {
+        selectionKey: string;
+        preferredModelSelectionMode: "auto" | "manual";
+        preferredModelId: string | null;
+      }) =>
+        useModels({
+          activeWorkspace: workspace,
+          selectionKey: props.selectionKey,
+          preferredModelSelectionMode: props.preferredModelSelectionMode,
+          preferredModelId: props.preferredModelId,
+        }),
+      {
+        initialProps: {
+          selectionKey: "scope-a",
+          preferredModelSelectionMode: "manual" as const,
+          preferredModelId: "remote-1",
+        },
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.selectedModelId).toBe("remote-1");
+    });
+
+    act(() => {
+      result.current.setSelectedModelId(null);
+    });
+
+    expect(result.current.selectedModelSelectionMode).toBe("auto");
+    expect(result.current.selectedModelId).toBeNull();
+
+    rerender({
+      selectionKey: "scope-b",
+      preferredModelSelectionMode: "manual",
+      preferredModelId: "remote-2",
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedModelSelectionMode).toBe("manual");
+      expect(result.current.selectedModelId).toBe("remote-2");
+    });
+  });
 });

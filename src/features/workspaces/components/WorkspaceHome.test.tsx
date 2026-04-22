@@ -115,8 +115,11 @@ function renderWorkspaceHome(
       runMode="local"
       onRunModeChange={vi.fn()}
       models={[]}
+      selectedModelSelectionMode="auto"
       selectedModelId={null}
       onSelectModel={vi.fn()}
+      autoModelRoutingCredentialConfigured={true}
+      onOpenAutoModelRoutingSettings={vi.fn()}
       modelSelections={{}}
       onToggleModel={vi.fn()}
       onModelCountChange={vi.fn()}

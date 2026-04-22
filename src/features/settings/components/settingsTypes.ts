@@ -28,6 +28,8 @@ export type CodexSection =
   | SettingsSection
   | (typeof SETTINGS_EXTRA_SECTION_IDS)[number];
 
+export type SettingsTarget = "auto-model-routing-credential";
+
 export type ShortcutSettingKey =
   | "composerModelShortcut"
   | "composerAccessShortcut"

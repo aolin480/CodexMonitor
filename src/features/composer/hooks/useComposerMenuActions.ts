@@ -13,7 +13,7 @@ type ModelOption = { id: string; displayName: string; model: string };
 type UseComposerMenuActionsOptions = {
   models: ModelOption[];
   selectedModelId: string | null;
-  onSelectModel: (id: string) => void;
+  onSelectModel: (id: string | null) => void;
   collaborationModes: { id: string; label: string }[];
   selectedCollaborationModeId: string | null;
   onSelectCollaborationMode: (id: string | null) => void;
@@ -46,16 +46,12 @@ export function useComposerMenuActions({
   const handlers = useMemo(
     () => ({
       cycleModel() {
-        if (models.length === 0) {
-          return;
-        }
-        const currentIndex = models.findIndex((model) => model.id === selectedModelId);
-        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % models.length : 0;
-        const nextModel = models[nextIndex];
-        if (nextModel) {
-          onFocusComposer?.();
-          onSelectModel(nextModel.id);
-        }
+        const cycleOptions = [null, ...models.map((model) => model.id)];
+        const currentIndex = cycleOptions.findIndex((id) => id === selectedModelId);
+        const nextIndex =
+          currentIndex >= 0 ? (currentIndex + 1) % cycleOptions.length : 0;
+        onFocusComposer?.();
+        onSelectModel(cycleOptions[nextIndex] ?? null);
       },
       cycleAccessMode() {
         const currentIndex = ACCESS_ORDER.indexOf(accessMode);

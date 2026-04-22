@@ -79,6 +79,8 @@ function ComposerHarness({
       onSelectEffort={() => {}}
       selectedServiceTier={selectedServiceTier}
       reasoningSupported={false}
+      autoModelRoutingCredentialConfigured={true}
+      onOpenAutoModelRoutingSettings={() => {}}
       accessMode="current"
       onSelectAccessMode={() => {}}
       skills={[]}

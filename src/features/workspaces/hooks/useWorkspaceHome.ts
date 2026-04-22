@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
+  ModelSelectionMode,
   ModelOption,
   SendMessageResult,
   ServiceTier,
@@ -34,6 +35,7 @@ export type WorkspaceHomeRun = {
 type UseWorkspaceHomeOptions = {
   activeWorkspace: WorkspaceInfo | null;
   models: ModelOption[];
+  selectedModelSelectionMode: ModelSelectionMode;
   selectedModelId: string | null;
   effort?: string | null;
   serviceTier?: ServiceTier | null | undefined;
@@ -43,6 +45,7 @@ type UseWorkspaceHomeOptions = {
     threadId: string,
     patch: {
       modelId: string | null;
+      modelSelectionMode: "auto" | "manual";
       effort: string | null;
       serviceTier: ServiceTier | null | undefined;
     },
@@ -67,6 +70,7 @@ type UseWorkspaceHomeOptions = {
       effort?: string | null;
       serviceTier?: ServiceTier | null | undefined;
       collaborationMode?: Record<string, unknown> | null;
+      autoModelRoutingBypass?: boolean;
     },
   ) => Promise<void | SendMessageResult>;
   onWorktreeCreated?: (worktree: WorkspaceInfo, parent: WorkspaceInfo) => Promise<void> | void;
@@ -187,6 +191,7 @@ const normalizeWorktreeName = (value: string | null | undefined) => {
 export function useWorkspaceHome({
   activeWorkspace,
   models,
+  selectedModelSelectionMode,
   selectedModelId,
   effort = null,
   serviceTier = undefined,
@@ -492,6 +497,7 @@ export function useWorkspaceHome({
           }
           seedThreadCodexParams?.(activeWorkspace.id, threadId, {
             modelId: selectedModelId,
+            modelSelectionMode: selectedModelSelectionMode,
             effort,
             serviceTier,
           });
@@ -503,6 +509,7 @@ export function useWorkspaceHome({
             effort,
             serviceTier,
             collaborationMode,
+            autoModelRoutingBypass: selectedModelSelectionMode === "manual",
           });
           const model =
             selectedModelId ? modelLookup.get(selectedModelId) ?? null : null;
@@ -559,6 +566,7 @@ export function useWorkspaceHome({
               }
               seedThreadCodexParams?.(worktreeWorkspace.id, threadId, {
                 modelId: selection.modelId,
+                modelSelectionMode: "manual",
                 effort,
                 serviceTier,
               });
@@ -572,6 +580,7 @@ export function useWorkspaceHome({
                   effort,
                   serviceTier,
                   collaborationMode,
+                  autoModelRoutingBypass: true,
                 },
               );
               instances.push({
@@ -633,6 +642,7 @@ export function useWorkspaceHome({
     runMode,
     seedThreadCodexParams,
     selectedModelId,
+    selectedModelSelectionMode,
     serviceTier,
     sendUserMessageToThread,
     setSubmitting,

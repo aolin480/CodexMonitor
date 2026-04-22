@@ -22,8 +22,11 @@ type WorkspaceHomeRunControlsProps = {
   runMode: WorkspaceRunMode;
   onRunModeChange: (mode: WorkspaceRunMode) => void;
   models: ModelOption[];
+  selectedModelSelectionMode: "auto" | "manual";
   selectedModelId: string | null;
-  onSelectModel: (modelId: string) => void;
+  onSelectModel: (modelId: string | null) => void;
+  autoModelRoutingCredentialConfigured: boolean | null;
+  onOpenAutoModelRoutingSettings: () => void;
   modelSelections: Record<string, number>;
   onToggleModel: (modelId: string) => void;
   onModelCountChange: (modelId: string, count: number) => void;
@@ -42,8 +45,11 @@ export function WorkspaceHomeRunControls({
   runMode,
   onRunModeChange,
   models,
+  selectedModelSelectionMode,
   selectedModelId,
   onSelectModel,
+  autoModelRoutingCredentialConfigured,
+  onOpenAutoModelRoutingSettings,
   modelSelections,
   onToggleModel,
   onModelCountChange,
@@ -74,7 +80,18 @@ export function WorkspaceHomeRunControls({
   const selectedModel = selectedModelId
     ? models.find((model) => model.id === selectedModelId) ?? null
     : null;
-  const selectedModelLabel = resolveModelLabel(selectedModel);
+  const autoSelected = selectedModelSelectionMode === "auto";
+  const autoRoutingUnavailable = autoModelRoutingCredentialConfigured === false;
+  const autoOptionLabel = autoRoutingUnavailable
+    ? "Auto (add credential in Settings)"
+    : "Auto (prompt intent)";
+  const autoUnavailableSelectedLabel = "Set up Auto…";
+  const selectedModelLabel =
+    autoSelected
+      ? autoRoutingUnavailable
+        ? autoUnavailableSelectedLabel
+        : autoOptionLabel
+      : resolveModelLabel(selectedModel);
   const modelSummary = buildModelSummary(models, modelSelections);
   const showRunMode = (workspaceKind ?? "main") !== "worktree";
   const runModeLabel = runMode === "local" ? "Local" : "Worktree";
@@ -174,6 +191,35 @@ export function WorkspaceHomeRunControls({
             Connect this workspace to load available models.
           </div>
         )}
+        {runMode === "local" && (
+          <>
+            <PopoverMenuItem
+              className="open-app-option workspace-home-model-toggle"
+              onClick={() => {
+                onSelectModel(null);
+                closeModels();
+              }}
+              icon={<Cpu className="workspace-home-mode-icon" aria-hidden />}
+              active={autoSelected}
+              disabled={autoRoutingUnavailable}
+            >
+              {autoOptionLabel}
+            </PopoverMenuItem>
+            {autoRoutingUnavailable && (
+              <PopoverMenuItem
+                className="open-app-option workspace-home-model-toggle"
+                onClick={() => {
+                  onOpenAutoModelRoutingSettings();
+                  closeModels();
+                  closeRunMode();
+                }}
+                icon={<Cpu className="workspace-home-mode-icon" aria-hidden />}
+              >
+                Set up Auto…
+              </PopoverMenuItem>
+            )}
+          </>
+        )}
         {models.map((model) => {
           const isSelected =
             runMode === "local"
@@ -258,52 +304,54 @@ export function WorkspaceHomeRunControls({
           </div>
         </div>
       )}
-      <div className="composer-select-wrap workspace-home-control">
-        <div className="open-app-button">
-          <span className="composer-icon" aria-hidden>
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M8.5 4.5a3.5 3.5 0 0 0-3.46 4.03A4 4 0 0 0 6 16.5h2"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
-              <path
-                d="M15.5 4.5a3.5 3.5 0 0 1 3.46 4.03A4 4 0 0 1 18 16.5h-2"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
-              <path
-                d="M9 12h6"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
-              <path
-                d="M12 12v6"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
-            </svg>
-          </span>
-          <select
-            className="composer-select composer-select--effort"
-            aria-label="Thinking mode"
-            value={selectedEffort ?? ""}
-            onChange={(event) => onSelectEffort(event.target.value)}
-            disabled={isSubmitting || !reasoningSupported}
-          >
-            {reasoningOptions.length === 0 && <option value="">Default</option>}
-            {reasoningOptions.map((effortOption) => (
-              <option key={effortOption} value={effortOption}>
-                {effortOption}
-              </option>
-            ))}
-          </select>
+      {(runMode === "worktree" || selectedModelSelectionMode === "manual") && (
+        <div className="composer-select-wrap workspace-home-control">
+          <div className="open-app-button">
+            <span className="composer-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M8.5 4.5a3.5 3.5 0 0 0-3.46 4.03A4 4 0 0 0 6 16.5h2"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M15.5 4.5a3.5 3.5 0 0 1 3.46 4.03A4 4 0 0 1 18 16.5h-2"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M9 12h6"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M12 12v6"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <select
+              className="composer-select composer-select--effort"
+              aria-label="Thinking mode"
+              value={selectedEffort ?? ""}
+              onChange={(event) => onSelectEffort(event.target.value)}
+              disabled={isSubmitting || !reasoningSupported}
+            >
+              {reasoningOptions.length === 0 && <option value="">Default</option>}
+              {reasoningOptions.map((effortOption) => (
+                <option key={effortOption} value={effortOption}>
+                  {effortOption}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

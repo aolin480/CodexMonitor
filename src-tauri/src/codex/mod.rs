@@ -391,6 +391,7 @@ pub(crate) async fn send_user_message(
     images: Option<Vec<String>>,
     app_mentions: Option<Vec<Value>>,
     collaboration_mode: Option<Value>,
+    auto_model_routing_bypass: Option<bool>,
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Value, String> {
@@ -411,6 +412,12 @@ pub(crate) async fn send_user_message(
         payload.insert("accessMode".to_string(), json!(access_mode));
         payload.insert("images".to_string(), json!(images));
         payload.insert("appMentions".to_string(), json!(app_mentions));
+        if let Some(auto_model_routing_bypass) = auto_model_routing_bypass {
+            payload.insert(
+                "autoModelRoutingBypass".to_string(),
+                json!(auto_model_routing_bypass),
+            );
+        }
         if let Some(mode) = collaboration_mode {
             if !mode.is_null() {
                 payload.insert("collaborationMode".to_string(), mode);
@@ -439,6 +446,7 @@ pub(crate) async fn send_user_message(
         images,
         app_mentions,
         collaboration_mode,
+        auto_model_routing_bypass.unwrap_or(false),
     )
     .await
 }

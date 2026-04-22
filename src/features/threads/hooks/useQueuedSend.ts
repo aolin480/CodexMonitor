@@ -27,7 +27,10 @@ type UseQueuedSendOptions = {
     text: string,
     images?: string[],
     appMentions?: AppMention[],
-    options?: { sendIntent?: ComposerSendIntent },
+    options?: {
+      sendIntent?: ComposerSendIntent;
+      autoModelRoutingBypass?: boolean;
+    },
   ) => Promise<SendMessageResult>;
   sendUserMessageToThread: (
     workspace: WorkspaceInfo,
@@ -44,6 +47,7 @@ type UseQueuedSendOptions = {
   startFast: (text: string) => Promise<void>;
   startStatus: (text: string) => Promise<void>;
   clearActiveImages: () => void;
+  autoModelRoutingBypass?: boolean;
 };
 
 type UseQueuedSendResult = {
@@ -128,6 +132,7 @@ export function useQueuedSend({
   startFast,
   startStatus,
   clearActiveImages,
+  autoModelRoutingBypass = false,
 }: UseQueuedSendOptions): UseQueuedSendResult {
   const [queuedByThread, setQueuedByThread] = useState<
     Record<string, QueuedMessage[]>
@@ -286,9 +291,11 @@ export function useQueuedSend({
         nextMentions.length > 0
           ? await sendUserMessage(trimmed, nextImages, nextMentions, {
             sendIntent: effectiveIntent,
+            ...(autoModelRoutingBypass ? { autoModelRoutingBypass: true } : {}),
           })
           : await sendUserMessage(trimmed, nextImages, undefined, {
           sendIntent: effectiveIntent,
+          ...(autoModelRoutingBypass ? { autoModelRoutingBypass: true } : {}),
           });
       if (
         sendResult.status === "steer_failed" &&
@@ -314,6 +321,7 @@ export function useQueuedSend({
       steerEnabled,
       runSlashCommand,
       sendUserMessage,
+      autoModelRoutingBypass,
     ],
   );
 
@@ -407,9 +415,21 @@ export function useQueuedSend({
         } else {
           const queuedMentions = nextItem.appMentions ?? [];
           if (queuedMentions.length > 0) {
-            await sendUserMessage(nextItem.text, nextItem.images ?? [], queuedMentions);
+            if (autoModelRoutingBypass) {
+              await sendUserMessage(nextItem.text, nextItem.images ?? [], queuedMentions, {
+                autoModelRoutingBypass: true,
+              });
+            } else {
+              await sendUserMessage(nextItem.text, nextItem.images ?? [], queuedMentions);
+            }
           } else {
-            await sendUserMessage(nextItem.text, nextItem.images ?? []);
+            if (autoModelRoutingBypass) {
+              await sendUserMessage(nextItem.text, nextItem.images ?? [], undefined, {
+                autoModelRoutingBypass: true,
+              });
+            } else {
+              await sendUserMessage(nextItem.text, nextItem.images ?? []);
+            }
           }
         }
       } catch {
@@ -429,6 +449,7 @@ export function useQueuedSend({
     queuedByThread,
     runSlashCommand,
     sendUserMessage,
+    autoModelRoutingBypass,
   ]);
 
   return {

@@ -3,6 +3,7 @@ import type {
   AppMention,
   ComposerSendIntent,
   FollowUpMessageBehavior,
+  ModelSelectionMode,
   QueuedMessage,
   SendMessageResult,
   WorkspaceInfo,
@@ -15,6 +16,7 @@ export function useComposerController({
   activeTurnId,
   activeWorkspaceId,
   activeWorkspace,
+  selectedModelSelectionMode,
   isProcessing,
   isReviewing,
   queueFlushPaused = false,
@@ -38,6 +40,7 @@ export function useComposerController({
   activeTurnId: string | null;
   activeWorkspaceId: string | null;
   activeWorkspace: WorkspaceInfo | null;
+  selectedModelSelectionMode: ModelSelectionMode;
   isProcessing: boolean;
   isReviewing: boolean;
   queueFlushPaused?: boolean;
@@ -53,7 +56,10 @@ export function useComposerController({
     text: string,
     images?: string[],
     appMentions?: AppMention[],
-    options?: { sendIntent?: ComposerSendIntent },
+    options?: {
+      sendIntent?: ComposerSendIntent;
+      autoModelRoutingBypass?: boolean;
+    },
   ) => Promise<{ status: "sent" | "blocked" | "steer_failed" }>;
   sendUserMessageToThread: (
     workspace: WorkspaceInfo,
@@ -116,6 +122,7 @@ export function useComposerController({
     startFast,
     startStatus,
     clearActiveImages,
+    autoModelRoutingBypass: selectedModelSelectionMode === "manual",
   });
 
   const activeDraft = useMemo(

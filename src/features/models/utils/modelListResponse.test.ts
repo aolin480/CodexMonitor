@@ -57,4 +57,20 @@ describe("parseModelListResponse", () => {
     expect(models[0].displayName).toBe("GPT-5.3-Codex-Spark");
     expect(models[1].displayName).toBe("gpt-5.2-codex");
   });
+
+  it("filters blacklisted model slugs from model/list", () => {
+    const response = {
+      result: {
+        data: [
+          { id: "m1", model: "gpt-5.1-codex-max", displayName: "GPT-5.1 Codex Max" },
+          { id: "m2", model: "gpt-5.1-codex", displayName: "GPT-5.1 Codex" },
+        ],
+      },
+    };
+
+    const models = parseModelListResponse(response);
+
+    expect(models).toHaveLength(1);
+    expect(models[0]?.model).toBe("gpt-5.1-codex");
+  });
 });

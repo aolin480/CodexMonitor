@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ComposerMetaBar } from "./ComposerMetaBar";
 
@@ -16,6 +16,8 @@ const baseProps = {
   onSelectEffort: vi.fn(),
   selectedServiceTier: null,
   reasoningSupported: true,
+  autoModelRoutingCredentialConfigured: true,
+  onOpenAutoModelRoutingSettings: vi.fn(),
   accessMode: "current" as const,
   onSelectAccessMode: vi.fn(),
 };
@@ -111,5 +113,38 @@ describe("ComposerMetaBar", () => {
     expect(badge?.getAttribute("title")).toContain("Router selection: gpt-5.4 (medium)");
     expect(badge?.getAttribute("title")).toContain("…");
     expect(badge?.getAttribute("title")?.length).toBeLessThan(longReason.length);
+  });
+
+  it("shows Auto in the model picker and hides reasoning when Auto is selected", () => {
+    const { container } = render(
+      <ComposerMetaBar
+        {...baseProps}
+        selectedModelId={null}
+        reasoningSupported={false}
+        selectedEffort={null}
+      />,
+    );
+
+    const scoped = within(container);
+    const modelSelect = scoped.getByRole("combobox", {
+      name: "Model",
+    }) as HTMLSelectElement;
+    expect(modelSelect.value).toBe("__auto__");
+    expect(scoped.queryByRole("combobox", { name: "Thinking mode" })).toBeNull();
+  });
+
+  it("shows a setup action when Auto is unavailable", () => {
+    const onOpenAutoModelRoutingSettings = vi.fn();
+
+    render(
+      <ComposerMetaBar
+        {...baseProps}
+        autoModelRoutingCredentialConfigured={false}
+        onOpenAutoModelRoutingSettings={onOpenAutoModelRoutingSettings}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Set up" }));
+    expect(onOpenAutoModelRoutingSettings).toHaveBeenCalledTimes(1);
   });
 });

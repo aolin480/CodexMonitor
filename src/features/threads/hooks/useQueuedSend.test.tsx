@@ -284,6 +284,52 @@ describe("useQueuedSend", () => {
     );
   });
 
+  it("bypasses auto routing for direct sends when manual model selection is active", async () => {
+    const options = makeOptions({ autoModelRoutingBypass: true });
+    const { result } = renderHook((props) => useQueuedSend(props), {
+      initialProps: options,
+    });
+
+    await act(async () => {
+      await result.current.handleSend("Manual");
+    });
+
+    expect(options.sendUserMessage).toHaveBeenCalledWith(
+      "Manual",
+      [],
+      undefined,
+      { sendIntent: "default", autoModelRoutingBypass: true },
+    );
+  });
+
+  it("bypasses auto routing for queued flushes when manual model selection is active", async () => {
+    const options = makeOptions({
+      isProcessing: true,
+      autoModelRoutingBypass: true,
+    });
+    const { result, rerender } = renderHook((props) => useQueuedSend(props), {
+      initialProps: options,
+    });
+
+    await act(async () => {
+      await result.current.queueMessage("Queued manual");
+    });
+
+    await act(async () => {
+      rerender({ ...options, isProcessing: false });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(options.sendUserMessage).toHaveBeenCalledWith(
+      "Queued manual",
+      [],
+      undefined,
+      { autoModelRoutingBypass: true },
+    );
+  });
+
   it("ignores images for queued review messages and blocks while reviewing", async () => {
     const options = makeOptions();
     const { result, rerender } = renderHook(

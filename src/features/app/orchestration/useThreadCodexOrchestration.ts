@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { AccessMode, ServiceTier } from "@/types";
+import type { AccessMode, ModelSelectionMode, ServiceTier } from "@/types";
 import { useThreadCodexParams } from "@threads/hooks/useThreadCodexParams";
 import {
   type PendingNewThreadSeed,
@@ -10,6 +10,8 @@ import {
 type ThreadCodexOrchestration = {
   accessMode: AccessMode;
   setAccessMode: Dispatch<SetStateAction<AccessMode>>;
+  preferredModelSelectionMode: ModelSelectionMode;
+  setPreferredModelSelectionMode: Dispatch<SetStateAction<ModelSelectionMode>>;
   preferredModelId: string | null;
   setPreferredModelId: Dispatch<SetStateAction<string | null>>;
   preferredEffort: string | null;
@@ -27,6 +29,7 @@ type ThreadCodexOrchestration = {
   patchThreadCodexParams: ReturnType<typeof useThreadCodexParams>["patchThreadCodexParams"];
   persistThreadCodexParams: (patch: {
     modelId?: string | null;
+    modelSelectionMode?: "auto" | "manual" | null;
     effort?: string | null;
     serviceTier?: ServiceTier | null | undefined;
     accessMode?: AccessMode | null;
@@ -50,6 +53,8 @@ export function useThreadCodexOrchestration({
     patchThreadCodexParams,
   } = useThreadCodexParams();
   const [accessMode, setAccessMode] = useState<AccessMode>("current");
+  const [preferredModelSelectionMode, setPreferredModelSelectionMode] =
+    useState<ModelSelectionMode>("manual");
   const [preferredModelId, setPreferredModelId] = useState<string | null>(null);
   const [preferredEffort, setPreferredEffort] = useState<string | null>(null);
   const [preferredServiceTier, setPreferredServiceTier] = useState<
@@ -70,6 +75,7 @@ export function useThreadCodexOrchestration({
   const persistThreadCodexParams = useCallback(
     (patch: {
       modelId?: string | null;
+      modelSelectionMode?: "auto" | "manual" | null;
       effort?: string | null;
       serviceTier?: ServiceTier | null | undefined;
       accessMode?: AccessMode | null;
@@ -98,6 +104,8 @@ export function useThreadCodexOrchestration({
     () => ({
       accessMode,
       setAccessMode,
+      preferredModelSelectionMode,
+      setPreferredModelSelectionMode,
       preferredModelId,
       setPreferredModelId,
       preferredEffort,
@@ -119,6 +127,7 @@ export function useThreadCodexOrchestration({
     }),
     [
       accessMode,
+      preferredModelSelectionMode,
       preferredCollabModeId,
       preferredCodexArgsOverride,
       preferredEffort,

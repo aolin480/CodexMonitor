@@ -15,6 +15,7 @@ import { useSettingsModalState } from "@app/hooks/useSettingsModalState";
 import type { SettingsSection } from "@app/hooks/useSettingsModalState";
 import type { AppModalsProps } from "@app/components/AppModals";
 import type { SettingsViewProps } from "@settings/components/SettingsView";
+import type { SettingsTarget } from "@settings/components/settingsTypes";
 import { useRenameThreadPrompt } from "@threads/hooks/useRenameThreadPrompt";
 import { useBranchSwitcher } from "@/features/git/hooks/useBranchSwitcher";
 import { useInitGitRepoPrompt } from "@/features/git/hooks/useInitGitRepoPrompt";
@@ -145,7 +146,7 @@ type UseMainAppModalsArgs = {
 type UseMainAppModalsResult = {
   appModalsProps: AppModalsProps;
   modalActions: {
-    openSettings: (section?: SettingsSection) => void;
+    openSettings: (section?: SettingsSection, target?: SettingsTarget) => void;
     closeSettings: () => void;
     openRenamePrompt: (workspaceId: string, threadId: string) => void;
     openInitGitRepoPrompt: () => void;
@@ -267,6 +268,7 @@ type BuildAppModalsPropsArgs = {
   onBranchSwitcherCancel: () => void;
   settingsOpen: boolean;
   settingsSection: SettingsViewProps["initialSection"] | null;
+  settingsTarget: SettingsViewProps["initialTarget"] | null;
   onCloseSettings: () => void;
   settingsViewComponent: ComponentType<SettingsViewProps>;
   settingsViewProps: Omit<SettingsViewProps, "initialSection" | "onClose">;
@@ -317,6 +319,7 @@ function buildAppModalsProps({
   onBranchSwitcherCancel,
   settingsOpen,
   settingsSection,
+  settingsTarget,
   onCloseSettings,
   settingsViewComponent,
   settingsViewProps,
@@ -366,6 +369,7 @@ function buildAppModalsProps({
     onBranchSwitcherCancel,
     settingsOpen,
     settingsSection: settingsSection ?? undefined,
+    settingsTarget: settingsTarget ?? undefined,
     onCloseSettings,
     SettingsViewComponent: settingsViewComponent,
     settingsProps: settingsViewProps,
@@ -390,6 +394,7 @@ export function useMainAppModals({
   const {
     settingsOpen,
     settingsSection,
+    settingsTarget,
     openSettings,
     closeSettings,
   } = useSettingsModalState();
@@ -598,6 +603,7 @@ export function useMainAppModals({
         onBranchSwitcherCancel: closeBranchSwitcher,
         settingsOpen,
         settingsSection,
+        settingsTarget,
         onCloseSettings: closeSettings,
         settingsViewComponent,
         settingsViewProps,
@@ -634,6 +640,7 @@ export function useMainAppModals({
       renamePrompt,
       settingsOpen,
       settingsSection,
+      settingsTarget,
       settingsViewComponent,
       settingsViewProps,
       updateCloneCopyName,

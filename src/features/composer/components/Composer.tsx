@@ -66,13 +66,15 @@ type ComposerProps = {
   onSelectCollaborationMode: (id: string | null) => void;
   models: { id: string; displayName: string; model: string }[];
   selectedModelId: string | null;
-  onSelectModel: (id: string) => void;
+  onSelectModel: (id: string | null) => void;
   reasoningOptions: string[];
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
   selectedServiceTier: ServiceTier | null;
   activeAutoModelRoutingDecision?: AutoModelRoutingDecision | null;
   reasoningSupported: boolean;
+  autoModelRoutingCredentialConfigured: boolean | null;
+  onOpenAutoModelRoutingSettings: () => void;
   codexArgsOptions?: CodexArgsOption[];
   selectedCodexArgsOverride?: string | null;
   onSelectCodexArgsOverride?: (value: string | null) => void;
@@ -185,6 +187,8 @@ export const Composer = memo(function Composer({
   selectedServiceTier,
   activeAutoModelRoutingDecision = null,
   reasoningSupported,
+  autoModelRoutingCredentialConfigured,
+  onOpenAutoModelRoutingSettings,
   codexArgsOptions = [],
   selectedCodexArgsOverride = null,
   onSelectCodexArgsOverride,
@@ -685,7 +689,7 @@ export const Composer = memo(function Composer({
         onReviewPromptUpdateCustomInstructions={onReviewPromptUpdateCustomInstructions}
         onReviewPromptConfirmCustom={onReviewPromptConfirmCustom}
       />
-      <ComposerMetaBar
+        <ComposerMetaBar
         disabled={disabled}
         collaborationModes={collaborationModes}
         selectedCollaborationModeId={selectedCollaborationModeId}
@@ -697,9 +701,11 @@ export const Composer = memo(function Composer({
         selectedEffort={selectedEffort}
         onSelectEffort={onSelectEffort}
         selectedServiceTier={selectedServiceTier}
-        activeAutoModelRoutingDecision={activeAutoModelRoutingDecision}
-        reasoningSupported={reasoningSupported}
-        codexArgsOptions={codexArgsOptions}
+          activeAutoModelRoutingDecision={activeAutoModelRoutingDecision}
+          reasoningSupported={reasoningSupported}
+          autoModelRoutingCredentialConfigured={autoModelRoutingCredentialConfigured}
+          onOpenAutoModelRoutingSettings={onOpenAutoModelRoutingSettings}
+          codexArgsOptions={codexArgsOptions}
         selectedCodexArgsOverride={selectedCodexArgsOverride}
         onSelectCodexArgsOverride={onSelectCodexArgsOverride}
         accessMode={accessMode}

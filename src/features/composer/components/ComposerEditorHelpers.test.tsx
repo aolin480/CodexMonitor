@@ -43,6 +43,8 @@ function ComposerHarness({ initialText = "", editorSettings }: HarnessProps) {
       onSelectEffort={() => {}}
       selectedServiceTier={null}
       reasoningSupported={false}
+      autoModelRoutingCredentialConfigured={true}
+      onOpenAutoModelRoutingSettings={() => {}}
       accessMode="current"
       onSelectAccessMode={() => {}}
       skills={[]}

@@ -8,6 +8,7 @@ import type {
   CodexUpdateResult,
   WorkspaceInfo,
 } from "@/types";
+import type { SettingsTarget } from "@settings/components/settingsTypes";
 import { useGlobalAgentsMd } from "./useGlobalAgentsMd";
 import { useGlobalCodexConfigToml } from "./useGlobalCodexConfigToml";
 import { useSettingsDefaultModels } from "./useSettingsDefaultModels";
@@ -34,6 +35,7 @@ type UseSettingsCodexSectionArgs = {
 };
 
 export type SettingsCodexSectionProps = {
+  focusTarget?: SettingsTarget;
   appSettings: AppSettings;
   onUpdateAppSettings: (next: AppSettings) => Promise<void>;
   defaultModels: ReturnType<typeof useSettingsDefaultModels>["models"];
