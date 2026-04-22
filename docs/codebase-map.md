@@ -6,6 +6,8 @@ Related docs:
 
 - Setup/build/release: `README.md`
 - iOS remote over Tailscale (TCP): `docs/mobile-ios-tailscale-blueprint.md`
+- Prompt Intent manual device QA: `docs/prompt-intent-manual-qa.md`
+- Prompt Intent auto model selection design: `docs/plans/2026-04-22-prompt-intent-auto-model-selection-design.md`
 
 ## Start Here: How Changes Flow
 
