@@ -281,7 +281,10 @@ export function SettingsCodexSection({
       credentialEditorDismissedRef.current = false;
       return;
     }
-    if (credentialAutoOpenHandledRef.current || credentialEditorDismissedRef.current) {
+    if (
+      credentialAutoOpenHandledRef.current ||
+      credentialEditorDismissedRef.current
+    ) {
       return;
     }
     credentialAutoOpenHandledRef.current = true;
