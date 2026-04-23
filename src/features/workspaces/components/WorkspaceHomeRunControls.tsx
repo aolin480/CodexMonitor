@@ -81,10 +81,13 @@ export function WorkspaceHomeRunControls({
     ? models.find((model) => model.id === selectedModelId) ?? null
     : null;
   const autoSelected = selectedModelSelectionMode === "auto";
+  const autoRoutingStatusLoading = autoModelRoutingCredentialConfigured === null;
   const autoRoutingUnavailable = autoModelRoutingCredentialConfigured === false;
-  const autoOptionLabel = autoRoutingUnavailable
-    ? "Auto (add credential in Settings)"
-    : "Auto (prompt intent)";
+  const autoOptionLabel = autoRoutingStatusLoading
+    ? "Auto (checking Settings...)"
+    : autoRoutingUnavailable
+      ? "Auto (add credential in Settings)"
+      : "Auto (prompt intent)";
   const autoUnavailableSelectedLabel = "Set up Auto…";
   const selectedModelLabel =
     autoSelected
@@ -201,7 +204,7 @@ export function WorkspaceHomeRunControls({
               }}
               icon={<Cpu className="workspace-home-mode-icon" aria-hidden />}
               active={autoSelected}
-              disabled={autoRoutingUnavailable}
+              disabled={autoRoutingUnavailable || autoRoutingStatusLoading}
             >
               {autoOptionLabel}
             </PopoverMenuItem>

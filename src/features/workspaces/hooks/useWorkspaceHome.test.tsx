@@ -185,7 +185,10 @@ describe("useWorkspaceHome", () => {
       "thread-1",
       "Use auto",
       [],
-      expect.not.objectContaining({ autoModelRoutingBypass: true }),
+      expect.objectContaining({
+        model: null,
+        autoModelRoutingBypass: false,
+      }),
     );
     expect(seedThreadCodexParams).toHaveBeenCalledWith("ws-1", "thread-1", {
       modelId: null,

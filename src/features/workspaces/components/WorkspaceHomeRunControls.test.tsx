@@ -69,4 +69,27 @@ describe("WorkspaceHomeRunControls", () => {
 
     expect(onOpenAutoModelRoutingSettings).toHaveBeenCalledTimes(1);
   });
+
+  it("shows a disabled loading state while Auto credential status is unknown", () => {
+    const { container } = render(
+      <WorkspaceHomeRunControls
+        {...baseProps}
+        autoModelRoutingCredentialConfigured={null}
+      />,
+    );
+
+    const controls = within(container);
+    const toggleButtons = controls.getAllByRole("button", {
+      name: "Toggle models menu",
+    });
+    fireEvent.click(toggleButtons[toggleButtons.length - 1]!);
+
+    const autoButton = screen.getByRole("button", {
+      name: /Auto \(checking Settings/i,
+    });
+    expect(autoButton.getAttribute("disabled")).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Set up Auto/i }),
+    ).toBeNull();
+  });
 });

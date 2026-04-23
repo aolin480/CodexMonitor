@@ -495,14 +495,16 @@ export function useWorkspaceHome({
           if (!threadId) {
             throw new Error("Failed to start a local thread.");
           }
+          const localModelId =
+            selectedModelSelectionMode === "manual" ? selectedModelId : null;
           seedThreadCodexParams?.(activeWorkspace.id, threadId, {
-            modelId: selectedModelId,
+            modelId: localModelId,
             modelSelectionMode: selectedModelSelectionMode,
             effort,
             serviceTier,
           });
-          const localModel = selectedModelId
-            ? modelLookup.get(selectedModelId)?.model ?? null
+          const localModel = localModelId
+            ? modelLookup.get(localModelId)?.model ?? null
             : null;
           await sendUserMessageToThread(activeWorkspace, threadId, prompt, images, {
             model: localModel,
@@ -512,12 +514,12 @@ export function useWorkspaceHome({
             autoModelRoutingBypass: selectedModelSelectionMode === "manual",
           });
           const model =
-            selectedModelId ? modelLookup.get(selectedModelId) ?? null : null;
+            localModelId ? modelLookup.get(localModelId) ?? null : null;
           instances.push({
             id: `${runId}-local-1`,
             workspaceId: activeWorkspace.id,
             threadId,
-            modelId: selectedModelId ?? null,
+            modelId: localModelId,
             modelLabel: resolveModelLabel(model, "Default model"),
             sequence: 1,
           });
