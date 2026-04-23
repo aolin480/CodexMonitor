@@ -18,12 +18,14 @@ type SettingsSectionContainersProps = {
   activeSection: CodexSection;
   orchestration: SettingsViewOrchestration;
   settingsTarget?: SettingsTarget;
+  isMobileRuntime?: boolean;
 };
 
 export function SettingsSectionContainers({
   activeSection,
   orchestration,
   settingsTarget,
+  isMobileRuntime,
 }: SettingsSectionContainersProps) {
   if (activeSection === "projects") {
     return <SettingsProjectsSection {...orchestration.projectsSectionProps} />;
@@ -63,6 +65,7 @@ export function SettingsSectionContainers({
       <SettingsCodexSection
         {...orchestration.codexSectionProps}
         focusTarget={settingsTarget}
+        isMobileRuntime={isMobileRuntime}
       />
     );
   }

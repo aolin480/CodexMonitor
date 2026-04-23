@@ -13,6 +13,7 @@ type UseMobileServerSetupParams = {
 
 type UseMobileServerSetupResult = {
   isMobileRuntime: boolean;
+  mobileServerReady: boolean;
   showMobileSetupWizard: boolean;
   mobileSetupWizardProps: MobileServerSetupWizardProps;
   handleMobileConnectSuccess: () => Promise<void>;
@@ -228,6 +229,7 @@ export function useMobileServerSetup({
 
   return {
     isMobileRuntime,
+    mobileServerReady,
     showMobileSetupWizard:
       isMobileRuntime && !appSettingsLoading && !mobileServerReady && !setupWizardDismissed,
     mobileSetupWizardProps: {

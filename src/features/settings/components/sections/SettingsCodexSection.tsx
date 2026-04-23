@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Stethoscope from "lucide-react/dist/esm/icons/stethoscope";
 import type { Dispatch, SetStateAction } from "react";
 import type {
@@ -42,6 +42,7 @@ type SettingsCodexSectionProps = {
   autoModelRoutingCredentialBusyAction: "save" | "remove" | null;
   autoModelRoutingCredentialDraft: string;
   autoModelRoutingCredentialError: string | null;
+  isMobileRuntime?: boolean;
   globalAgentsMeta: string;
   globalAgentsError: string | null;
   globalAgentsContent: string;
@@ -138,6 +139,7 @@ export function SettingsCodexSection({
   autoModelRoutingCredentialBusyAction,
   autoModelRoutingCredentialDraft,
   autoModelRoutingCredentialError,
+  isMobileRuntime = false,
   globalAgentsMeta,
   globalAgentsError,
   globalAgentsContent,
@@ -214,8 +216,19 @@ export function SettingsCodexSection({
     autoModelRoutingCredentialStatus?.storageSupported ?? true;
   const credentialSaveBusy = autoModelRoutingCredentialBusyAction === "save";
   const credentialRemoveBusy = autoModelRoutingCredentialBusyAction === "remove";
+  const mobilePlatform = isMobileRuntime;
+  const [mobileCredentialEditorOpen, setMobileCredentialEditorOpen] = useState(false);
+  const credentialAutoOpenHandledRef = useRef(false);
+  const credentialEditorDismissedRef = useRef(false);
+  const showCredentialEditor = !mobilePlatform || mobileCredentialEditorOpen;
   const credentialFieldRef = useRef<HTMLDivElement | null>(null);
   const credentialInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(
+    () => () => {
+      setMobileCredentialEditorOpen(false);
+    },
+    [],
+  );
 
   const didNormalizeDefaultsRef = useRef(false);
   useEffect(() => {
@@ -260,10 +273,23 @@ export function SettingsCodexSection({
   ]);
 
   useEffect(() => {
-    if (focusTarget !== "auto-model-routing-credential") {
+    if (!mobilePlatform) {
       return;
     }
-    if (autoModelRoutingCredentialStatusLoading) {
+    if (focusTarget !== "auto-model-routing-credential") {
+      credentialAutoOpenHandledRef.current = false;
+      credentialEditorDismissedRef.current = false;
+      return;
+    }
+    if (credentialAutoOpenHandledRef.current || credentialEditorDismissedRef.current) {
+      return;
+    }
+    credentialAutoOpenHandledRef.current = true;
+    setMobileCredentialEditorOpen(true);
+  }, [focusTarget, mobilePlatform]);
+
+  useEffect(() => {
+    if (focusTarget !== "auto-model-routing-credential" || autoModelRoutingCredentialStatusLoading) {
       return;
     }
 
@@ -598,7 +624,7 @@ export function SettingsCodexSection({
         />
       </SettingsToggleRow>
 
-      <div className="settings-field">
+      <div className="settings-field" ref={credentialFieldRef}>
         <label className="settings-field-label" htmlFor="auto-model-routing-provider">
           Router provider
         </label>
@@ -620,77 +646,130 @@ export function SettingsCodexSection({
         </div>
       </div>
 
-      <div className="settings-field" ref={credentialFieldRef}>
-        <label className="settings-field-label" htmlFor="auto-model-routing-credential">
-          Router credential
-        </label>
-        <div className="settings-field-row">
-          <input
-            id="auto-model-routing-credential"
-            ref={credentialInputRef}
-            className="settings-input"
-            type="password"
-            autoComplete="off"
-            value={autoModelRoutingCredentialDraft}
-            placeholder="Paste provider credential"
-            onChange={(event) => onSetAutoModelRoutingCredentialDraft(event.target.value)}
-          />
-          <button
-            type="button"
-            className="ghost"
-            disabled={
-              autoModelRoutingCredentialStatusLoading ||
-              !credentialStorageSupported ||
-              credentialSaveBusy ||
-              !autoModelRoutingCredentialDraft.trim()
-            }
-            onClick={() => {
-              void onSaveAutoModelRoutingCredential();
-            }}
-          >
-            {credentialSaveBusy ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            disabled={
-              autoModelRoutingCredentialStatusLoading ||
-              !credentialStorageSupported ||
-              credentialRemoveBusy ||
-              !credentialConfigured
-            }
-            onClick={() => {
-              void onRemoveAutoModelRoutingCredential();
-            }}
-          >
-            {credentialRemoveBusy ? "Removing…" : "Remove"}
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            disabled={autoModelRoutingCredentialStatusLoading}
-            onClick={() => {
-              void onRefreshAutoModelRoutingCredentialStatus();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-        {autoModelRoutingCredentialStatusLoading ? (
-          <div className="settings-help">Loading credential status from the {credentialHostLabel}…</div>
-        ) : autoModelRoutingCredentialStatus?.message ? (
-          <div className="settings-help">{autoModelRoutingCredentialStatus.message}</div>
-        ) : null}
-        {autoModelRoutingCredentialError ? (
-          <div className="settings-help ds-text-danger">{autoModelRoutingCredentialError}</div>
-        ) : null}
-        {!autoModelRoutingCredentialStatusLoading && !credentialConfigured ? (
-          <div className="settings-help ds-text-danger">
-            No router credential is configured on the {credentialHostLabel}. Auto mode will fall
-            back deterministically at send time.
+      {showCredentialEditor ? (
+        <div className="settings-field">
+          {mobilePlatform && (
+            <div className="settings-field-row">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  credentialEditorDismissedRef.current = true;
+                  setMobileCredentialEditorOpen(false);
+                }}
+              >
+                Hide credential editor
+              </button>
+            </div>
+          )}
+          <label className="settings-field-label" htmlFor="auto-model-routing-credential">
+            Router credential
+          </label>
+          <div className="settings-field-row">
+            <input
+              id="auto-model-routing-credential"
+              ref={credentialInputRef}
+              className="settings-input"
+              type="password"
+              autoComplete="off"
+              value={autoModelRoutingCredentialDraft}
+              placeholder="Paste provider credential"
+              onChange={(event) => onSetAutoModelRoutingCredentialDraft(event.target.value)}
+            />
+            <button
+              type="button"
+              className="ghost"
+              disabled={
+                autoModelRoutingCredentialStatusLoading ||
+                !credentialStorageSupported ||
+                credentialSaveBusy ||
+                !autoModelRoutingCredentialDraft.trim()
+              }
+              onClick={() => {
+                void onSaveAutoModelRoutingCredential();
+              }}
+            >
+              {credentialSaveBusy ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={
+                autoModelRoutingCredentialStatusLoading ||
+                !credentialStorageSupported ||
+                credentialRemoveBusy ||
+                !credentialConfigured
+              }
+              onClick={() => {
+                void onRemoveAutoModelRoutingCredential();
+              }}
+            >
+              {credentialRemoveBusy ? "Removing…" : "Remove"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={autoModelRoutingCredentialStatusLoading}
+              onClick={() => {
+                void onRefreshAutoModelRoutingCredentialStatus();
+              }}
+            >
+              Refresh
+            </button>
           </div>
-        ) : null}
-      </div>
+          {autoModelRoutingCredentialStatusLoading ? (
+            <div className="settings-help">
+              Loading credential status from the {credentialHostLabel}…
+            </div>
+          ) : autoModelRoutingCredentialStatus?.message ? (
+            <div className="settings-help">{autoModelRoutingCredentialStatus.message}</div>
+          ) : null}
+          {autoModelRoutingCredentialError ? (
+            <div className="settings-help ds-text-danger">{autoModelRoutingCredentialError}</div>
+          ) : null}
+          {!autoModelRoutingCredentialStatusLoading && !credentialConfigured ? (
+            <div className="settings-help ds-text-danger">
+              No router credential is configured on the {credentialHostLabel}. Auto mode will fall
+              back deterministically at send time.
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="settings-field">
+          <div className="settings-help">
+            Router credential is managed on the connected backend host. Open the desktop settings
+            to change it.
+          </div>
+          <div className="settings-field-row">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                credentialEditorDismissedRef.current = false;
+                setMobileCredentialEditorOpen(true);
+              }}
+            >
+              Manage credential
+            </button>
+          </div>
+          {autoModelRoutingCredentialStatusLoading ? (
+            <div className="settings-help">
+              Loading credential status from the {credentialHostLabel}…
+            </div>
+          ) : autoModelRoutingCredentialStatus?.message ? (
+            <div className="settings-help">{autoModelRoutingCredentialStatus.message}</div>
+          ) : null}
+          {autoModelRoutingCredentialError ? (
+            <div className="settings-help ds-text-danger">{autoModelRoutingCredentialError}</div>
+          ) : null}
+          {!autoModelRoutingCredentialStatusLoading && !credentialConfigured ? (
+            <div className="settings-help ds-text-danger">
+              No router credential is configured on the {credentialHostLabel}. Auto mode will fall
+              back deterministically at send time.
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <FileEditorCard
         title="Global AGENTS.md"

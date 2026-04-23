@@ -174,6 +174,7 @@ export default function MainApp() {
   });
   const {
     isMobileRuntime,
+    mobileServerReady,
     showMobileSetupWizard,
     mobileSetupWizardProps,
     handleMobileConnectSuccess,
@@ -1030,6 +1031,7 @@ export default function MainApp() {
       handleTestNotificationSound,
       handleTestSystemNotification,
       handleMobileConnectSuccess,
+      isMobileRuntime,
       dictationModel,
     },
   });
@@ -1038,6 +1040,11 @@ export default function MainApp() {
     setAutoModelRoutingCredentialConfigured,
   ] = useState<boolean | null>(null);
   useEffect(() => {
+    if (isMobileRuntime && appSettings.backendMode === "remote" && !mobileServerReady) {
+      setAutoModelRoutingCredentialConfigured(null);
+      return;
+    }
+
     let active = true;
     void (async () => {
       try {
@@ -1060,6 +1067,8 @@ export default function MainApp() {
     appSettings.autoModelRoutingProvider,
     appSettings.backendMode,
     appSettings.remoteBackendHost,
+    isMobileRuntime,
+    mobileServerReady,
   ]);
 
   useBranchSwitcherShortcut({

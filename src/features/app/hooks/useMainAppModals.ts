@@ -140,6 +140,7 @@ type UseMainAppModalsArgs = {
       cancel?: () => void;
       remove?: () => void;
     };
+    isMobileRuntime: boolean;
   };
 };
 
@@ -205,10 +206,11 @@ function buildSettingsViewProps({
     onTestSystemNotification: settings.handleTestSystemNotification,
     onMobileConnectSuccess: settings.handleMobileConnectSuccess,
     dictationModelStatus: settings.dictationModel.status,
-    onDownloadDictationModel: settings.dictationModel.download,
-    onCancelDictationDownload: settings.dictationModel.cancel,
-    onRemoveDictationModel: settings.dictationModel.remove,
-  };
+  onDownloadDictationModel: settings.dictationModel.download,
+  onCancelDictationDownload: settings.dictationModel.cancel,
+  onRemoveDictationModel: settings.dictationModel.remove,
+  isMobileRuntime: settings.isMobileRuntime,
+};
 }
 
 type BuildAppModalsPropsArgs = {

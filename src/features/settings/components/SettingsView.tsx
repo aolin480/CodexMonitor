@@ -66,6 +66,7 @@ export type SettingsViewProps = {
   onRemoveDictationModel?: () => void;
   initialSection?: CodexSection;
   initialTarget?: SettingsTarget;
+  isMobileRuntime?: boolean;
 };
 
 export function SettingsView({
@@ -100,6 +101,7 @@ export function SettingsView({
   onRemoveDictationModel,
   initialSection,
   initialTarget,
+  isMobileRuntime,
 }: SettingsViewProps) {
   const {
     activeSection,
@@ -198,6 +200,7 @@ export function SettingsView({
                 activeSection={activeSection}
                 orchestration={orchestration}
                 settingsTarget={initialTarget}
+                isMobileRuntime={isMobileRuntime}
               />
             </div>
           </div>
