@@ -424,7 +424,7 @@ pub(crate) async fn send_user_message(
                 payload.insert("collaborationMode".to_string(), mode);
             }
         }
-        if let Some(model_selection_mode) = model_selection_mode {
+        if let Some(ref model_selection_mode) = model_selection_mode {
             payload.insert("modelSelectionMode".to_string(), json!(model_selection_mode));
         }
         
