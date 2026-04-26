@@ -107,16 +107,21 @@ where
     (normalized, changed)
 }
 
+fn normalize_app_settings_for_runtime(
+    settings: AppSettings,
+    mobile_runtime: bool,
+) -> (AppSettings, bool) {
+    let (global_worktrees_folder, changed) =
+        normalize_optional_windows_namespace_path(settings.global_worktrees_folder.clone());
+    let settings = AppSettings { global_worktrees_folder, ..settings };
+    let _ = mobile_runtime;
+    (settings, changed)
+}
+
 fn normalize_app_settings(settings: AppSettings) -> (AppSettings, bool) {
     let (global_worktrees_folder, changed) =
         normalize_optional_windows_namespace_path(settings.global_worktrees_folder.clone());
-    (
-        AppSettings {
-            global_worktrees_folder,
-            ..settings
-        },
-        changed,
-    )
+    (AppSettings { global_worktrees_folder, ..settings }, changed)
 }
 
 fn try_rewrite_settings_with_normalized_paths(path: &PathBuf, settings: &AppSettings) {
@@ -180,7 +185,10 @@ pub(crate) fn write_settings(path: &PathBuf, settings: &AppSettings) -> Result<(
 }
 
 fn finalize_loaded_settings(path: &PathBuf, settings: AppSettings) -> AppSettings {
-    let (settings, changed) = normalize_app_settings(settings);
+    let (settings, changed) = normalize_app_settings_for_runtime(
+        settings,
+        cfg!(any(target_os = "ios", target_os = "android")),
+    );
     if changed {
         try_rewrite_settings_with_normalized_paths(path, &settings);
     }
@@ -233,7 +241,8 @@ fn migrate_follow_up_message_behavior(value: &mut Value) {
 #[cfg(test)]
 mod tests {
     use super::{read_settings, read_workspaces, write_settings, write_workspaces};
-    use crate::types::{AppSettings, WorkspaceEntry, WorkspaceKind, WorkspaceSettings};
+    use super::normalize_app_settings_for_runtime;
+    use crate::types::{AppSettings, BackendMode, WorkspaceEntry, WorkspaceKind, WorkspaceSettings};
     use uuid::Uuid;
 
     #[test]
@@ -448,6 +457,18 @@ mod tests {
             rewritten_settings.global_worktrees_folder.as_deref(),
             Some(r"I:\gpt-projects\worktrees")
         );
+    }
+
+    #[test]
+    fn normalize_app_settings_for_runtime_preserves_backend_mode_on_mobile_load() {
+        let mut settings = AppSettings::default();
+        settings.backend_mode = BackendMode::Local;
+        settings.remote_backend_host = "remote.example:4732".to_string();
+        settings.remote_backend_token = Some("token-1".to_string());
+
+        let (normalized, changed) = normalize_app_settings_for_runtime(settings, true);
+        assert!(matches!(normalized.backend_mode, BackendMode::Local));
+        assert!(!changed);
     }
 
     #[test]

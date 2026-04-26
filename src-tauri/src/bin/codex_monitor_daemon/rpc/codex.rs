@@ -177,6 +177,7 @@ pub(super) async fn try_handle(
             let app_mentions = parse_optional_value(params, "appMentions")
                 .and_then(|value| value.as_array().cloned());
             let collaboration_mode = parse_optional_value(params, "collaborationMode");
+            let model_selection_mode = parse_optional_string(params, "modelSelectionMode");
             let auto_model_routing_bypass =
                 parse_optional_bool(params, "autoModelRoutingBypass").unwrap_or(false);
             Some(
@@ -192,6 +193,7 @@ pub(super) async fn try_handle(
                         images,
                         app_mentions,
                         collaboration_mode,
+                        model_selection_mode,
                         auto_model_routing_bypass,
                     )
                     .await,

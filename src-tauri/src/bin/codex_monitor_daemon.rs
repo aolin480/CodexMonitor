@@ -866,6 +866,7 @@ impl DaemonState {
         images: Option<Vec<String>>,
         app_mentions: Option<Vec<Value>>,
         collaboration_mode: Option<Value>,
+        model_selection_mode: Option<String>,
         auto_model_routing_bypass: bool,
     ) -> Result<Value, String> {
         codex_core::send_user_message_core(
@@ -882,6 +883,7 @@ impl DaemonState {
             images,
             app_mentions,
             collaboration_mode,
+            model_selection_mode,
             auto_model_routing_bypass,
         )
         .await

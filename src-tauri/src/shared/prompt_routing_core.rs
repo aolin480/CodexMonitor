@@ -139,7 +139,12 @@ pub(crate) async fn resolve_auto_model_routing_for_turn_start(
     auto_model_routing_bypass: bool,
     model_list_response: &Value,
 ) -> Result<Option<AutoModelRoutingDecision>, String> {
-    if !settings.auto_model_routing_enabled || auto_model_routing_bypass {
+    let auto_requested = requested_model
+        .and_then(normalize_optional_string_ref)
+        .is_none();
+    if auto_model_routing_bypass
+        || (!settings.auto_model_routing_enabled && !auto_requested)
+    {
         return Ok(None);
     }
 
@@ -457,6 +462,32 @@ pub(crate) fn build_chatgpt_account_retry_decision(
             "Retrying turn/start after ChatGPT-account model rejection for {model}."
         )
     });
+    Some(decision)
+}
+
+pub(crate) fn build_runtime_fallback_routing_decision(
+    settings: &AppSettings,
+    requested_model: Option<&str>,
+    requested_effort: Option<&str>,
+    model_list_response: &Value,
+    reason: String,
+    policy_note: Option<String>,
+) -> Option<AutoModelRoutingDecision> {
+    let provider = normalize_provider(settings.auto_model_routing_provider.as_str()).ok()?;
+    let mode = normalize_mode(settings.auto_model_routing_mode.as_str());
+    let candidates = parse_model_list_candidates(model_list_response);
+    if candidates.is_empty() {
+        return None;
+    }
+    let mut decision = build_fallback_decision(
+        mode.as_str(),
+        provider,
+        &candidates,
+        requested_model,
+        requested_effort,
+        reason,
+    );
+    decision.policy_note = policy_note;
     Some(decision)
 }
 

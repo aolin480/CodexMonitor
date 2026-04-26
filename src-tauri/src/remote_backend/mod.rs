@@ -109,6 +109,10 @@ impl RemoteBackend {
 
 pub(crate) async fn is_remote_mode(state: &AppState) -> bool {
     let settings = state.app_settings.lock().await;
+    should_use_remote_backend(&settings)
+}
+
+fn should_use_remote_backend(settings: &crate::types::AppSettings) -> bool {
     matches!(settings.backend_mode, BackendMode::Remote)
 }
 
@@ -247,9 +251,9 @@ fn resolve_transport_config(
 
 #[cfg(test)]
 mod tests {
-    use super::{can_retry_after_disconnect, resolve_transport_config};
+    use super::{can_retry_after_disconnect, resolve_transport_config, should_use_remote_backend};
     use crate::remote_backend::transport::RemoteTransportConfig;
-    use crate::types::AppSettings;
+    use crate::types::{AppSettings, BackendMode};
 
     #[test]
     fn resolve_tcp_transport_uses_remote_host() {
@@ -271,5 +275,21 @@ mod tests {
         assert!(!can_retry_after_disconnect("send_user_message"));
         assert!(!can_retry_after_disconnect("start_thread"));
         assert!(!can_retry_after_disconnect("remove_workspace"));
+    }
+
+    #[test]
+    fn backend_mode_remote_uses_remote_backend() {
+        let mut settings = AppSettings::default();
+        settings.backend_mode = BackendMode::Remote;
+
+        assert!(should_use_remote_backend(&settings));
+    }
+
+    #[test]
+    fn backend_mode_local_does_not_use_remote_backend() {
+        let mut settings = AppSettings::default();
+        settings.backend_mode = BackendMode::Local;
+
+        assert!(!should_use_remote_backend(&settings));
     }
 }

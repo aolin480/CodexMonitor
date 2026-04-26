@@ -18,8 +18,8 @@ use crate::rules;
 use crate::shared::account::{build_account_response, read_auth_account};
 use crate::shared::prompt_routing_core::{
     attach_auto_model_routing_decision, build_chatgpt_account_retry_decision,
-    build_skipped_routing_decision, is_chatgpt_account_unsupported_model_error,
-    resolve_auto_model_routing_for_turn_start,
+    build_runtime_fallback_routing_decision, build_skipped_routing_decision,
+    is_chatgpt_account_unsupported_model_error, resolve_auto_model_routing_for_turn_start,
 };
 use crate::types::{AppSettings, AutoModelRoutingProvider, WorkspaceEntry};
 
@@ -501,6 +501,7 @@ pub(crate) async fn send_user_message_core(
     images: Option<Vec<String>>,
     app_mentions: Option<Vec<Value>>,
     collaboration_mode: Option<Value>,
+    model_selection_mode: Option<String>,
     auto_model_routing_bypass: bool,
 ) -> Result<Value, String> {
     let session = get_session_clone(sessions, &workspace_id).await?;
@@ -508,7 +509,16 @@ pub(crate) async fn send_user_message_core(
     let requested_model = model.clone();
     let requested_effort = effort.clone();
     let mut model_list_response_for_retry = None;
-    let mut routing_decision = if settings.auto_model_routing_enabled {
+    let explicit_auto_requested = matches!(model_selection_mode.as_deref(), Some("auto"));
+    let requested_model_is_empty = model
+        .as_deref()
+        .map(str::trim)
+        .is_none_or(|value| value.is_empty());
+    let auto_requested =
+        settings.auto_model_routing_enabled || (explicit_auto_requested && requested_model_is_empty);
+    let mut routing_decision = if !auto_model_routing_bypass
+        && (settings.auto_model_routing_enabled || auto_requested)
+    {
         match session
             .send_request_for_workspace(&workspace_id, "model/list", json!({}))
             .await
@@ -551,14 +561,45 @@ pub(crate) async fn send_user_message_core(
     } else {
         None
     };
-    let selected_model = routing_decision
+    let mut selected_model = routing_decision
         .as_ref()
         .map(|decision| Some(decision.selected_model.clone()))
         .unwrap_or(model);
-    let selected_effort = routing_decision
+    let mut selected_effort = routing_decision
         .as_ref()
         .map(|decision| decision.selected_reasoning_effort.clone())
         .unwrap_or(effort);
+    if auto_requested
+        && selected_model
+        .as_deref()
+        .map(str::trim)
+        .is_none_or(|value| value.is_empty())
+    {
+        if model_list_response_for_retry.is_none() {
+            model_list_response_for_retry = session
+                .send_request_for_workspace(&workspace_id, "model/list", json!({}))
+                .await
+                .ok();
+        }
+        if let Some(model_list_response) = model_list_response_for_retry.as_ref() {
+            if let Some(fallback_decision) = build_runtime_fallback_routing_decision(
+                &settings,
+                requested_model.as_deref(),
+                requested_effort.as_deref(),
+                model_list_response,
+                "No concrete model was selected; using deterministic runtime fallback."
+                    .to_string(),
+                Some(
+                    "Recovered from a null-model send request before turn/start."
+                        .to_string(),
+                ),
+            ) {
+                selected_model = Some(fallback_decision.selected_model.clone());
+                selected_effort = fallback_decision.selected_reasoning_effort.clone();
+                routing_decision = Some(fallback_decision);
+            }
+        }
+    }
     let workspace_path = resolve_workspace_path_core(workspaces, &workspace_id).await?;
     let access_mode = access_mode.unwrap_or_else(|| "current".to_string());
     let sandbox_policy = match access_mode.as_str() {
@@ -634,7 +675,11 @@ pub(crate) async fn send_user_message_core(
                     json!(retry_decision.selected_reasoning_effort.clone()),
                 );
                 session
-                    .send_request_for_workspace(&workspace_id, "turn/start", Value::Object(params))
+                    .send_request_for_workspace(
+                        &workspace_id,
+                        "turn/start",
+                        Value::Object(params.clone()),
+                    )
                     .await?
             } else {
                 response
@@ -672,7 +717,11 @@ pub(crate) async fn send_user_message_core(
                     json!(retry_decision.selected_reasoning_effort.clone()),
                 );
                 session
-                    .send_request_for_workspace(&workspace_id, "turn/start", Value::Object(params))
+                    .send_request_for_workspace(
+                        &workspace_id,
+                        "turn/start",
+                        Value::Object(params.clone()),
+                    )
                     .await?
             } else {
                 return Err(error);
@@ -1380,6 +1429,7 @@ mod tests {
                         None,
                         None,
                         None,
+                        Some("auto".to_string()),
                         false,
                     )
                     .await
@@ -1415,6 +1465,90 @@ mod tests {
                 response["result"]["routingDecision"]["selectedModel"].as_str(),
                 Some("gpt-5.4")
             );
+            clear_router_test_state();
+            let _ = std::fs::remove_file(&transcript);
+        });
+    }
+
+    #[test]
+    fn send_user_message_core_routes_explicit_auto_selection_even_when_legacy_setting_is_off() {
+        tokio::runtime::Runtime::new().expect("runtime").block_on(async {
+            let _guard = send_routing_test_guard();
+            clear_router_test_state();
+            let transcript = transcript_path("auto-selection-routes-with-legacy-flag-off");
+            let session = make_session_with_transcript(&transcript);
+            let workspace = make_workspace_entry();
+            let sessions = Arc::new(Mutex::new(HashMap::from([(workspace.id.clone(), session.clone())])));
+            let workspaces =
+                Arc::new(Mutex::new(HashMap::from([(workspace.id.clone(), workspace.clone())])));
+            let settings = AppSettings::default();
+            let app_settings = Arc::new(Mutex::new(settings));
+
+            set_test_router_credential_result(Ok("sk-test".to_string()));
+            set_test_router_result(Ok(RouterOutput {
+                task_type: "editing".to_string(),
+                complexity: "low".to_string(),
+                ambiguity: "low".to_string(),
+                needs_tools: false,
+                needs_large_context: false,
+                selected_model: "gpt-5.4-mini".to_string(),
+                selected_reasoning: "medium".to_string(),
+                confidence: 0.88,
+                reason: "Use auto routing for a light task.".to_string(),
+            }));
+
+            let send_task = tokio::spawn({
+                let sessions = Arc::clone(&sessions);
+                let workspaces = Arc::clone(&workspaces);
+                let app_settings = Arc::clone(&app_settings);
+                let workspace_id = workspace.id.clone();
+                async move {
+                    send_user_message_core(
+                        &sessions,
+                        &workspaces,
+                        &app_settings,
+                        workspace_id,
+                        "thread-1".to_string(),
+                        "rename this".to_string(),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some("auto".to_string()),
+                        false,
+                    )
+                    .await
+                }
+            });
+
+            respond_to_pending_request(&session, 0, routing_candidate_response()).await;
+            respond_to_pending_request(
+                &session,
+                1,
+                json!({ "result": { "turn": { "id": "turn-auto-1" } } }),
+            )
+            .await;
+
+            let response = send_task
+                .await
+                .expect("task join")
+                .expect("send succeeds");
+            let transcript_lines = read_transcript(&transcript);
+
+            assert_eq!(transcript_lines[0]["method"].as_str(), Some("model/list"));
+            assert_eq!(transcript_lines[1]["method"].as_str(), Some("turn/start"));
+            assert_eq!(
+                transcript_lines[1]["params"]["model"].as_str(),
+                Some("gpt-5.4-mini")
+            );
+            assert_eq!(
+                response["result"]["routingDecision"]["selectedModel"].as_str(),
+                Some("gpt-5.4-mini")
+            );
+
             clear_router_test_state();
             let _ = std::fs::remove_file(&transcript);
         });
@@ -1459,6 +1593,7 @@ mod tests {
                         None,
                         None,
                         None,
+                        None,
                         false,
                     )
                     .await
@@ -1487,6 +1622,81 @@ mod tests {
             assert!(routing["policyNote"]
                 .as_str()
                 .is_some_and(|value| value.contains("Failed to parse router decision JSON")));
+            clear_router_test_state();
+            let _ = std::fs::remove_file(&transcript);
+        });
+    }
+
+    #[test]
+    fn send_user_message_core_recovers_from_null_model_manual_bypass_state() {
+        tokio::runtime::Runtime::new().expect("runtime").block_on(async {
+            let _guard = send_routing_test_guard();
+            clear_router_test_state();
+            let transcript = transcript_path("null-model-manual-bypass-recovery");
+            let session = make_session_with_transcript(&transcript);
+            let workspace = make_workspace_entry();
+            let sessions = Arc::new(Mutex::new(HashMap::from([(workspace.id.clone(), session.clone())])));
+            let workspaces =
+                Arc::new(Mutex::new(HashMap::from([(workspace.id.clone(), workspace.clone())])));
+            let settings = AppSettings::default();
+            let app_settings = Arc::new(Mutex::new(settings));
+
+            let send_task = tokio::spawn({
+                let sessions = Arc::clone(&sessions);
+                let workspaces = Arc::clone(&workspaces);
+                let app_settings = Arc::clone(&app_settings);
+                let workspace_id = workspace.id.clone();
+                async move {
+                    send_user_message_core(
+                        &sessions,
+                        &workspaces,
+                        &app_settings,
+                        workspace_id,
+                        "thread-1".to_string(),
+                        "rename this".to_string(),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some("auto".to_string()),
+                        true,
+                    )
+                    .await
+                }
+            });
+
+            respond_to_pending_request(&session, 0, routing_candidate_response()).await;
+            respond_to_pending_request(
+                &session,
+                1,
+                json!({ "result": { "turn": { "id": "turn-null-model-1" } } }),
+            )
+            .await;
+
+            let response = send_task
+                .await
+                .expect("task join")
+                .expect("send succeeds");
+            let transcript_lines = read_transcript(&transcript);
+
+            assert_eq!(transcript_lines[0]["method"].as_str(), Some("model/list"));
+            assert_eq!(transcript_lines[1]["method"].as_str(), Some("turn/start"));
+            assert_eq!(
+                transcript_lines[1]["params"]["model"].as_str(),
+                Some("gpt-5.4-mini")
+            );
+            assert_eq!(
+                response["result"]["routingDecision"]["selectedModel"].as_str(),
+                Some("gpt-5.4-mini")
+            );
+            assert_eq!(
+                response["result"]["routingDecision"]["policyNote"].as_str(),
+                Some("Recovered from a null-model send request before turn/start.")
+            );
+
             clear_router_test_state();
             let _ = std::fs::remove_file(&transcript);
         });
@@ -1530,6 +1740,7 @@ mod tests {
                         None,
                         None,
                         None,
+                        Some("auto".to_string()),
                         false,
                     )
                     .await
@@ -1612,6 +1823,7 @@ mod tests {
                         None,
                         None,
                         None,
+                        Some("auto".to_string()),
                         false,
                     )
                     .await
