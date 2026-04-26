@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/react";
 import type {
   AppMention,
   ComposerSendIntent,
+  ModelSelectionMode,
   RateLimitSnapshot,
   CustomPromptOption,
   DebugEntry,
@@ -51,6 +52,7 @@ type UseThreadMessagingOptions = {
   effort?: string | null;
   serviceTier?: ServiceTier | null | undefined;
   collaborationMode?: Record<string, unknown> | null;
+  modelSelectionMode?: ModelSelectionMode;
   onSelectServiceTier?: (tier: ServiceTier | null | undefined) => void;
   reviewDeliveryMode?: "inline" | "detached";
   steerEnabled: boolean;
@@ -105,6 +107,7 @@ export function useThreadMessaging({
   effort,
   serviceTier,
   collaborationMode,
+  modelSelectionMode = "manual",
   onSelectServiceTier,
   reviewDeliveryMode = "inline",
   steerEnabled,
@@ -276,6 +279,7 @@ export function useThreadMessaging({
               collaborationMode: sanitizedCollaborationMode,
               accessMode: resolvedAccessMode,
               autoModelRoutingBypass,
+              modelSelectionMode,
               images,
               appMentions,
             }),

@@ -3,6 +3,7 @@ import type {
   AutoModelRoutingDecision,
   AppMention,
   ComposerSendIntent,
+  ModelSelectionMode,
   RateLimitSnapshot,
   ReviewTarget,
   ServiceTier,
@@ -20,6 +21,7 @@ export type SendMessageOptions = {
   appMentions?: AppMention[];
   sendIntent?: ComposerSendIntent;
   autoModelRoutingBypass?: boolean;
+  modelSelectionMode?: ModelSelectionMode;
 };
 
 type FastCommandAction = "toggle" | "on" | "off" | "status" | "invalid";
@@ -50,6 +52,7 @@ export type ResolvedSendMessageOptions = {
   shouldSteer: boolean;
   requestMode: "start" | "steer";
   autoModelRoutingBypass: boolean;
+  modelSelectionMode: ModelSelectionMode;
 };
 
 export type TurnStartPayload = {
@@ -59,6 +62,7 @@ export type TurnStartPayload = {
   collaborationMode?: Record<string, unknown> | null;
   accessMode?: AccessMode;
   autoModelRoutingBypass?: boolean;
+  modelSelectionMode?: ModelSelectionMode;
   images?: string[];
   appMentions?: AppMention[];
 };
@@ -138,6 +142,7 @@ export function resolveSendMessageOptions({
   const requestedSendIntent = options?.sendIntent ?? "default";
   const queueIntentRequested = requestedSendIntent === "queue";
   const autoModelRoutingBypass = options?.autoModelRoutingBypass ?? false;
+  const modelSelectionMode = options?.modelSelectionMode ?? "manual";
   const canSteerCurrentTurn =
     defaults.isProcessing && defaults.steerEnabled && Boolean(defaults.activeTurnId);
   const shouldSteer =
@@ -161,6 +166,7 @@ export function resolveSendMessageOptions({
     shouldSteer,
     requestMode: shouldSteer ? "steer" : "start",
     autoModelRoutingBypass,
+    modelSelectionMode,
   };
 }
 
@@ -171,6 +177,7 @@ export function buildTurnStartPayload({
   collaborationMode,
   accessMode,
   autoModelRoutingBypass,
+  modelSelectionMode,
   images,
   appMentions,
 }: {
@@ -180,6 +187,7 @@ export function buildTurnStartPayload({
   collaborationMode?: Record<string, unknown> | null;
   accessMode?: AccessMode;
   autoModelRoutingBypass?: boolean;
+  modelSelectionMode?: ModelSelectionMode;
   images: string[];
   appMentions: AppMention[];
 }): TurnStartPayload {
@@ -189,6 +197,7 @@ export function buildTurnStartPayload({
     collaborationMode,
     accessMode,
     autoModelRoutingBypass,
+    modelSelectionMode,
     images,
   };
   if (serviceTier !== undefined) {

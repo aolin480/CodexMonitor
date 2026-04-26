@@ -59,6 +59,7 @@ export function useComposerController({
     options?: {
       sendIntent?: ComposerSendIntent;
       autoModelRoutingBypass?: boolean;
+      modelSelectionMode?: "auto" | "manual";
     },
   ) => Promise<{ status: "sent" | "blocked" | "steer_failed" }>;
   sendUserMessageToThread: (
@@ -123,6 +124,7 @@ export function useComposerController({
     startStatus,
     clearActiveImages,
     autoModelRoutingBypass: selectedModelSelectionMode === "manual",
+    modelSelectionMode: selectedModelSelectionMode,
   });
 
   const activeDraft = useMemo(

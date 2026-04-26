@@ -509,6 +509,7 @@ export default function MainApp() {
     effort: resolvedEffort,
     serviceTier: selectedServiceTier,
     collaborationMode: collaborationModePayload,
+    modelSelectionMode: selectedModelSelectionMode,
     onSelectServiceTier: handleSelectServiceTier,
     accessMode,
     ensureWorkspaceRuntimeCodexArgs,

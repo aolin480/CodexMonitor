@@ -4,6 +4,7 @@ import type {
   CollabAgentRef,
   CustomPromptOption,
   DebugEntry,
+  ModelSelectionMode,
   ServiceTier,
   ThreadListSortKey,
   WorkspaceInfo,
@@ -53,6 +54,7 @@ type UseThreadsOptions = {
   serviceTier?: ServiceTier | null | undefined;
   collaborationMode?: Record<string, unknown> | null;
   accessMode?: "read-only" | "current" | "full-access";
+  modelSelectionMode?: ModelSelectionMode;
   onSelectServiceTier?: (tier: ServiceTier | null | undefined) => void;
   reviewDeliveryMode?: "inline" | "detached";
   steerEnabled?: boolean;
@@ -84,6 +86,7 @@ export function useThreads({
   serviceTier,
   collaborationMode,
   accessMode,
+  modelSelectionMode = "manual",
   onSelectServiceTier,
   reviewDeliveryMode = "inline",
   steerEnabled = false,
@@ -769,6 +772,7 @@ export function useThreads({
     effort,
     serviceTier,
     collaborationMode,
+    modelSelectionMode,
     onSelectServiceTier,
     reviewDeliveryMode,
     steerEnabled,

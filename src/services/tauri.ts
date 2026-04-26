@@ -18,6 +18,7 @@ import type {
   TraySessionUsage,
   WorkspaceInfo,
   AppMention,
+  ModelSelectionMode,
   WorkspaceSettings,
 } from "../types";
 import type {
@@ -461,6 +462,7 @@ export async function sendUserMessage(
     collaborationMode?: Record<string, unknown> | null;
     appMentions?: AppMention[];
     autoModelRoutingBypass?: boolean;
+    modelSelectionMode?: ModelSelectionMode;
   },
 ): Promise<SendUserMessageResponse> {
   const images = await normalizeImagesForRpc(options?.images);
@@ -484,6 +486,9 @@ export async function sendUserMessage(
   }
   if (options?.autoModelRoutingBypass) {
     payload.autoModelRoutingBypass = true;
+  }
+  if (options?.modelSelectionMode) {
+    payload.modelSelectionMode = options.modelSelectionMode;
   }
   return invoke<SendUserMessageResponse>("send_user_message", payload);
 }

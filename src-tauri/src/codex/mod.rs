@@ -391,6 +391,7 @@ pub(crate) async fn send_user_message(
     images: Option<Vec<String>>,
     app_mentions: Option<Vec<Value>>,
     collaboration_mode: Option<Value>,
+    model_selection_mode: Option<String>,
     auto_model_routing_bypass: Option<bool>,
     state: State<'_, AppState>,
     app: AppHandle,
@@ -423,6 +424,26 @@ pub(crate) async fn send_user_message(
                 payload.insert("collaborationMode".to_string(), mode);
             }
         }
+        if let Some(model_selection_mode) = model_selection_mode {
+            payload.insert("modelSelectionMode".to_string(), json!(model_selection_mode));
+        }
+        
+        
+        eprintln!(
+            "send_user_message(remote): model={:?} effort={:?} model_selection_mode={:?} auto_model_routing_bypass={:?} access_mode={:?}",
+            model,
+            effort,
+            model_selection_mode,
+            auto_model_routing_bypass,
+            access_mode,
+        );
+        
+        
+        eprintln!(
+            "send_user_message(remote payload keys): {:?}",
+            payload.keys().cloned().collect::<Vec<_>>()
+        );
+        
         return remote_backend::call_remote(
             &*state,
             app,
@@ -446,6 +467,7 @@ pub(crate) async fn send_user_message(
         images,
         app_mentions,
         collaboration_mode,
+        model_selection_mode,
         auto_model_routing_bypass.unwrap_or(false),
     )
     .await

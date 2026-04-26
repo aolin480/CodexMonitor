@@ -3,6 +3,7 @@ import type {
   AppMention,
   ComposerSendIntent,
   FollowUpMessageBehavior,
+  ModelSelectionMode,
   QueuedMessage,
   SendMessageResult,
   WorkspaceInfo,
@@ -30,6 +31,7 @@ type UseQueuedSendOptions = {
     options?: {
       sendIntent?: ComposerSendIntent;
       autoModelRoutingBypass?: boolean;
+      modelSelectionMode?: "auto" | "manual";
     },
   ) => Promise<SendMessageResult>;
   sendUserMessageToThread: (
@@ -48,6 +50,7 @@ type UseQueuedSendOptions = {
   startStatus: (text: string) => Promise<void>;
   clearActiveImages: () => void;
   autoModelRoutingBypass?: boolean;
+  modelSelectionMode?: ModelSelectionMode;
 };
 
 type UseQueuedSendResult = {
@@ -133,6 +136,7 @@ export function useQueuedSend({
   startStatus,
   clearActiveImages,
   autoModelRoutingBypass = false,
+  modelSelectionMode = "manual",
 }: UseQueuedSendOptions): UseQueuedSendResult {
   const [queuedByThread, setQueuedByThread] = useState<
     Record<string, QueuedMessage[]>
@@ -292,10 +296,12 @@ export function useQueuedSend({
           ? await sendUserMessage(trimmed, nextImages, nextMentions, {
             sendIntent: effectiveIntent,
             ...(autoModelRoutingBypass ? { autoModelRoutingBypass: true } : {}),
+            modelSelectionMode,
           })
           : await sendUserMessage(trimmed, nextImages, undefined, {
           sendIntent: effectiveIntent,
           ...(autoModelRoutingBypass ? { autoModelRoutingBypass: true } : {}),
+          modelSelectionMode,
           });
       if (
         sendResult.status === "steer_failed" &&
@@ -418,17 +424,23 @@ export function useQueuedSend({
             if (autoModelRoutingBypass) {
               await sendUserMessage(nextItem.text, nextItem.images ?? [], queuedMentions, {
                 autoModelRoutingBypass: true,
+                modelSelectionMode,
               });
             } else {
-              await sendUserMessage(nextItem.text, nextItem.images ?? [], queuedMentions);
+              await sendUserMessage(nextItem.text, nextItem.images ?? [], queuedMentions, {
+                modelSelectionMode,
+              });
             }
           } else {
             if (autoModelRoutingBypass) {
               await sendUserMessage(nextItem.text, nextItem.images ?? [], undefined, {
                 autoModelRoutingBypass: true,
+                modelSelectionMode,
               });
             } else {
-              await sendUserMessage(nextItem.text, nextItem.images ?? []);
+              await sendUserMessage(nextItem.text, nextItem.images ?? [], undefined, {
+                modelSelectionMode,
+              });
             }
           }
         }

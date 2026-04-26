@@ -71,6 +71,7 @@ type UseWorkspaceHomeOptions = {
       serviceTier?: ServiceTier | null | undefined;
       collaborationMode?: Record<string, unknown> | null;
       autoModelRoutingBypass?: boolean;
+      modelSelectionMode?: "auto" | "manual";
     },
   ) => Promise<void | SendMessageResult>;
   onWorktreeCreated?: (worktree: WorkspaceInfo, parent: WorkspaceInfo) => Promise<void> | void;
@@ -512,6 +513,7 @@ export function useWorkspaceHome({
             serviceTier,
             collaborationMode,
             autoModelRoutingBypass: selectedModelSelectionMode === "manual",
+            modelSelectionMode: selectedModelSelectionMode,
           });
           const model =
             localModelId ? modelLookup.get(localModelId) ?? null : null;
@@ -583,6 +585,7 @@ export function useWorkspaceHome({
                   serviceTier,
                   collaborationMode,
                   autoModelRoutingBypass: true,
+                  modelSelectionMode: "manual",
                 },
               );
               instances.push({
