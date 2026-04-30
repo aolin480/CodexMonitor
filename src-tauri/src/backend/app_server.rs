@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{mpsc, oneshot, Mutex};
-use tokio::time::timeout;
+use tokio::time::{timeout, Instant};
 
 use crate::backend::events::{AppServerEvent, EventSink};
 use crate::codex::args::parse_codex_args;
@@ -21,6 +21,130 @@ use crate::types::WorkspaceEntry;
 use crate::shared::process_core::{build_cmd_c_command, resolve_windows_executable};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+
+const APP_SERVER_REQUEST_LOG_ENV: &str = "CODEX_MONITOR_APP_SERVER_REQUEST_LOG";
+const APP_SERVER_REQUEST_LOG_PATH: &str =
+    "Library/Application Support/com.dimillian.codexmonitor/logs/app-server-requests.ndjson";
+
+fn app_server_request_log_path() -> Option<PathBuf> {
+    if cfg!(test) {
+        return None;
+    }
+    if let Ok(path) = env::var(APP_SERVER_REQUEST_LOG_ENV) {
+        let trimmed = path.trim();
+        if !trimmed.is_empty() {
+            return Some(PathBuf::from(trimmed));
+        }
+    }
+    env::var_os("HOME").map(|home| PathBuf::from(home).join(APP_SERVER_REQUEST_LOG_PATH))
+}
+
+fn summarize_request_params(params: &Value) -> Value {
+    let Some(params_object) = params.as_object() else {
+        return json!({
+            "shape": match params {
+                Value::Null => "null",
+                Value::Array(_) => "array",
+                Value::Bool(_) => "bool",
+                Value::Number(_) => "number",
+                Value::String(_) => "string",
+                Value::Object(_) => "object",
+            }
+        });
+    };
+    let input = params_object.get("input").and_then(Value::as_array);
+    let text_chars = input
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            item.get("text")
+                .or_else(|| item.get("content"))
+                .and_then(Value::as_str)
+        })
+        .map(str::len)
+        .sum::<usize>();
+    let image_count = input
+        .into_iter()
+        .flatten()
+        .filter(|item| {
+            item.get("type")
+                .and_then(Value::as_str)
+                .is_some_and(|kind| kind.contains("image"))
+                || item.get("image").is_some()
+                || item.get("imageUrl").is_some()
+                || item.get("image_url").is_some()
+        })
+        .count();
+    json!({
+        "shape": "object",
+        "keys": params_object.keys().cloned().collect::<Vec<_>>(),
+        "threadId": params_object
+            .get("threadId")
+            .or_else(|| params_object.get("thread_id"))
+            .and_then(Value::as_str),
+        "cwd": params_object.get("cwd").and_then(Value::as_str),
+        "model": params_object.get("model"),
+        "effort": params_object.get("effort"),
+        "serviceTier": params_object.get("serviceTier").or_else(|| params_object.get("service_tier")),
+        "approvalPolicy": params_object.get("approvalPolicy").or_else(|| params_object.get("approval_policy")),
+        "sandboxPolicyType": params_object
+            .get("sandboxPolicy")
+            .or_else(|| params_object.get("sandbox_policy"))
+            .and_then(|policy| policy.get("type"))
+            .and_then(Value::as_str),
+        "inputItems": input.map_or(0, |items| items.len()),
+        "inputTextChars": text_chars,
+        "inputImages": image_count,
+    })
+}
+
+fn summarize_response(value: &Value) -> Value {
+    let result_keys = value
+        .get("result")
+        .and_then(Value::as_object)
+        .map(|object| object.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    json!({
+        "hasResult": value.get("result").is_some(),
+        "hasError": value.get("error").is_some(),
+        "error": value.get("error"),
+        "resultKeys": result_keys,
+        "threadId": extract_thread_id(value),
+    })
+}
+
+fn append_app_server_request_log(entry: Value) {
+    let Some(path) = app_server_request_log_path() else {
+        return;
+    };
+    tokio::spawn(async move {
+        if let Some(parent) = path.parent() {
+            let _ = tokio::fs::create_dir_all(parent).await;
+        }
+        let mut line = match serde_json::to_string(&entry) {
+            Ok(line) => line,
+            Err(_) => return,
+        };
+        line.push('\n');
+        let file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .await;
+        if let Ok(mut file) = file {
+            let _ = file.write_all(line.as_bytes()).await;
+        }
+    });
+}
+
+pub(crate) fn log_app_server_request(entry: Value) {
+    let mut object = serde_json::Map::new();
+    object.insert("ts".to_string(), json!(chrono::Utc::now().to_rfc3339()));
+    if let Some(fields) = entry.as_object() {
+        object.extend(fields.clone());
+    }
+    append_app_server_request_log(Value::Object(object));
+}
 
 fn extract_thread_id(value: &Value) -> Option<String> {
     fn extract_from_container(container: Option<&Value>) -> Option<String> {
@@ -502,9 +626,11 @@ impl WorkspaceSession {
         method: &str,
         params: Value,
     ) -> Result<Value, String> {
+        let started = Instant::now();
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = oneshot::channel();
         self.register_workspace(workspace_id).await;
+        let pending_before = self.pending.lock().await.len();
         self.pending.lock().await.insert(id, tx);
         self.request_context.lock().await.insert(
             id,
@@ -519,20 +645,90 @@ impl WorkspaceSession {
                 .await
                 .insert(thread_id, workspace_id.to_string());
         }
+        let thread_id = extract_thread_id(&json!({ "params": params.clone() }));
+        log_app_server_request(json!({
+            "id": id,
+            "method": method,
+            "phase": "start",
+            "workspaceId": workspace_id,
+            "threadId": thread_id,
+            "pendingBefore": pending_before,
+            "pendingAfterInsert": self.pending.lock().await.len(),
+            "params": summarize_request_params(&params),
+        }));
+        let write_started = Instant::now();
         if let Err(error) = self
             .write_message(json!({ "id": id, "method": method, "params": params }))
             .await
         {
             self.pending.lock().await.remove(&id);
             self.request_context.lock().await.remove(&id);
+            log_app_server_request(json!({
+                "id": id,
+                "method": method,
+                "phase": "write_error",
+                "workspaceId": workspace_id,
+                "threadId": thread_id,
+                "durationMs": started.elapsed().as_millis(),
+                "writeDurationMs": write_started.elapsed().as_millis(),
+                "pendingAfterRemove": self.pending.lock().await.len(),
+                "error": error,
+            }));
             return Err(error);
         }
+        log_app_server_request(json!({
+            "id": id,
+            "method": method,
+            "phase": "written",
+            "workspaceId": workspace_id,
+            "threadId": thread_id,
+            "durationMs": started.elapsed().as_millis(),
+            "writeDurationMs": write_started.elapsed().as_millis(),
+            "pendingCount": self.pending.lock().await.len(),
+        }));
         match timeout(REQUEST_TIMEOUT, rx).await {
-            Ok(Ok(value)) => Ok(value),
-            Ok(Err(_)) => Err("request canceled".to_string()),
+            Ok(Ok(value)) => {
+                log_app_server_request(json!({
+                    "id": id,
+                    "method": method,
+                    "phase": "finish",
+                    "status": if value.get("error").is_some() { "error" } else { "ok" },
+                    "workspaceId": workspace_id,
+                    "threadId": thread_id,
+                    "durationMs": started.elapsed().as_millis(),
+                    "pendingCount": self.pending.lock().await.len(),
+                    "response": summarize_response(&value),
+                }));
+                Ok(value)
+            }
+            Ok(Err(_)) => {
+                log_app_server_request(json!({
+                    "id": id,
+                    "method": method,
+                    "phase": "finish",
+                    "status": "canceled",
+                    "workspaceId": workspace_id,
+                    "threadId": thread_id,
+                    "durationMs": started.elapsed().as_millis(),
+                    "pendingCount": self.pending.lock().await.len(),
+                    "error": "request canceled",
+                }));
+                Err("request canceled".to_string())
+            }
             Err(_) => {
                 self.pending.lock().await.remove(&id);
                 self.request_context.lock().await.remove(&id);
+                log_app_server_request(json!({
+                    "id": id,
+                    "method": method,
+                    "phase": "finish",
+                    "status": "timeout",
+                    "workspaceId": workspace_id,
+                    "threadId": thread_id,
+                    "durationMs": started.elapsed().as_millis(),
+                    "pendingAfterRemove": self.pending.lock().await.len(),
+                    "error": format!("request timed out after {} seconds", REQUEST_TIMEOUT.as_secs()),
+                }));
                 Err(format!(
                     "request timed out after {} seconds",
                     REQUEST_TIMEOUT.as_secs()
@@ -895,6 +1091,28 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                 .or_else(|| request_workspace.clone())
                 .unwrap_or_else(|| fallback_workspace_id.clone());
 
+            if let Some(id) = maybe_id {
+                if has_result_or_error {
+                    log_app_server_request(json!({
+                        "id": id,
+                        "method": request_method.as_deref(),
+                        "phase": "stdout_response",
+                        "workspaceId": routed_workspace_id,
+                        "threadId": thread_id,
+                        "response": summarize_response(&value),
+                        "pendingCount": session_clone.pending.lock().await.len(),
+                    }));
+                }
+            } else if let Some(method_name) = method_name {
+                log_app_server_request(json!({
+                    "method": method_name,
+                    "phase": "stdout_event",
+                    "workspaceId": routed_workspace_id,
+                    "threadId": thread_id,
+                    "pendingCount": session_clone.pending.lock().await.len(),
+                }));
+            }
+
             if let Some(ref tid) = thread_id {
                 if method_name == Some("codex/backgroundThread") {
                     let action = value
@@ -1047,6 +1265,12 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
         }
 
         // Ensure pending foreground requests cannot accumulate after process output ends.
+        log_app_server_request(json!({
+            "phase": "stdout_eof",
+            "workspaceId": fallback_workspace_id,
+            "pendingCount": session_clone.pending.lock().await.len(),
+            "requestContextCount": session_clone.request_context.lock().await.len(),
+        }));
         session_clone.pending.lock().await.clear();
         session_clone.request_context.lock().await.clear();
     });
@@ -1066,6 +1290,11 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                     "params": { "message": line },
                 }),
             };
+            log_app_server_request(json!({
+                "phase": "stderr",
+                "workspaceId": workspace_id,
+                "messageLength": line.len(),
+            }));
             event_sink_clone.emit_app_server_event(payload);
         }
     });

@@ -8,7 +8,10 @@ pub(crate) mod args;
 pub(crate) mod config;
 pub(crate) mod home;
 
-use crate::backend::app_server::spawn_workspace_session as spawn_workspace_session_inner;
+use crate::backend::app_server::{
+    log_app_server_request,
+    spawn_workspace_session as spawn_workspace_session_inner,
+};
 pub(crate) use crate::backend::app_server::WorkspaceSession;
 use crate::backend::events::AppServerEvent;
 use crate::event_sink::TauriEventSink;
@@ -396,6 +399,21 @@ pub(crate) async fn send_user_message(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Value, String> {
+    log_app_server_request(json!({
+        "phase": "tauri_command",
+        "command": "send_user_message",
+        "workspaceId": workspace_id.clone(),
+        "threadId": thread_id.clone(),
+        "textChars": text.len(),
+        "imageCount": images.as_ref().map_or(0, Vec::len),
+        "appMentionCount": app_mentions.as_ref().map_or(0, Vec::len),
+        "model": model.clone(),
+        "effort": effort.clone(),
+        "serviceTier": service_tier.clone(),
+        "accessMode": access_mode.clone(),
+        "modelSelectionMode": model_selection_mode.clone(),
+        "autoModelRoutingBypass": auto_model_routing_bypass,
+    }));
     if remote_backend::is_remote_mode(&*state).await {
         let images = images.map(|paths| {
             paths
