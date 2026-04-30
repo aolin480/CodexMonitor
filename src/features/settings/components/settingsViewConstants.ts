@@ -25,7 +25,6 @@ type ComposerPresetSettings = Pick<
   | "composerFenceAutoWrapPasteMultiline"
   | "composerFenceAutoWrapPasteCodeLike"
   | "composerListContinuation"
-  | "composerCodeBlockCopyUseModifier"
 >;
 
 export const COMPOSER_PRESET_LABELS: Record<ComposerPreset, string> = {
@@ -46,7 +45,6 @@ export const COMPOSER_PRESET_CONFIGS: Record<
     composerFenceAutoWrapPasteMultiline: false,
     composerFenceAutoWrapPasteCodeLike: false,
     composerListContinuation: false,
-    composerCodeBlockCopyUseModifier: false,
   },
   helpful: {
     composerFenceExpandOnSpace: true,
@@ -56,7 +54,6 @@ export const COMPOSER_PRESET_CONFIGS: Record<
     composerFenceAutoWrapPasteMultiline: true,
     composerFenceAutoWrapPasteCodeLike: false,
     composerListContinuation: true,
-    composerCodeBlockCopyUseModifier: false,
   },
   smart: {
     composerFenceExpandOnSpace: true,
@@ -66,7 +63,6 @@ export const COMPOSER_PRESET_CONFIGS: Record<
     composerFenceAutoWrapPasteMultiline: true,
     composerFenceAutoWrapPasteCodeLike: true,
     composerListContinuation: true,
-    composerCodeBlockCopyUseModifier: false,
   },
 };
 

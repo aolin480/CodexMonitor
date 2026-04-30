@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -19,7 +19,6 @@ type MarkdownProps = {
   className?: string;
   codeBlock?: boolean;
   codeBlockStyle?: "default" | "message";
-  codeBlockCopyUseModifier?: boolean;
   showFilePath?: boolean;
   workspacePath?: string | null;
   onOpenFileLink?: (path: ParsedFileLocation) => void;
@@ -30,7 +29,6 @@ type MarkdownProps = {
 type CodeBlockProps = {
   className?: string;
   value: string;
-  copyUseModifier: boolean;
 };
 
 type PreProps = {
@@ -43,7 +41,6 @@ type PreProps = {
     }>;
   };
   children?: ReactNode;
-  copyUseModifier: boolean;
 };
 
 type LinkBlockProps = {
@@ -349,8 +346,10 @@ function FileReferenceLink({
   );
 }
 
-function CodeBlock({ className, value, copyUseModifier }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false);
+type CodeBlockCopyMode = "code" | "markdown";
+
+function CodeBlock({ className, value }: CodeBlockProps) {
+  const [copiedMode, setCopiedMode] = useState<CodeBlockCopyMode | null>(null);
   const copyTimeoutRef = useRef<number | null>(null);
   const languageTag = extractLanguageTag(className);
   const languageLabel = languageTag ?? "Code";
@@ -364,17 +363,15 @@ function CodeBlock({ className, value, copyUseModifier }: CodeBlockProps) {
     };
   }, []);
 
-  const handleCopy = async (event: MouseEvent<HTMLButtonElement>) => {
+  const handleCopy = async (copyValue: string, mode: CodeBlockCopyMode) => {
     try {
-      const shouldFence = copyUseModifier ? event.altKey : true;
-      const nextValue = shouldFence ? fencedValue : value;
-      await navigator.clipboard.writeText(nextValue);
-      setCopied(true);
+      await navigator.clipboard.writeText(copyValue);
+      setCopiedMode(mode);
       if (copyTimeoutRef.current) {
         window.clearTimeout(copyTimeoutRef.current);
       }
       copyTimeoutRef.current = window.setTimeout(() => {
-        setCopied(false);
+        setCopiedMode(null);
       }, 1200);
     } catch {
       // No-op: clipboard errors can occur in restricted contexts.
@@ -385,15 +382,26 @@ function CodeBlock({ className, value, copyUseModifier }: CodeBlockProps) {
     <div className="markdown-codeblock">
       <div className="markdown-codeblock-header">
         <span className="markdown-codeblock-language">{languageLabel}</span>
-        <button
-          type="button"
-          className={`ghost markdown-codeblock-copy${copied ? " is-copied" : ""}`}
-          onClick={handleCopy}
-          aria-label="Copy code block"
-          title={copied ? "Copied" : "Copy"}
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
+        <div className="markdown-codeblock-actions">
+          <button
+            type="button"
+            className={`ghost markdown-codeblock-copy${copiedMode === "code" ? " is-copied" : ""}`}
+            onClick={() => void handleCopy(value, "code")}
+            aria-label="Copy code block"
+            title={copiedMode === "code" ? "Copied" : "Copy code"}
+          >
+            {copiedMode === "code" ? "Copied" : "Copy"}
+          </button>
+          <button
+            type="button"
+            className={`ghost markdown-codeblock-copy${copiedMode === "markdown" ? " is-copied" : ""}`}
+            onClick={() => void handleCopy(fencedValue, "markdown")}
+            aria-label="Copy code block as Markdown"
+            title={copiedMode === "markdown" ? "Copied" : "Copy Markdown"}
+          >
+            {copiedMode === "markdown" ? "Copied" : "Copy Markdown"}
+          </button>
+        </div>
       </div>
       <pre>
         <code className={className}>{value}</code>
@@ -402,7 +410,7 @@ function CodeBlock({ className, value, copyUseModifier }: CodeBlockProps) {
   );
 }
 
-function PreBlock({ node, children, copyUseModifier }: PreProps) {
+function PreBlock({ node, children }: PreProps) {
   const { className, value } = extractCodeFromPre(node);
   if (!className && !value && children) {
     return <pre>{children}</pre>;
@@ -419,13 +427,7 @@ function PreBlock({ node, children, copyUseModifier }: PreProps) {
       </pre>
     );
   }
-  return (
-    <CodeBlock
-      className={className}
-      value={value}
-      copyUseModifier={copyUseModifier}
-    />
-  );
+  return <CodeBlock className={className} value={value} />;
 }
 
 export function Markdown({
@@ -433,7 +435,6 @@ export function Markdown({
   className,
   codeBlock,
   codeBlockStyle = "default",
-  codeBlockCopyUseModifier = false,
   showFilePath = true,
   workspacePath = null,
   onOpenFileLink,
@@ -602,7 +603,7 @@ export function Markdown({
 
   if (codeBlockStyle === "message") {
     components.pre = ({ node, children }) => (
-      <PreBlock node={node as PreProps["node"]} copyUseModifier={codeBlockCopyUseModifier}>
+      <PreBlock node={node as PreProps["node"]}>
         {children}
       </PreBlock>
     );

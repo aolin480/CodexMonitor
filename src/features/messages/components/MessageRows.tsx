@@ -64,7 +64,6 @@ type MessageRowProps = MarkdownFileLinkProps & {
   isCopied: boolean;
   onCopy: (item: Extract<ConversationItem, { kind: "message" }>) => void;
   onQuote?: (item: Extract<ConversationItem, { kind: "message" }>, selectedText?: string) => void;
-  codeBlockCopyUseModifier?: boolean;
 };
 
 type ReasoningRowProps = MarkdownFileLinkProps & {
@@ -375,7 +374,6 @@ export const MessageRow = memo(function MessageRow({
   isCopied,
   onCopy,
   onQuote,
-  codeBlockCopyUseModifier,
   showMessageFilePath,
   workspacePath,
   onOpenFileLink,
@@ -462,7 +460,6 @@ export const MessageRow = memo(function MessageRow({
             value={item.text}
             className="markdown"
             codeBlockStyle="message"
-            codeBlockCopyUseModifier={codeBlockCopyUseModifier}
             showFilePath={showMessageFilePath}
             workspacePath={workspacePath}
             onOpenFileLink={onOpenFileLink}

@@ -36,7 +36,6 @@ type MessagesProps = {
   workspacePath?: string | null;
   openTargets: OpenAppTarget[];
   selectedOpenAppId: string;
-  codeBlockCopyUseModifier?: boolean;
   showMessageFilePath?: boolean;
   userInputRequests?: RequestUserInputRequest[];
   onUserInputSubmit?: (
@@ -62,7 +61,6 @@ export const Messages = memo(function Messages({
   workspacePath = null,
   openTargets,
   selectedOpenAppId,
-  codeBlockCopyUseModifier = false,
   showMessageFilePath = true,
   userInputRequests = [],
   onUserInputSubmit,
@@ -154,7 +152,6 @@ export const Messages = memo(function Messages({
           isCopied={isCopied}
           onCopy={handleCopyMessage}
           onQuote={onQuoteMessage ? handleQuoteMessage : undefined}
-          codeBlockCopyUseModifier={codeBlockCopyUseModifier}
           showMessageFilePath={showMessageFilePath}
           workspacePath={workspacePath}
           onOpenFileLink={openFileLink}

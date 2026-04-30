@@ -224,7 +224,6 @@ export function useSettingsViewOrchestration({
     displaySectionProps,
     composerSectionProps: {
       appSettings,
-      optionKeyLabel,
       followUpShortcutLabel,
       composerPresetLabels: COMPOSER_PRESET_LABELS,
       onComposerPresetChange: (

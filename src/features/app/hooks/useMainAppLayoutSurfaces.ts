@@ -20,7 +20,6 @@ type UseMainAppLayoutSurfacesArgs = {
   appSettings: Pick<
     AppSettings,
     | "usageShowRemaining"
-    | "composerCodeBlockCopyUseModifier"
     | "showMessageFilePath"
     | "openAppTargets"
     | "selectedOpenAppId"
@@ -448,7 +447,6 @@ function buildPrimarySurface({
       workspacePath: activeWorkspace?.path ?? null,
       openTargets: appSettings.openAppTargets,
       selectedOpenAppId: appSettings.selectedOpenAppId,
-      codeBlockCopyUseModifier: appSettings.composerCodeBlockCopyUseModifier,
       showMessageFilePath: appSettings.showMessageFilePath,
       userInputRequests,
       onUserInputSubmit,

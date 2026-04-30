@@ -1288,6 +1288,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 4px 8px;
   background: var(--surface-control);
@@ -1300,6 +1301,13 @@
 
 .message .markdown-codeblock-language {
   font-weight: 600;
+}
+
+.message .markdown-codeblock-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .message .markdown-codeblock-copy {

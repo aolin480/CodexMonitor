@@ -9,7 +9,6 @@ type ComposerPreset = AppSettings["composerEditorPreset"];
 
 type SettingsComposerSectionProps = {
   appSettings: AppSettings;
-  optionKeyLabel: string;
   followUpShortcutLabel: string;
   composerPresetLabels: Record<ComposerPreset, string>;
   onComposerPresetChange: (preset: ComposerPreset) => void;
@@ -18,7 +17,6 @@ type SettingsComposerSectionProps = {
 
 export function SettingsComposerSection({
   appSettings,
-  optionKeyLabel,
   followUpShortcutLabel,
   composerPresetLabels,
   onComposerPresetChange,
@@ -184,25 +182,6 @@ export function SettingsComposerSection({
             void onUpdateAppSettings({
               ...appSettings,
               composerFenceWrapSelection: !appSettings.composerFenceWrapSelection,
-            })
-          }
-        />
-      </SettingsToggleRow>
-      <SettingsToggleRow
-        title="Copy blocks without fences"
-        subtitle={
-          <>
-            When enabled, Copy is plain text. Hold {optionKeyLabel} to include ``` fences.
-          </>
-        }
-      >
-        <SettingsToggleSwitch
-          pressed={appSettings.composerCodeBlockCopyUseModifier}
-          onClick={() =>
-            void onUpdateAppSettings({
-              ...appSettings,
-              composerCodeBlockCopyUseModifier:
-                !appSettings.composerCodeBlockCopyUseModifier,
             })
           }
         />

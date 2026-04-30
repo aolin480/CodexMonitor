@@ -1,10 +1,20 @@
 // @vitest-environment jsdom
-import { cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectOpenedFileTarget } from "../test/fileLinkAssertions";
 import { Markdown } from "./Markdown";
 
+const clipboardWriteTextMock = vi.fn();
+
 describe("Markdown file-like href behavior", () => {
+  beforeEach(() => {
+    clipboardWriteTextMock.mockReset();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteTextMock },
+    });
+  });
+
   afterEach(() => {
     cleanup();
   });
@@ -555,6 +565,42 @@ describe("Markdown file-like href behavior", () => {
     expect(container.querySelector(".markdown-table")).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Name" })).toBeTruthy();
     expect(screen.getByText("Ready")).toBeTruthy();
+  });
+
+  it("copies code block text without markdown fences from the primary copy button", async () => {
+    render(
+      <Markdown
+        value={["```bash", "npm run typecheck", "npm run test", "```"].join("\n")}
+        className="markdown"
+        codeBlockStyle="message"
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Copy code block" }));
+    });
+
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith(
+      ["npm run typecheck", "npm run test"].join("\n"),
+    );
+  });
+
+  it("copies fenced markdown from the Copy Markdown button", async () => {
+    render(
+      <Markdown
+        value={["```bash", "npm run typecheck", "npm run test", "```"].join("\n")}
+        className="markdown"
+        codeBlockStyle="message"
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Copy code block as Markdown" }));
+    });
+
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith(
+      ["```bash", "npm run typecheck", "npm run test", "```"].join("\n"),
+    );
   });
 
 });
