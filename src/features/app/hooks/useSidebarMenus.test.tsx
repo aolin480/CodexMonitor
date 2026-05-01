@@ -49,6 +49,7 @@ beforeEach(() => {
 describe("useSidebarMenus", () => {
   it("adds a color option for workspaces", async () => {
     const onColorWorkspace = vi.fn();
+    const onToggleWorkspaceHidden = vi.fn();
 
     const { result } = renderHook(() =>
       useSidebarMenus({
@@ -62,8 +63,20 @@ describe("useSidebarMenus", () => {
         onDeleteWorkspace: vi.fn(),
         onDeleteWorktree: vi.fn(),
         onColorWorkspace,
+        onToggleWorkspaceHidden,
       }),
     );
+
+    const workspace: WorkspaceInfo = {
+      id: "workspace-1",
+      name: "Workspace One",
+      path: "/tmp/workspace-1",
+      connected: true,
+      settings: {
+        sidebarCollapsed: false,
+        hidden: false,
+      },
+    };
 
     const event = {
       preventDefault: vi.fn(),
@@ -72,16 +85,66 @@ describe("useSidebarMenus", () => {
       clientY: 34,
     } as unknown as ReactMouseEvent;
 
-    await result.current.showWorkspaceMenu(event, "workspace-1");
+    await result.current.showWorkspaceMenu(event, workspace);
 
     const menuArgs = menuNew.mock.calls[0]?.[0];
     const colorItem = menuArgs.items.find(
       (item: { text: string }) => item.text === "Color",
     );
+    const hiddenItem = menuArgs.items.find(
+      (item: { text: string }) => item.text === "Hide workspace",
+    );
 
     expect(colorItem).toBeDefined();
+    expect(hiddenItem).toBeDefined();
     await colorItem.action();
     expect(onColorWorkspace).toHaveBeenCalledWith("workspace-1");
+    await hiddenItem.action();
+    expect(onToggleWorkspaceHidden).toHaveBeenCalledWith("workspace-1", true);
+  });
+
+  it("omits reload threads for hidden workspaces", async () => {
+    const { result } = renderHook(() =>
+      useSidebarMenus({
+        onDeleteThread: vi.fn(),
+        onSyncThread: vi.fn(),
+        onPinThread: vi.fn(),
+        onUnpinThread: vi.fn(),
+        isThreadPinned: vi.fn(() => false),
+        onRenameThread: vi.fn(),
+        onReloadWorkspaceThreads: vi.fn(),
+        onDeleteWorkspace: vi.fn(),
+        onDeleteWorktree: vi.fn(),
+        onColorWorkspace: vi.fn(),
+        onToggleWorkspaceHidden: vi.fn(),
+      }),
+    );
+
+    const workspace: WorkspaceInfo = {
+      id: "workspace-1",
+      name: "Workspace One",
+      path: "/tmp/workspace-1",
+      connected: true,
+      settings: {
+        sidebarCollapsed: false,
+        hidden: true,
+      },
+    };
+
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clientX: 12,
+      clientY: 34,
+    } as unknown as ReactMouseEvent;
+
+    await result.current.showWorkspaceMenu(event, workspace);
+
+    const menuArgs = menuNew.mock.calls[0]?.[0];
+    const texts = menuArgs.items.map((item: { text: string }) => item.text);
+
+    expect(texts).not.toContain("Reload threads");
+    expect(texts).toContain("Show workspace");
   });
 
   it("adds a show in file manager option for worktrees", async () => {
@@ -95,6 +158,7 @@ describe("useSidebarMenus", () => {
     const onDeleteWorkspace = vi.fn();
     const onDeleteWorktree = vi.fn();
     const onColorWorkspace = vi.fn();
+    const onToggleWorkspaceHidden = vi.fn();
 
     const { result } = renderHook(() =>
       useSidebarMenus({
@@ -108,6 +172,7 @@ describe("useSidebarMenus", () => {
         onDeleteWorkspace,
         onDeleteWorktree,
         onColorWorkspace,
+        onToggleWorkspaceHidden,
       }),
     );
 

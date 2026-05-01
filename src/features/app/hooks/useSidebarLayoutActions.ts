@@ -20,7 +20,7 @@ type UseSidebarLayoutActionsOptions = {
   updateWorkspaceSettings: (
     workspaceId: string,
     patch: Partial<WorkspaceSettings>,
-  ) => void | Promise<unknown>;
+  ) => Promise<WorkspaceInfo>;
   openWorkspaceColorPrompt: (workspace: WorkspaceInfo) => void;
   removeThread: (workspaceId: string, threadId: string) => void;
   clearDraftForThread: (threadId: string) => void;
@@ -173,6 +173,24 @@ export function useSidebarLayoutActions({
     [openWorkspaceColorPrompt, workspacesById],
   );
 
+  const onToggleWorkspaceHidden = useCallback(
+    async (workspaceId: string, hidden: boolean) => {
+      const target = workspacesById.get(workspaceId);
+      if (!target) {
+        return;
+      }
+      try {
+        const updated = await updateWorkspaceSettings(workspaceId, { hidden });
+        if (!hidden) {
+          await listThreadsForWorkspace(updated);
+        }
+      } catch {
+        // Update failures are already logged by the workspace layer.
+      }
+    },
+    [listThreadsForWorkspace, updateWorkspaceSettings, workspacesById],
+  );
+
   const onLoadOlderThreads = useCallback(
     (workspaceId: string) => {
       const workspace = workspacesById.get(workspaceId);
@@ -208,6 +226,7 @@ export function useSidebarLayoutActions({
     onDeleteWorkspace,
     onDeleteWorktree,
     onColorWorkspace,
+    onToggleWorkspaceHidden,
     onLoadOlderThreads,
     onReloadWorkspaceThreads,
   };

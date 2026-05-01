@@ -76,7 +76,7 @@ type SidebarWorkspaceGroupsProps = {
     threadId: string,
     canPin: boolean,
   ) => void;
-  onShowWorkspaceMenu: (event: MouseEvent, workspaceId: string) => void;
+  onShowWorkspaceMenu: (event: MouseEvent, workspace: WorkspaceInfo) => void;
   onShowWorktreeMenu: (event: MouseEvent, worktree: WorkspaceInfo) => void;
   onShowCloneMenu: (event: MouseEvent, worktree: WorkspaceInfo) => void;
   onToggleExpanded: (workspaceId: string) => void;

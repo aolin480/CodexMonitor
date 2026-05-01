@@ -12,7 +12,7 @@ type WorkspaceCardProps = {
   addMenuOpen: boolean;
   addMenuWidth: number;
   onSelectWorkspace: (id: string) => void;
-  onShowWorkspaceMenu: (event: MouseEvent, workspaceId: string) => void;
+  onShowWorkspaceMenu: (event: MouseEvent, workspace: WorkspaceInfo) => void;
   onToggleWorkspaceCollapse: (workspaceId: string, collapsed: boolean) => void;
   onConnectWorkspace: (workspace: WorkspaceInfo) => void;
   onToggleAddMenu: (anchor: {
@@ -52,7 +52,7 @@ export function WorkspaceCard({
         role="button"
         tabIndex={0}
         onClick={() => onSelectWorkspace(workspace.id)}
-        onContextMenu={(event) => onShowWorkspaceMenu(event, workspace.id)}
+        onContextMenu={(event) => onShowWorkspaceMenu(event, workspace)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();

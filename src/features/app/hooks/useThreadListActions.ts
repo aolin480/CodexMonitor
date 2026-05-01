@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { ThreadListSortKey, WorkspaceInfo } from "../../../types";
+import { filterVisibleConnectedWorkspaces } from "@/features/workspaces/utils/workspaceVisibility";
 
 type ListThreadsOptions = {
   sortKey?: ThreadListSortKey;
@@ -31,7 +32,7 @@ export function useThreadListActions({
         return;
       }
       setThreadListSortKey(nextSortKey);
-      const connectedWorkspaces = workspaces.filter((workspace) => workspace.connected);
+      const connectedWorkspaces = filterVisibleConnectedWorkspaces(workspaces);
       if (connectedWorkspaces.length > 0) {
         void listThreadsForWorkspaces(connectedWorkspaces, { sortKey: nextSortKey });
       }
@@ -42,7 +43,7 @@ export function useThreadListActions({
   const handleRefreshAllWorkspaceThreads = useCallback(async () => {
     const refreshed = await refreshWorkspaces();
     const source = refreshed ?? workspaces;
-    const connectedWorkspaces = source.filter((workspace) => workspace.connected);
+    const connectedWorkspaces = filterVisibleConnectedWorkspaces(source);
     connectedWorkspaces.forEach((workspace) => {
       resetWorkspaceThreads(workspace.id);
     });

@@ -9,6 +9,7 @@ afterEach(() => {
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
   }
+  window.localStorage.clear();
   cleanup();
 });
 
@@ -59,6 +60,7 @@ const baseProps = {
   onDeleteWorkspace: vi.fn(),
   onDeleteWorktree: vi.fn(),
   onColorWorkspace: vi.fn(),
+  onToggleWorkspaceHidden: vi.fn(),
   onLoadOlderThreads: vi.fn(),
   onReloadWorkspaceThreads: vi.fn(),
   workspaceDropTargetRef: createRef<HTMLElement>(),
@@ -296,6 +298,59 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Beta Project")).toBeNull();
       expect(screen.queryByText("Unrelated thread")).toBeNull();
     });
+  });
+
+  it("renders hidden workspaces in a dedicated collapsed section", () => {
+    render(
+      <Sidebar
+        {...baseProps}
+        workspaces={[
+          {
+            id: "ws-visible",
+            name: "Visible Project",
+            path: "/tmp/visible",
+            connected: true,
+            settings: { sidebarCollapsed: false, hidden: false },
+          },
+          {
+            id: "ws-hidden",
+            name: "Hidden Project",
+            path: "/tmp/hidden",
+            connected: true,
+            settings: { sidebarCollapsed: false, hidden: true },
+          },
+        ]}
+        groupedWorkspaces={[
+          {
+            id: null,
+            name: "Workspaces",
+            workspaces: [
+              {
+                id: "ws-visible",
+                name: "Visible Project",
+                path: "/tmp/visible",
+                connected: true,
+                settings: { sidebarCollapsed: false, hidden: false },
+              },
+              {
+                id: "ws-hidden",
+                name: "Hidden Project",
+                path: "/tmp/hidden",
+                connected: true,
+                settings: { sidebarCollapsed: false, hidden: true },
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Visible Project")).toBeTruthy();
+    const hiddenSection = screen.getByText("Hidden").closest(".workspace-group");
+    expect(hiddenSection).toBeTruthy();
+    expect(
+      hiddenSection?.querySelector(".workspace-group-list")?.classList.contains("collapsed"),
+    ).toBe(true);
   });
 
   it("searches across loaded root threads before collapsed truncation", async () => {

@@ -1,13 +1,17 @@
 import { useCallback, useState } from "react";
 
-export function useCollapsedGroups(storageKey: string) {
+export function useCollapsedGroups(
+  storageKey: string,
+  defaultCollapsedGroupIds: string[] = [],
+) {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    const defaultSet = new Set(defaultCollapsedGroupIds);
     if (typeof window === "undefined") {
-      return new Set();
+      return defaultSet;
     }
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) {
-      return new Set();
+      return defaultSet;
     }
     try {
       const parsed = JSON.parse(raw);
@@ -17,7 +21,7 @@ export function useCollapsedGroups(storageKey: string) {
     } catch {
       // Ignore invalid stored data.
     }
-    return new Set();
+    return defaultSet;
   });
 
   const persistCollapsedGroups = useCallback(

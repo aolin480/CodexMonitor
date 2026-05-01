@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { WorkspaceInfo } from "../../../types";
+import { isWorkspaceVisible } from "../utils/workspaceVisibility";
 
 const INITIAL_THREAD_LIST_MAX_PAGES = 6;
 
@@ -47,8 +48,9 @@ export function useWorkspaceRestore({
           // Silent: connection errors show in debug panel.
         }
       }
-      if (connectedTargets.length > 0) {
-        await listThreadsForWorkspaces(connectedTargets, {
+      const visibleConnectedTargets = connectedTargets.filter(isWorkspaceVisible);
+      if (visibleConnectedTargets.length > 0) {
+        await listThreadsForWorkspaces(visibleConnectedTargets, {
           maxPages: INITIAL_THREAD_LIST_MAX_PAGES,
         });
       }

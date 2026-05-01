@@ -12,6 +12,7 @@ export type WorkspaceThreadColor =
 
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;
+  hidden?: boolean;
   sortOrder?: number | null;
   groupId?: string | null;
   cloneSourceWorkspaceId?: string | null;

@@ -28,6 +28,13 @@ describe("useWorkspaceRefreshOnFocus", () => {
         connected: true,
         settings: { sidebarCollapsed: false },
       },
+      {
+        id: "ws-hidden",
+        name: "Hidden Workspace",
+        path: "/tmp/ws-hidden",
+        connected: true,
+        settings: { sidebarCollapsed: false, hidden: true },
+      },
     ]);
     const listThreadsForWorkspaces = vi.fn().mockResolvedValue(undefined);
 

@@ -5,20 +5,25 @@ import { describe, expect, it, vi } from "vitest";
 import type { WorkspaceInfo } from "../../../types";
 import { useThreadListActions } from "./useThreadListActions";
 
-function workspace(id: string, connected: boolean): WorkspaceInfo {
+function workspace(id: string, connected: boolean, hidden = false): WorkspaceInfo {
   return {
     id,
     name: id,
     path: `/tmp/${id}`,
     connected,
-    settings: { sidebarCollapsed: false },
+    settings: { sidebarCollapsed: false, hidden },
   };
 }
 
 describe("useThreadListActions", () => {
   it("refreshes workspaces before reloading connected workspace threads", async () => {
     const stale = [workspace("stale", true)];
-    const fresh = [workspace("one", true), workspace("two", false), workspace("three", true)];
+    const fresh = [
+      workspace("one", true),
+      workspace("two", false),
+      workspace("three", true, true),
+      workspace("four", true),
+    ];
     const refreshWorkspaces = vi.fn(async () => fresh);
     const listThreadsForWorkspaces = vi.fn(async () => {});
     const resetWorkspaceThreads = vi.fn();
@@ -41,13 +46,13 @@ describe("useThreadListActions", () => {
     expect(refreshWorkspaces).toHaveBeenCalledTimes(1);
     expect(resetWorkspaceThreads).toHaveBeenCalledTimes(2);
     expect(resetWorkspaceThreads).toHaveBeenNthCalledWith(1, "one");
-    expect(resetWorkspaceThreads).toHaveBeenNthCalledWith(2, "three");
+    expect(resetWorkspaceThreads).toHaveBeenNthCalledWith(2, "four");
     expect(listThreadsForWorkspaces).toHaveBeenCalledTimes(1);
-    expect(listThreadsForWorkspaces).toHaveBeenCalledWith([fresh[0], fresh[2]]);
+    expect(listThreadsForWorkspaces).toHaveBeenCalledWith([fresh[0], fresh[3]]);
   });
 
   it("falls back to current workspaces when refresh fails", async () => {
-    const current = [workspace("one", true), workspace("two", false)];
+    const current = [workspace("one", true), workspace("two", false, true)];
     const refreshWorkspaces = vi.fn(async () => undefined);
     const listThreadsForWorkspaces = vi.fn(async () => {});
     const resetWorkspaceThreads = vi.fn();

@@ -42,6 +42,7 @@ import type { ThreadStatusById } from "../../../utils/threadStatus";
 
 const COLLAPSED_GROUPS_STORAGE_KEY = "codexmonitor.collapsedGroups";
 const UNGROUPED_COLLAPSE_ID = "__ungrouped__";
+const HIDDEN_GROUP_COLLAPSE_ID = "__hidden__";
 const ADD_MENU_WIDTH = 200;
 const ALL_THREADS_ADD_MENU_WIDTH = 220;
 
@@ -147,6 +148,7 @@ type SidebarProps = {
   onDeleteWorkspace: (workspaceId: string) => void;
   onDeleteWorktree: (workspaceId: string) => void;
   onColorWorkspace: (workspaceId: string) => void;
+  onToggleWorkspaceHidden: (workspaceId: string, hidden: boolean) => void;
   onLoadOlderThreads: (workspaceId: string) => void;
   onReloadWorkspaceThreads: (workspaceId: string) => void;
   workspaceDropTargetRef: RefObject<HTMLElement | null>;
@@ -209,6 +211,7 @@ export const Sidebar = memo(function Sidebar({
   onDeleteWorkspace,
   onDeleteWorktree,
   onColorWorkspace,
+  onToggleWorkspaceHidden,
   onLoadOlderThreads,
   onReloadWorkspaceThreads,
   workspaceDropTargetRef,
@@ -241,6 +244,7 @@ export const Sidebar = memo(function Sidebar({
   const { containerRef: allThreadsAddMenuRef } = allThreadsAddMenuController;
   const { collapsedGroups, toggleGroupCollapse } = useCollapsedGroups(
     COLLAPSED_GROUPS_STORAGE_KEY,
+    [HIDDEN_GROUP_COLLAPSE_ID],
   );
   const { getThreadRows } = useThreadRows(threadParentById);
   const { showThreadMenu, showWorkspaceMenu, showWorktreeMenu, showCloneMenu } =
@@ -255,6 +259,7 @@ export const Sidebar = memo(function Sidebar({
       onDeleteWorkspace,
       onDeleteWorktree,
       onColorWorkspace,
+      onToggleWorkspaceHidden,
     });
   const {
     sessionPercent,
@@ -302,6 +307,49 @@ export const Sidebar = memo(function Sidebar({
     });
     return result;
   }, [isSearchActive, normalizedQuery, threadsByWorkspace, workspaces]);
+
+  const visibleGroupedWorkspaces = useMemo(
+    () =>
+      groupedWorkspaces
+        .map((group) => ({
+          ...group,
+          workspaces: group.workspaces.filter((workspace) => !workspace.settings.hidden),
+        }))
+        .filter((group) => group.workspaces.length > 0),
+    [groupedWorkspaces],
+  );
+
+  const hiddenWorkspaces = useMemo(
+    () =>
+      groupedWorkspaces.flatMap((group) =>
+        group.workspaces.filter((workspace) => workspace.settings.hidden),
+      ),
+    [groupedWorkspaces],
+  );
+
+  const hiddenRootWorkspaceIds = useMemo(
+    () => new Set(hiddenWorkspaces.map((workspace) => workspace.id)),
+    [hiddenWorkspaces],
+  );
+
+  const mainVisibleWorkspaceIds = useMemo(() => {
+    const result = new Set<string>();
+    workspaces.forEach((workspace) => {
+      const cloneSourceId = workspace.settings.cloneSourceWorkspaceId?.trim();
+      const hiddenByParent = workspace.parentId
+        ? hiddenRootWorkspaceIds.has(workspace.parentId)
+        : false;
+      const hiddenByCloneSource = cloneSourceId
+        ? hiddenRootWorkspaceIds.has(cloneSourceId)
+        : false;
+      if (workspace.settings.hidden || hiddenByParent || hiddenByCloneSource) {
+        return;
+      }
+      result.add(workspace.id);
+    });
+    return result;
+  }, [hiddenRootWorkspaceIds, workspaces]);
+
   const workspaceVisibleDuringSearchById = useMemo(() => {
     if (!isSearchActive) {
       return new Map<string, boolean>();
@@ -382,6 +430,9 @@ export const Sidebar = memo(function Sidebar({
     }> = [];
 
     workspaces.forEach((workspace) => {
+      if (!mainVisibleWorkspaceIds.has(workspace.id)) {
+        return;
+      }
       if (
         isSearchActive &&
         !isWorkspaceMatch(workspace) &&
@@ -433,15 +484,16 @@ export const Sidebar = memo(function Sidebar({
         })),
       );
   }, [
-    workspaces,
-    threadsByWorkspace,
-    getThreadRows,
     getPinTimestamp,
-    pinnedThreadsVersion,
+    getThreadRows,
     isSearchActive,
     isWorkspaceMatch,
+    mainVisibleWorkspaceIds,
     normalizedQuery,
+    pinnedThreadsVersion,
+    threadsByWorkspace,
     workspaceHasMatchingThreadById,
+    workspaces,
   ]);
 
   const { cloneSourceIdsMatchingQuery, worktreeParentIdsMatchingQuery } = useMemo(() => {
@@ -476,9 +528,27 @@ export const Sidebar = memo(function Sidebar({
     };
   }, [isSearchActive, workspaceVisibleDuringSearchById, workspaces]);
 
+  const hiddenWorkspacesForRender = useMemo(
+    () =>
+      hiddenWorkspaces.filter(
+        (workspace) =>
+          !isSearchActive ||
+          workspaceVisibleDuringSearchById.get(workspace.id) ||
+          cloneSourceIdsMatchingQuery.has(workspace.id) ||
+          worktreeParentIdsMatchingQuery.has(workspace.id),
+      ),
+    [
+      cloneSourceIdsMatchingQuery,
+      hiddenWorkspaces,
+      isSearchActive,
+      worktreeParentIdsMatchingQuery,
+      workspaceVisibleDuringSearchById,
+    ],
+  );
+
   const filteredGroupedWorkspaces = useMemo(
     () =>
-      groupedWorkspaces
+      visibleGroupedWorkspaces
         .map((group) => ({
           ...group,
           workspaces: group.workspaces.filter(
@@ -492,7 +562,7 @@ export const Sidebar = memo(function Sidebar({
         .filter((group) => group.workspaces.length > 0),
     [
       cloneSourceIdsMatchingQuery,
-      groupedWorkspaces,
+      visibleGroupedWorkspaces,
       isSearchActive,
       worktreeParentIdsMatchingQuery,
       workspaceVisibleDuringSearchById,
@@ -1015,7 +1085,65 @@ export const Sidebar = memo(function Sidebar({
                   onToggleAddMenu={setAddMenuAnchor}
                 />
               )}
-          {!groupedWorkspacesForRender.length && (
+          {hiddenWorkspacesForRender.length > 0 && (
+            <SidebarWorkspaceGroups
+              groups={[
+                {
+                  id: HIDDEN_GROUP_COLLAPSE_ID,
+                  name: "Hidden",
+                  workspaces: hiddenWorkspacesForRender,
+                },
+              ]}
+              hasWorkspaceGroups
+              collapsedGroups={collapsedGroups}
+              ungroupedCollapseId={UNGROUPED_COLLAPSE_ID}
+              toggleGroupCollapse={toggleGroupCollapse}
+              cloneChildIds={cloneChildIds}
+              clonesBySource={clonesBySource}
+              worktreesByParent={worktreesByParent}
+              workspaceVisibleDuringSearchById={workspaceVisibleDuringSearchById}
+              isSearchActive={isSearchActive}
+              normalizedQuery={normalizedQuery}
+              renderHighlightedName={renderHighlightedName}
+              isWorkspaceMatch={isWorkspaceMatch}
+              deletingWorktreeIds={deletingWorktreeIds}
+              threadsByWorkspace={threadsByWorkspace}
+              threadStatusById={threadStatusById}
+              threadListLoadingByWorkspace={threadListLoadingByWorkspace}
+              threadListPagingByWorkspace={threadListPagingByWorkspace}
+              threadListCursorByWorkspace={threadListCursorByWorkspace}
+              expandedWorkspaces={expandedWorkspaces}
+              activeWorkspaceId={activeWorkspaceId}
+              activeThreadId={activeThreadId}
+              pendingUserInputKeys={pendingUserInputKeys}
+              getThreadRows={getThreadRows}
+              getThreadTime={getThreadTime}
+              getThreadArgsBadge={getThreadArgsBadge}
+              isThreadPinned={isThreadPinned}
+              getPinTimestamp={getPinTimestamp}
+              pinnedThreadsVersion={pinnedThreadsVersion}
+              addMenuAnchor={addMenuAnchor}
+              addMenuRef={addMenuRef}
+              addMenuWidth={ADD_MENU_WIDTH}
+              newAgentDraftWorkspaceId={newAgentDraftWorkspaceId}
+              startingDraftThreadWorkspaceId={startingDraftThreadWorkspaceId}
+              onSelectWorkspace={onSelectWorkspace}
+              onConnectWorkspace={onConnectWorkspace}
+              onAddAgent={onAddAgent}
+              onAddWorktreeAgent={onAddWorktreeAgent}
+              onAddCloneAgent={onAddCloneAgent}
+              onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
+              onSelectThread={onSelectThread}
+              onShowThreadMenu={showThreadMenu}
+              onShowWorkspaceMenu={showWorkspaceMenu}
+              onShowWorktreeMenu={showWorktreeMenu}
+              onShowCloneMenu={showCloneMenu}
+              onToggleExpanded={handleToggleExpanded}
+              onLoadOlderThreads={onLoadOlderThreads}
+              onToggleAddMenu={setAddMenuAnchor}
+            />
+          )}
+          {!groupedWorkspacesForRender.length && hiddenWorkspacesForRender.length === 0 && (
             <div className="empty">
               {isSearchActive
                 ? "No conversations match your search."

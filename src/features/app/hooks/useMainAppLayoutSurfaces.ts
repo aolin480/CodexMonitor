@@ -430,6 +430,7 @@ function buildPrimarySurface({
       onDeleteWorkspace: sidebarHandlers.onDeleteWorkspace,
       onDeleteWorktree: sidebarHandlers.onDeleteWorktree,
       onColorWorkspace: sidebarHandlers.onColorWorkspace,
+      onToggleWorkspaceHidden: sidebarHandlers.onToggleWorkspaceHidden,
       onLoadOlderThreads: sidebarHandlers.onLoadOlderThreads,
       onReloadWorkspaceThreads: sidebarHandlers.onReloadWorkspaceThreads,
       workspaceDropTargetRef: workspaceDrop.workspaceDropTargetRef,

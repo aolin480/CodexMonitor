@@ -18,6 +18,7 @@ type SidebarMenuHandlers = {
   onDeleteWorkspace: (workspaceId: string) => void;
   onDeleteWorktree: (workspaceId: string) => void;
   onColorWorkspace: (workspaceId: string) => void;
+  onToggleWorkspaceHidden: (workspaceId: string, hidden: boolean) => void;
 };
 
 export function useSidebarMenus({
@@ -31,6 +32,7 @@ export function useSidebarMenus({
   onDeleteWorkspace,
   onDeleteWorktree,
   onColorWorkspace,
+  onToggleWorkspaceHidden,
 }: SidebarMenuHandlers) {
   const showThreadMenu = useCallback(
     async (
@@ -96,27 +98,43 @@ export function useSidebarMenus({
   );
 
   const showWorkspaceMenu = useCallback(
-    async (event: MouseEvent, workspaceId: string) => {
+    async (event: MouseEvent, workspace: WorkspaceInfo) => {
       event.preventDefault();
       event.stopPropagation();
-      const reloadItem = await MenuItem.new({
-        text: "Reload threads",
-        action: () => onReloadWorkspaceThreads(workspaceId),
+      const hiddenItem = await MenuItem.new({
+        text: workspace.settings.hidden ? "Show workspace" : "Hide workspace",
+        action: () => onToggleWorkspaceHidden(workspace.id, !workspace.settings.hidden),
       });
       const deleteItem = await MenuItem.new({
         text: "Delete",
-        action: () => onDeleteWorkspace(workspaceId),
+        action: () => onDeleteWorkspace(workspace.id),
       });
       const colorItem = await MenuItem.new({
         text: "Color",
-        action: () => onColorWorkspace(workspaceId),
+        action: () => onColorWorkspace(workspace.id),
       });
-      const menu = await Menu.new({ items: [reloadItem, deleteItem, colorItem] });
+      const items = workspace.settings.hidden
+        ? [hiddenItem, deleteItem, colorItem]
+        : [
+            await MenuItem.new({
+              text: "Reload threads",
+              action: () => onReloadWorkspaceThreads(workspace.id),
+            }),
+            hiddenItem,
+            deleteItem,
+            colorItem,
+          ];
+      const menu = await Menu.new({ items });
       const window = getCurrentWindow();
       const position = new LogicalPosition(event.clientX, event.clientY);
       await menu.popup(position, window);
     },
-    [onColorWorkspace, onDeleteWorkspace, onReloadWorkspaceThreads],
+    [
+      onColorWorkspace,
+      onDeleteWorkspace,
+      onReloadWorkspaceThreads,
+      onToggleWorkspaceHidden,
+    ],
   );
 
   const showWorktreeMenu = useCallback(

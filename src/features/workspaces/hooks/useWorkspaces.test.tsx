@@ -222,6 +222,36 @@ describe("useWorkspaces.updateWorkspaceSettings", () => {
         ?.settings.sidebarCollapsed,
     ).toBe(true);
   });
+
+  it("persists hidden workspace visibility updates", async () => {
+    const listWorkspacesMock = vi.mocked(listWorkspaces);
+    const updateWorkspaceSettingsMock = vi.mocked(updateWorkspaceSettings);
+    listWorkspacesMock.mockResolvedValue([workspaceOne]);
+    updateWorkspaceSettingsMock.mockImplementation(async (workspaceId, settings) => ({
+      ...workspaceOne,
+      id: workspaceId,
+      settings,
+    }));
+
+    const { result } = renderHook(() => useWorkspaces());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.updateWorkspaceSettings(workspaceOne.id, {
+        hidden: true,
+      });
+    });
+
+    expect(updateWorkspaceSettingsMock).toHaveBeenCalledWith(workspaceOne.id, {
+      sidebarCollapsed: false,
+      groupId: null,
+      hidden: true,
+    });
+    expect(result.current.workspaces[0]?.settings.hidden).toBe(true);
+  });
 });
 
 describe("useWorkspaces.addWorkspaceFromPath", () => {

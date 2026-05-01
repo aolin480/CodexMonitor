@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { WorkspaceInfo } from "../../../types";
+import { filterVisibleConnectedWorkspaces } from "../utils/workspaceVisibility";
 
 export const REMOTE_WORKSPACE_REFRESH_INTERVAL_MS = 15_000;
 
@@ -63,7 +64,7 @@ export function useWorkspaceRefreshOnFocus({
         } catch {
           // Silent: refresh errors show in debug panel.
         }
-        const connected = latestWorkspaces.filter((entry) => entry.connected);
+        const connected = filterVisibleConnectedWorkspaces(latestWorkspaces);
         if (connected.length > 0) {
           await listThreads(connected, { preserveState: true });
         }

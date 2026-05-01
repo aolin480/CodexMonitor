@@ -255,6 +255,7 @@ mod tests {
         settings.sort_order = Some(5);
         settings.group_id = Some("group-42".to_string());
         settings.sidebar_collapsed = true;
+        settings.hidden = true;
         settings.git_root = Some("/tmp".to_string());
 
         let entry = WorkspaceEntry {
@@ -273,6 +274,7 @@ mod tests {
         assert_eq!(stored.settings.sort_order, Some(5));
         assert_eq!(stored.settings.group_id.as_deref(), Some("group-42"));
         assert!(stored.settings.sidebar_collapsed);
+        assert!(stored.settings.hidden);
         assert_eq!(stored.settings.git_root.as_deref(), Some("/tmp"));
     }
 
