@@ -574,6 +574,16 @@ export function useThreadActions({
             }
           });
           cursor = nextCursor;
+          const reachedInitialThreadTarget = targets.every((workspace) => {
+            const uniqueThreadIds = uniqueThreadIdsByWorkspace[workspace.id];
+            return (
+              uniqueThreadIds !== undefined &&
+              uniqueThreadIds.size > THREAD_LIST_TARGET_COUNT
+            );
+          });
+          if (reachedInitialThreadTarget) {
+            break;
+          }
           if (pagesFetched >= maxPages) {
             break;
           }

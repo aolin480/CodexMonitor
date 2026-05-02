@@ -35,13 +35,20 @@ describe("useWorkspaceRestore", () => {
 
     await act(async () => {
       await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(connectWorkspace).toHaveBeenCalledTimes(2);
-    expect(listThreadsForWorkspaces).toHaveBeenCalledTimes(1);
-    expect(listThreadsForWorkspaces).toHaveBeenCalledWith(
+    expect(listThreadsForWorkspaces).toHaveBeenCalledTimes(2);
+    expect(listThreadsForWorkspaces).toHaveBeenNthCalledWith(
+      1,
       [expect.objectContaining({ id: "ws-visible" })],
-      { maxPages: 6 },
+      { maxPages: 1 },
+    );
+    expect(listThreadsForWorkspaces).toHaveBeenNthCalledWith(
+      2,
+      [expect.objectContaining({ id: "ws-visible" })],
+      { preserveState: true, maxPages: 6 },
     );
   });
 });

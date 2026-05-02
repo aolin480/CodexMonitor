@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import type { WorkspaceInfo } from "../../../types";
 import { isWorkspaceVisible } from "../utils/workspaceVisibility";
 
-const INITIAL_THREAD_LIST_MAX_PAGES = 6;
+const INITIAL_THREAD_LIST_FAST_MAX_PAGES = 1;
+const INITIAL_THREAD_LIST_BACKGROUND_MAX_PAGES = 6;
 
 type WorkspaceRestoreOptions = {
   workspaces: WorkspaceInfo[];
@@ -36,22 +37,31 @@ export function useWorkspaceRestore({
       restoredWorkspaces.current.add(workspace.id);
     });
     void (async () => {
-      const connectedTargets: WorkspaceInfo[] = [];
-      for (const workspace of pending) {
-        const wasConnected = workspace.connected;
-        try {
-          if (!wasConnected) {
-            await connectWorkspace(workspace);
+      const connectedResults = await Promise.all(
+        pending.map(async (workspace) => {
+          const wasConnected = workspace.connected;
+          try {
+            if (!wasConnected) {
+              await connectWorkspace(workspace);
+            }
+            return { ...workspace, connected: true };
+          } catch {
+            // Silent: connection errors show in debug panel.
+            return null;
           }
-          connectedTargets.push({ ...workspace, connected: true });
-        } catch {
-          // Silent: connection errors show in debug panel.
-        }
-      }
+        }),
+      );
+      const connectedTargets = connectedResults.filter(
+        (workspace): workspace is WorkspaceInfo => workspace !== null,
+      );
       const visibleConnectedTargets = connectedTargets.filter(isWorkspaceVisible);
       if (visibleConnectedTargets.length > 0) {
         await listThreadsForWorkspaces(visibleConnectedTargets, {
-          maxPages: INITIAL_THREAD_LIST_MAX_PAGES,
+          maxPages: INITIAL_THREAD_LIST_FAST_MAX_PAGES,
+        });
+        void listThreadsForWorkspaces(visibleConnectedTargets, {
+          preserveState: true,
+          maxPages: INITIAL_THREAD_LIST_BACKGROUND_MAX_PAGES,
         });
       }
     })();

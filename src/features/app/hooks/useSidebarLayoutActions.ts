@@ -1,8 +1,18 @@
 import { useCallback } from "react";
 
-import type { WorkspaceInfo, WorkspaceSettings } from "../../../types";
+import type {
+  ThreadListSortKey,
+  WorkspaceInfo,
+  WorkspaceSettings,
+} from "../../../types";
 
 type AppTab = "home" | "projects" | "codex" | "git" | "log";
+
+type ListWorkspaceThreadsOptions = {
+  preserveState?: boolean;
+  sortKey?: ThreadListSortKey;
+  maxPages?: number;
+};
 
 type UseSidebarLayoutActionsOptions = {
   openSettings: () => void;
@@ -30,7 +40,10 @@ type UseSidebarLayoutActionsOptions = {
   removeWorkspace: (workspaceId: string) => void | Promise<unknown>;
   removeWorktree: (workspaceId: string) => void | Promise<unknown>;
   loadOlderThreadsForWorkspace: (workspace: WorkspaceInfo) => void | Promise<unknown>;
-  listThreadsForWorkspace: (workspace: WorkspaceInfo) => void | Promise<unknown>;
+  listThreadsForWorkspace: (
+    workspace: WorkspaceInfo,
+    options?: ListWorkspaceThreadsOptions,
+  ) => void | Promise<unknown>;
 };
 
 export function useSidebarLayoutActions({
@@ -182,7 +195,11 @@ export function useSidebarLayoutActions({
       try {
         const updated = await updateWorkspaceSettings(workspaceId, { hidden });
         if (!hidden) {
-          await listThreadsForWorkspace(updated);
+          await listThreadsForWorkspace(updated, { maxPages: 1 });
+          void listThreadsForWorkspace(updated, {
+            preserveState: true,
+            maxPages: 6,
+          });
         }
       } catch {
         // Update failures are already logged by the workspace layer.

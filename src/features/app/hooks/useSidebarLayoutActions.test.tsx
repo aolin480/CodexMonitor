@@ -190,6 +190,12 @@ describe("useSidebarLayoutActions", () => {
     });
 
     expect(updateWorkspaceSettings).toHaveBeenCalledWith("ws-1", { hidden: false });
-    expect(listThreadsForWorkspace).toHaveBeenCalledWith(updatedWorkspace);
+    expect(listThreadsForWorkspace).toHaveBeenNthCalledWith(1, updatedWorkspace, {
+      maxPages: 1,
+    });
+    expect(listThreadsForWorkspace).toHaveBeenNthCalledWith(2, updatedWorkspace, {
+      preserveState: true,
+      maxPages: 6,
+    });
   });
 });

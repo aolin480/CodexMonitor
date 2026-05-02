@@ -968,6 +968,38 @@ describe("useThreadActions", () => {
     );
   });
 
+  it("stops the initial scan once the visible thread target is filled", async () => {
+    const fullPage = Array.from({ length: 21 }, (_, index) => ({
+      id: `thread-${index + 1}`,
+      cwd: "/tmp/codex",
+      preview: `Thread ${index + 1}`,
+      updated_at: 5000 - index,
+    }));
+    vi.mocked(listThreads).mockResolvedValue({
+      result: {
+        data: fullPage,
+        nextCursor: "cursor-1",
+      },
+    });
+    vi.mocked(getThreadTimestamp).mockImplementation((thread) => {
+      const value = (thread as Record<string, unknown>).updated_at as number;
+      return value ?? 0;
+    });
+
+    const { result, dispatch } = renderActions();
+
+    await act(async () => {
+      await result.current.listThreadsForWorkspace(workspace);
+    });
+
+    expect(listThreads).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setThreadListCursor",
+      workspaceId: "ws-1",
+      cursor: "__codex_monitor_page_start__",
+    });
+  });
+
   it("supports snake_case next_cursor in shared thread list responses", async () => {
     vi.mocked(listThreads)
       .mockResolvedValueOnce({
