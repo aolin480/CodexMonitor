@@ -13,8 +13,19 @@ import { useQueuedSend } from "../../threads/hooks/useQueuedSend";
 
 const MOBILE_FOLLOW_UP_BEHAVIOR_STORAGE_KEY =
   "codex-monitor-mobile-follow-up-behavior-by-thread";
+const MOBILE_FOLLOW_UP_BEHAVIOR_ENTRY_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+const MOBILE_FOLLOW_UP_BEHAVIOR_MAX_ENTRIES = 200;
 
-function readStoredMobileFollowUpBehaviorByThread(): Record<string, FollowUpMessageBehavior> {
+type StoredMobileFollowUpBehaviorEntry = {
+  behavior: FollowUpMessageBehavior;
+  updatedAt: number;
+};
+
+function buildMobileFollowUpBehaviorStorageKey(workspaceId: string, threadId: string) {
+  return `${workspaceId}::${threadId}`;
+}
+
+function readRawStoredMobileFollowUpBehavior(): Record<string, unknown> {
   if (typeof window === "undefined") {
     return {};
   }
@@ -27,27 +38,136 @@ function readStoredMobileFollowUpBehaviorByThread(): Record<string, FollowUpMess
     if (!parsed || typeof parsed !== "object") {
       return {};
     }
-    return Object.fromEntries(
-      Object.entries(parsed).filter(
-        (entry): entry is [string, FollowUpMessageBehavior] =>
-          entry[1] === "queue" || entry[1] === "steer",
-      ),
-    );
+    return parsed as Record<string, unknown>;
   } catch {
     return {};
   }
 }
 
-function writeStoredMobileFollowUpBehaviorByThread(
-  next: Record<string, FollowUpMessageBehavior>,
-) {
-  if (typeof window === "undefined") {
+function writeRawStoredMobileFollowUpBehavior(next: Record<string, unknown>) {
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(
+      MOBILE_FOLLOW_UP_BEHAVIOR_STORAGE_KEY,
+      JSON.stringify(next),
+    );
+  } catch {
+    // Ignore storage write failures and keep the in-memory preference.
     return;
   }
-  window.localStorage.setItem(
-    MOBILE_FOLLOW_UP_BEHAVIOR_STORAGE_KEY,
-    JSON.stringify(next),
+}
+
+function readStoredMobileFollowUpBehaviorEntries(): Record<
+  string,
+  StoredMobileFollowUpBehaviorEntry
+> {
+  const parsed = readRawStoredMobileFollowUpBehavior();
+  const cutoff = Date.now() - MOBILE_FOLLOW_UP_BEHAVIOR_ENTRY_TTL_MS;
+  const entries = Object.entries(parsed).filter(
+    (entry): entry is [string, StoredMobileFollowUpBehaviorEntry] => {
+      const value = entry[1] as {
+        behavior?: unknown;
+        updatedAt?: unknown;
+      } | null;
+      return (
+        value != null &&
+        typeof value === "object" &&
+        (value.behavior === "queue" || value.behavior === "steer") &&
+        typeof value.updatedAt === "number" &&
+        Number.isFinite(value.updatedAt) &&
+        value.updatedAt >= cutoff
+      );
+    },
   );
+  entries.sort((left, right) => right[1].updatedAt - left[1].updatedAt);
+  return Object.fromEntries(entries.slice(0, MOBILE_FOLLOW_UP_BEHAVIOR_MAX_ENTRIES));
+}
+
+function readLegacyMobileFollowUpBehaviorByThread(): Record<
+  string,
+  FollowUpMessageBehavior
+> {
+  const raw = readRawStoredMobileFollowUpBehavior();
+  return Object.fromEntries(
+    Object.entries(raw).flatMap(([threadId, value]) => {
+      if (threadId.includes("::")) {
+        return [];
+      }
+      if (value !== "queue" && value !== "steer") {
+        return [];
+      }
+      return [[threadId, value] as const];
+    }),
+  );
+}
+
+function readLegacyMobileFollowUpBehavior(threadId: string): FollowUpMessageBehavior | null {
+  const raw = readRawStoredMobileFollowUpBehavior();
+  const value = raw[threadId];
+  return value === "queue" || value === "steer" ? value : null;
+}
+
+function readStoredMobileFollowUpBehaviorByThread(
+  workspaceId: string | null,
+): Record<string, FollowUpMessageBehavior> {
+  if (!workspaceId) {
+    return {};
+  }
+  const prefix = `${workspaceId}::`;
+  const scopedEntries = Object.entries(readStoredMobileFollowUpBehaviorEntries())
+    .filter(([key]) => key.startsWith(prefix))
+    .map(([key, value]) => [key.slice(prefix.length), value.behavior] as const);
+  const scopedByThread = Object.fromEntries(scopedEntries);
+  const legacyFallback = Object.entries(readLegacyMobileFollowUpBehaviorByThread()).filter(
+    ([threadId]) => !(threadId in scopedByThread),
+  );
+  return {
+    ...Object.fromEntries(legacyFallback),
+    ...scopedByThread,
+  };
+}
+
+function writeStoredMobileFollowUpBehaviorForThread(
+  workspaceId: string,
+  threadId: string,
+  behavior: FollowUpMessageBehavior,
+) {
+  const raw = readRawStoredMobileFollowUpBehavior();
+  const normalizedEntries = readStoredMobileFollowUpBehaviorEntries();
+  const preservedLegacyEntries = Object.fromEntries(
+    Object.entries(raw).filter(
+      ([key, value]) =>
+        !key.includes("::") &&
+        key !== threadId &&
+        (value === "queue" || value === "steer"),
+    ),
+  );
+  writeRawStoredMobileFollowUpBehavior({
+    ...preservedLegacyEntries,
+    ...normalizedEntries,
+    [buildMobileFollowUpBehaviorStorageKey(workspaceId, threadId)]: {
+      behavior,
+      updatedAt: Date.now(),
+    },
+  });
+}
+
+function promoteLegacyMobileFollowUpBehaviorForThread(
+  workspaceId: string,
+  threadId: string,
+): FollowUpMessageBehavior | null {
+  const scopedKey = buildMobileFollowUpBehaviorStorageKey(workspaceId, threadId);
+  if (scopedKey in readStoredMobileFollowUpBehaviorEntries()) {
+    return null;
+  }
+  const legacyBehavior = readLegacyMobileFollowUpBehavior(threadId);
+  if (!legacyBehavior) {
+    return null;
+  }
+  writeStoredMobileFollowUpBehaviorForThread(workspaceId, threadId, legacyBehavior);
+  return legacyBehavior;
 }
 
 export function useComposerController({
@@ -121,7 +241,9 @@ export function useComposerController({
   >({});
   const [mobileFollowUpBehaviorByThread, setMobileFollowUpBehaviorByThread] = useState<
     Record<string, FollowUpMessageBehavior>
-  >(() => readStoredMobileFollowUpBehaviorByThread());
+  >(() => readStoredMobileFollowUpBehaviorByThread(activeWorkspaceId));
+  const [pendingMobileFollowUpBehaviorByThread, setPendingMobileFollowUpBehaviorByThread] =
+    useState<Record<string, FollowUpMessageBehavior>>({});
   const [prefillDraft, setPrefillDraft] = useState<QueuedMessage | null>(null);
   const [composerInsert, setComposerInsert] = useState<QueuedMessage | null>(
     null,
@@ -183,23 +305,46 @@ export function useComposerController({
   );
 
   useEffect(() => {
-    if (!activeThreadId) {
+    setMobileFollowUpBehaviorByThread(
+      readStoredMobileFollowUpBehaviorByThread(activeWorkspaceId),
+    );
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !activeThreadId) {
       return;
     }
-    const storedBehavior = readStoredMobileFollowUpBehaviorByThread()[activeThreadId];
-    if (!storedBehavior) {
+    const promotedBehavior = promoteLegacyMobileFollowUpBehaviorForThread(
+      activeWorkspaceId,
+      activeThreadId,
+    );
+    if (!promotedBehavior) {
       return;
     }
-    setMobileFollowUpBehaviorByThread((prev) => {
-      if (prev[activeThreadId] === storedBehavior) {
-        return prev;
-      }
-      return {
-        ...prev,
-        [activeThreadId]: storedBehavior,
-      };
+    setMobileFollowUpBehaviorByThread((prev) => ({
+      ...prev,
+      [activeThreadId]: promotedBehavior,
+    }));
+  }, [activeThreadId, activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !activeThreadId) {
+      return;
+    }
+    const pendingBehavior = pendingMobileFollowUpBehaviorByThread[activeThreadId];
+    if (!pendingBehavior) {
+      return;
+    }
+    writeStoredMobileFollowUpBehaviorForThread(
+      activeWorkspaceId,
+      activeThreadId,
+      pendingBehavior,
+    );
+    setPendingMobileFollowUpBehaviorByThread((prev) => {
+      const { [activeThreadId]: _, ...rest } = prev;
+      return rest;
     });
-  }, [activeThreadId]);
+  }, [activeThreadId, activeWorkspaceId, pendingMobileFollowUpBehaviorByThread]);
 
   const handleDraftChange = useCallback(
     (next: string) => {
@@ -261,10 +406,6 @@ export function useComposerController({
       if (!activeThreadId) {
         return;
       }
-      writeStoredMobileFollowUpBehaviorByThread({
-        ...readStoredMobileFollowUpBehaviorByThread(),
-        [activeThreadId]: behavior,
-      });
       setMobileFollowUpBehaviorByThread((prev) => {
         if (prev[activeThreadId] === behavior) {
           return prev;
@@ -274,8 +415,23 @@ export function useComposerController({
           [activeThreadId]: behavior,
         };
       });
+      if (!activeWorkspaceId) {
+        setPendingMobileFollowUpBehaviorByThread((prev) => ({
+          ...prev,
+          [activeThreadId]: behavior,
+        }));
+        return;
+      }
+      writeStoredMobileFollowUpBehaviorForThread(activeWorkspaceId, activeThreadId, behavior);
+      setPendingMobileFollowUpBehaviorByThread((prev) => {
+        if (!(activeThreadId in prev)) {
+          return prev;
+        }
+        const { [activeThreadId]: _, ...rest } = prev;
+        return rest;
+      });
     },
-    [activeThreadId],
+    [activeThreadId, activeWorkspaceId],
   );
 
   return {
