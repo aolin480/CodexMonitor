@@ -60,6 +60,8 @@ type ComposerProps = {
   isProcessing: boolean;
   steerAvailable: boolean;
   followUpMessageBehavior: FollowUpMessageBehavior;
+  mobileFollowUpMessageBehavior?: FollowUpMessageBehavior;
+  onMobileFollowUpMessageBehaviorChange?: (behavior: FollowUpMessageBehavior) => void;
   composerFollowUpHintEnabled: boolean;
   collaborationModes: { id: string; label: string }[];
   selectedCollaborationModeId: string | null;
@@ -174,6 +176,8 @@ export const Composer = memo(function Composer({
   isProcessing,
   steerAvailable,
   followUpMessageBehavior,
+  mobileFollowUpMessageBehavior = followUpMessageBehavior,
+  onMobileFollowUpMessageBehaviorChange,
   composerFollowUpHintEnabled,
   collaborationModes,
   selectedCollaborationModeId,
@@ -286,6 +290,8 @@ export const Composer = memo(function Composer({
       ? "Steer"
       : "Queue"
     : sendLabel;
+  const resolvedMobileFollowUpBehavior: FollowUpMessageBehavior =
+    mobileFollowUpMessageBehavior === "steer" && steerAvailable ? "steer" : "queue";
   const {
     expandFenceOnSpace,
     expandFenceOnEnter,
@@ -638,11 +644,16 @@ export const Composer = memo(function Composer({
         text={text}
         disabled={disabled}
         sendLabel={effectiveSendLabel}
+        defaultSubmitIntent={defaultSubmitIntent}
         canStop={canStop}
         canSend={canSend}
         isProcessing={isProcessing}
+        mobileFollowUpSubmitIntent={resolvedMobileFollowUpBehavior}
+        mobileSteerChecked={resolvedMobileFollowUpBehavior === "steer"}
+        onFollowUpMessageBehaviorChange={onMobileFollowUpMessageBehaviorChange}
+        steerAvailable={steerAvailable}
         onStop={onStop}
-        onSend={() => handleSend(defaultSubmitIntent)}
+        onSend={handleSend}
         dictationEnabled={dictationEnabled}
         dictationState={dictationState}
         dictationLevel={dictationLevel}

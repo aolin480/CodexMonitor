@@ -7,6 +7,7 @@ import type {
   SyntheticEvent,
 } from "react";
 import type { AutocompleteItem } from "../hooks/useComposerAutocomplete";
+import type { ComposerSendIntent, FollowUpMessageBehavior } from "../../../types";
 import ImagePlus from "lucide-react/dist/esm/icons/image-plus";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
@@ -27,11 +28,16 @@ type ComposerInputProps = {
   text: string;
   disabled: boolean;
   sendLabel: string;
+  defaultSubmitIntent?: ComposerSendIntent;
   canStop: boolean;
   canSend: boolean;
   isProcessing: boolean;
+  mobileFollowUpSubmitIntent?: FollowUpMessageBehavior;
+  mobileSteerChecked?: boolean;
+  onFollowUpMessageBehaviorChange?: (behavior: FollowUpMessageBehavior) => void;
+  steerAvailable?: boolean;
   onStop: () => void;
-  onSend: () => void;
+  onSend: (submitIntent?: ComposerSendIntent) => void;
   dictationState?: "idle" | "listening" | "processing";
   dictationLevel?: number;
   dictationEnabled?: boolean;
@@ -85,9 +91,14 @@ export function ComposerInput({
   text,
   disabled,
   sendLabel,
+  defaultSubmitIntent = "default",
   canStop,
   canSend,
   isProcessing,
+  mobileFollowUpSubmitIntent = "queue",
+  mobileSteerChecked = false,
+  onFollowUpMessageBehaviorChange,
+  steerAvailable = false,
   onStop,
   onSend,
   dictationState = "idle",
@@ -157,13 +168,23 @@ export function ComposerInput({
     disabled,
     onAttachImages,
   });
+
+  // Phone layout needs explicit queue/steer controls because desktop keeps the
+  // existing follow-up shortcuts and hint text while a turn is running.
+  const showPhoneFollowUpControls = isPhoneLayout && canStop;
+  const mobileSubmitIntent: ComposerSendIntent = mobileFollowUpSubmitIntent;
+  const mobileSubmitLabel = mobileSubmitIntent === "steer" ? "Steer follow-up" : "Queue follow-up";
+
   const handleActionClick = useCallback(() => {
     if (canStop) {
       onStop();
       return;
     }
-    onSend();
-  }, [canStop, onSend, onStop]);
+    onSend(defaultSubmitIntent);
+  }, [canStop, defaultSubmitIntent, onSend, onStop]);
+  const handleMobileFollowUpSendClick = useCallback(() => {
+    onSend(mobileSubmitIntent);
+  }, [mobileSubmitIntent, onSend]);
   const {
     handleMicClick,
     isDictating,
@@ -290,6 +311,28 @@ export function ComposerInput({
             onPaste={handleTextareaPaste}
           />
           <div className="composer-input-actions">
+            {showPhoneFollowUpControls && (
+              <label
+                className={`composer-followup-toggle${steerAvailable ? "" : " is-disabled"}`}
+                title={
+                  steerAvailable
+                    ? "Check to steer this follow-up instead of queueing it."
+                    : "Steer is unavailable until the current turn exposes a steer target."
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={mobileSteerChecked}
+                  disabled={disabled || !steerAvailable}
+                  onChange={(event) => {
+                    onFollowUpMessageBehaviorChange?.(
+                      event.target.checked ? "steer" : "queue",
+                    );
+                  }}
+                />
+                <span>Steer</span>
+              </label>
+            )}
             {onToggleExpand && (
               <button
                 className={`composer-action composer-action--expand${
@@ -350,6 +393,26 @@ export function ComposerInput({
                 </svg>
               )}
             </button>
+            {showPhoneFollowUpControls && (
+              <button
+                type="button"
+                className="composer-action is-send composer-action--followup-send"
+                onClick={handleMobileFollowUpSendClick}
+                disabled={disabled || isDictationBusy || !canSend}
+                aria-label={mobileSubmitLabel}
+                title={mobileSubmitLabel}
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path
+                    d="M12 5l6 6m-6-6L6 11m6-6v14"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
         {isDictationBusy && (

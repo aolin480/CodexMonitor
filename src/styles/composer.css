@@ -408,6 +408,24 @@
   display: none;
 }
 
+.composer-followup-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.composer-followup-toggle input {
+  margin: 0;
+}
+
+.composer-followup-toggle.is-disabled {
+  color: var(--text-fainter);
+}
+
 :root[data-theme="light"] .composer-action {
   border-color: var(--border-strong);
   color: var(--text-strong);
@@ -1126,6 +1144,15 @@
   .app.layout-phone .composer-action {
     width: 32px;
     height: 32px;
+  }
+
+  .app.layout-phone .composer-followup-toggle {
+    gap: 5px;
+    font-size: 10px;
+  }
+
+  .app.layout-phone .composer-action--followup-send {
+    display: inline-flex;
   }
 
   .app.layout-phone .composer-bar {

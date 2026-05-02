@@ -36,64 +36,76 @@ type HarnessProps = {
     appMentions?: AppMention[],
     submitIntent?: ComposerSendIntent,
   ) => void;
+  onStop?: () => void;
   apps?: AppOption[];
   isProcessing?: boolean;
+  canStop?: boolean;
   followUpMessageBehavior?: FollowUpMessageBehavior;
   steerAvailable?: boolean;
   selectedServiceTier?: "fast" | "flex" | null;
   processingStartedAt?: number | null;
   lastDurationMs?: number | null;
+  phoneLayout?: boolean;
 };
 
 function ComposerHarness({
   onSend,
+  onStop = () => {},
   apps = [],
   isProcessing = false,
+  canStop = false,
   followUpMessageBehavior = "queue",
   steerAvailable = false,
   selectedServiceTier = null,
   processingStartedAt = null,
   lastDurationMs = null,
+  phoneLayout = false,
 }: HarnessProps) {
   const [draftText, setDraftText] = useState("");
+  const [mobileFollowUpMessageBehavior, setMobileFollowUpMessageBehavior] =
+    useState<FollowUpMessageBehavior>(followUpMessageBehavior);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   return (
-    <Composer
-      onSend={onSend}
-      onStop={() => {}}
-      canStop={false}
-      isProcessing={isProcessing}
-      appsEnabled={true}
-      steerAvailable={steerAvailable}
-      followUpMessageBehavior={followUpMessageBehavior}
-      composerFollowUpHintEnabled={true}
-      collaborationModes={[]}
-      selectedCollaborationModeId={null}
-      onSelectCollaborationMode={() => {}}
-      models={[]}
-      selectedModelId={null}
-      onSelectModel={() => {}}
-      reasoningOptions={[]}
-      selectedEffort={null}
-      onSelectEffort={() => {}}
-      selectedServiceTier={selectedServiceTier}
-      reasoningSupported={false}
-      autoModelRoutingCredentialConfigured={true}
-      onOpenAutoModelRoutingSettings={() => {}}
-      accessMode="current"
-      onSelectAccessMode={() => {}}
-      skills={[]}
-      apps={apps}
-      prompts={[]}
-      files={[]}
-      processingStartedAt={processingStartedAt}
-      lastDurationMs={lastDurationMs}
-      draftText={draftText}
-      onDraftChange={setDraftText}
-      textareaRef={textareaRef}
-      dictationEnabled={false}
-    />
+    <div className={phoneLayout ? "app layout-phone" : "app"}>
+      <Composer
+        onSend={onSend}
+        onStop={onStop}
+        canStop={canStop}
+        isProcessing={isProcessing}
+        appsEnabled={true}
+        steerAvailable={steerAvailable}
+        followUpMessageBehavior={followUpMessageBehavior}
+        mobileFollowUpMessageBehavior={mobileFollowUpMessageBehavior}
+        onMobileFollowUpMessageBehaviorChange={setMobileFollowUpMessageBehavior}
+        composerFollowUpHintEnabled={true}
+        collaborationModes={[]}
+        selectedCollaborationModeId={null}
+        onSelectCollaborationMode={() => {}}
+        models={[]}
+        selectedModelId={null}
+        onSelectModel={() => {}}
+        reasoningOptions={[]}
+        selectedEffort={null}
+        onSelectEffort={() => {}}
+        selectedServiceTier={selectedServiceTier}
+        reasoningSupported={false}
+        autoModelRoutingCredentialConfigured={true}
+        onOpenAutoModelRoutingSettings={() => {}}
+        accessMode="current"
+        onSelectAccessMode={() => {}}
+        skills={[]}
+        apps={apps}
+        prompts={[]}
+        files={[]}
+        processingStartedAt={processingStartedAt}
+        lastDurationMs={lastDurationMs}
+        draftText={draftText}
+        onDraftChange={setDraftText}
+        textareaRef={textareaRef}
+        dictationEnabled={false}
+      />
+    </div>
   );
 }
 
@@ -337,6 +349,89 @@ describe("Composer send triggers", () => {
     fireEvent.keyDown(textarea, { key: "Tab" });
 
     expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("keeps the stop button and adds a mobile follow-up send button while processing", () => {
+    const onSend = vi.fn();
+    const onStop = vi.fn();
+    render(
+      <ComposerHarness
+        onSend={onSend}
+        onStop={onStop}
+        isProcessing={true}
+        canStop={true}
+        followUpMessageBehavior="queue"
+        steerAvailable={true}
+        phoneLayout={true}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "mobile follow-up" } });
+
+    fireEvent.click(screen.getByLabelText("Stop"));
+    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Queue follow-up")).toBeTruthy();
+    expect(screen.getByLabelText("Steer")).toBeTruthy();
+  });
+
+  it("queues a mobile follow-up by default while processing", () => {
+    const onSend = vi.fn();
+    render(
+      <ComposerHarness
+        onSend={onSend}
+        isProcessing={true}
+        canStop={true}
+        followUpMessageBehavior="queue"
+        steerAvailable={true}
+        phoneLayout={true}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "queue from mobile" } });
+    fireEvent.click(screen.getByLabelText("Queue follow-up"));
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith("queue from mobile", [], undefined, "queue");
+  });
+
+  it("keeps the explicit follow-up controls mobile-only on desktop layouts", () => {
+    const onSend = vi.fn();
+    render(
+      <ComposerHarness
+        onSend={onSend}
+        isProcessing={true}
+        canStop={true}
+        followUpMessageBehavior="queue"
+        steerAvailable={true}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Queue follow-up")).toBeNull();
+    expect(screen.queryByLabelText("Steer")).toBeNull();
+  });
+
+  it("steers a mobile follow-up when steer is checked", () => {
+    const onSend = vi.fn();
+    render(
+      <ComposerHarness
+        onSend={onSend}
+        isProcessing={true}
+        canStop={true}
+        followUpMessageBehavior="queue"
+        steerAvailable={true}
+        phoneLayout={true}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "steer from mobile" } });
+    fireEvent.click(screen.getByLabelText("Steer"));
+    fireEvent.click(screen.getByLabelText("Steer follow-up"));
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith("steer from mobile", [], undefined, "steer");
   });
 
   it("shows a live elapsed timer while processing", () => {

@@ -483,6 +483,12 @@ function buildPrimarySurface({
           sendLabel: pullRequestComposer.composerSendLabel ?? "Send",
           steerAvailable: composerWorkspaceState.steerAvailable,
           followUpMessageBehavior: appSettings.followUpMessageBehavior,
+          mobileFollowUpMessageBehavior:
+            composerWorkspaceState.steerAvailable
+              ? composerWorkspaceState.activeMobileFollowUpBehavior
+              : "queue",
+          onMobileFollowUpMessageBehaviorChange:
+            composerWorkspaceState.setMobileFollowUpBehavior,
           composerFollowUpHintEnabled: appSettings.composerFollowUpHintEnabled,
           isProcessing: composerWorkspaceState.isProcessing,
           draftText: composerWorkspaceState.activeDraft,

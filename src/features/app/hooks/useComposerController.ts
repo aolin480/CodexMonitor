@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AppMention,
   ComposerSendIntent,
@@ -10,6 +10,45 @@ import type {
 } from "../../../types";
 import { useComposerImages } from "../../composer/hooks/useComposerImages";
 import { useQueuedSend } from "../../threads/hooks/useQueuedSend";
+
+const MOBILE_FOLLOW_UP_BEHAVIOR_STORAGE_KEY =
+  "codex-monitor-mobile-follow-up-behavior-by-thread";
+
+function readStoredMobileFollowUpBehaviorByThread(): Record<string, FollowUpMessageBehavior> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  const raw = window.localStorage.getItem(MOBILE_FOLLOW_UP_BEHAVIOR_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, FollowUpMessageBehavior] =>
+          entry[1] === "queue" || entry[1] === "steer",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredMobileFollowUpBehaviorByThread(
+  next: Record<string, FollowUpMessageBehavior>,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(
+    MOBILE_FOLLOW_UP_BEHAVIOR_STORAGE_KEY,
+    JSON.stringify(next),
+  );
+}
 
 export function useComposerController({
   activeThreadId,
@@ -80,6 +119,9 @@ export function useComposerController({
   const [composerDraftsByThread, setComposerDraftsByThread] = useState<
     Record<string, string>
   >({});
+  const [mobileFollowUpBehaviorByThread, setMobileFollowUpBehaviorByThread] = useState<
+    Record<string, FollowUpMessageBehavior>
+  >(() => readStoredMobileFollowUpBehaviorByThread());
   const [prefillDraft, setPrefillDraft] = useState<QueuedMessage | null>(null);
   const [composerInsert, setComposerInsert] = useState<QueuedMessage | null>(
     null,
@@ -132,6 +174,32 @@ export function useComposerController({
       activeThreadId ? composerDraftsByThread[activeThreadId] ?? "" : "",
     [activeThreadId, composerDraftsByThread],
   );
+  const activeMobileFollowUpBehavior = useMemo(
+    () =>
+      activeThreadId
+        ? mobileFollowUpBehaviorByThread[activeThreadId] ?? followUpMessageBehavior
+        : followUpMessageBehavior,
+    [activeThreadId, followUpMessageBehavior, mobileFollowUpBehaviorByThread],
+  );
+
+  useEffect(() => {
+    if (!activeThreadId) {
+      return;
+    }
+    const storedBehavior = readStoredMobileFollowUpBehaviorByThread()[activeThreadId];
+    if (!storedBehavior) {
+      return;
+    }
+    setMobileFollowUpBehaviorByThread((prev) => {
+      if (prev[activeThreadId] === storedBehavior) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [activeThreadId]: storedBehavior,
+      };
+    });
+  }, [activeThreadId]);
 
   const handleDraftChange = useCallback(
     (next: string) => {
@@ -188,6 +256,28 @@ export function useComposerController({
     });
   }, []);
 
+  const setMobileFollowUpBehavior = useCallback(
+    (behavior: FollowUpMessageBehavior) => {
+      if (!activeThreadId) {
+        return;
+      }
+      writeStoredMobileFollowUpBehaviorByThread({
+        ...readStoredMobileFollowUpBehaviorByThread(),
+        [activeThreadId]: behavior,
+      });
+      setMobileFollowUpBehaviorByThread((prev) => {
+        if (prev[activeThreadId] === behavior) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [activeThreadId]: behavior,
+        };
+      });
+    },
+    [activeThreadId],
+  );
+
   return {
     activeImages,
     attachImages,
@@ -205,10 +295,12 @@ export function useComposerController({
     composerInsert,
     setComposerInsert,
     activeDraft,
+    activeMobileFollowUpBehavior,
     handleDraftChange,
     handleSendPrompt,
     handleEditQueued,
     handleDeleteQueued,
     clearDraftForThread,
+    setMobileFollowUpBehavior,
   };
 }
