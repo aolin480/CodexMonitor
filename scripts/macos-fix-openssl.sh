@@ -36,13 +36,31 @@ if [[ -z "${openssl_prefix}" ]]; then
   fi
 fi
 
+zlib_prefix=""
+if command -v brew >/dev/null 2>&1; then
+  zlib_prefix="$(brew --prefix zlib 2>/dev/null || true)"
+fi
+if [[ -z "${zlib_prefix}" ]]; then
+  if [[ -d "/opt/homebrew/opt/zlib" ]]; then
+    zlib_prefix="/opt/homebrew/opt/zlib"
+  elif [[ -d "/usr/local/opt/zlib" ]]; then
+    zlib_prefix="/usr/local/opt/zlib"
+  fi
+fi
+
 if [[ -z "${openssl_prefix}" ]]; then
   echo "OpenSSL@3 not found. Install it with Homebrew first."
   exit 1
 fi
 
+if [[ -z "${zlib_prefix}" ]]; then
+  echo "zlib not found. Install it with Homebrew first."
+  exit 1
+fi
+
 libssl="${openssl_prefix}/lib/libssl.3.dylib"
 libcrypto="${openssl_prefix}/lib/libcrypto.3.dylib"
+libz="${zlib_prefix}/lib/libz.1.dylib"
 frameworks_dir="${app_path}/Contents/Frameworks"
 bin_path="${app_path}/Contents/MacOS/codex-monitor"
 daemon_path="${app_path}/Contents/MacOS/codex_monitor_daemon"
@@ -72,12 +90,19 @@ if [[ ! -f "${libssl}" || ! -f "${libcrypto}" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${libz}" ]]; then
+  echo "zlib dylib not found at ${zlib_prefix}/lib"
+  exit 1
+fi
+
 mkdir -p "${frameworks_dir}"
 cp -f "${libssl}" "${frameworks_dir}/"
 cp -f "${libcrypto}" "${frameworks_dir}/"
+cp -f "${libz}" "${frameworks_dir}/"
 
 install_name_tool -id "@rpath/libssl.3.dylib" "${frameworks_dir}/libssl.3.dylib"
 install_name_tool -id "@rpath/libcrypto.3.dylib" "${frameworks_dir}/libcrypto.3.dylib"
+install_name_tool -id "@rpath/libz.1.dylib" "${frameworks_dir}/libz.1.dylib"
 for candidate in \
   "${libcrypto}" \
   "/opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib" \
@@ -104,12 +129,27 @@ do
   install_name_tool -change "${candidate}" "@rpath/libcrypto.3.dylib" "${bin_path}" 2>/dev/null || true
 done
 
+for candidate in \
+  "${libz}" \
+  "/opt/homebrew/opt/zlib/lib/libz.1.dylib" \
+  "/usr/local/opt/zlib/lib/libz.1.dylib" \
+  "/opt/homebrew/Cellar/zlib/1.3.2/lib/libz.1.3.2.dylib" \
+  "/usr/local/Cellar/zlib/1.3.2/lib/libz.1.3.2.dylib"
+do
+  install_name_tool -change "${candidate}" "@rpath/libz.1.dylib" "${bin_path}" 2>/dev/null || true
+  install_name_tool -change "${candidate}" "@rpath/libz.1.dylib" "${daemon_path}" 2>/dev/null || true
+done
+
 if ! otool -l "${bin_path}" | { command -v rg >/dev/null 2>&1 && rg -q "@executable_path/../Frameworks" || grep -q "@executable_path/../Frameworks"; }; then
   install_name_tool -add_rpath "@executable_path/../Frameworks" "${bin_path}"
+fi
+if [[ -f "${daemon_path}" ]] && ! otool -l "${daemon_path}" | { command -v rg >/dev/null 2>&1 && rg -q "@executable_path/../Frameworks" || grep -q "@executable_path/../Frameworks"; }; then
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "${daemon_path}"
 fi
 
 codesign --force --options runtime --timestamp --sign "${identity}" "${frameworks_dir}/libcrypto.3.dylib"
 codesign --force --options runtime --timestamp --sign "${identity}" "${frameworks_dir}/libssl.3.dylib"
+codesign --force --options runtime --timestamp --sign "${identity}" "${frameworks_dir}/libz.1.dylib"
 codesign --force --options runtime --timestamp --sign "${identity}" "${codesign_entitlements[@]}" "${bin_path}"
 if [[ -f "${daemon_path}" ]]; then
   codesign --force --options runtime --timestamp --sign "${identity}" "${codesign_entitlements[@]}" "${daemon_path}"
