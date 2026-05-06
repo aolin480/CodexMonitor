@@ -929,6 +929,205 @@
   border-bottom-color: var(--text-strong);
 }
 
+.composer-mcp-menu {
+  position: relative;
+}
+
+.composer-mcp-trigger {
+  cursor: pointer;
+}
+
+.composer-mcp-trigger:hover:not(:disabled),
+.composer-mcp-trigger.is-open {
+  color: var(--text-strong);
+}
+
+.composer-mcp-trigger-label {
+  font-size: 12px;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.composer-mcp-popover {
+  position: fixed;
+  width: min(420px, calc(100vw - 24px));
+  padding: 12px;
+  overflow: hidden;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+
+.composer-mcp-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.composer-mcp-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-stronger);
+}
+
+.composer-mcp-subtitle {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.composer-mcp-state {
+  padding: 14px 10px;
+  border-radius: 8px;
+  background: var(--cm-surface-panel-strong);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.composer-mcp-state--error {
+  color: var(--text-danger, #ff8f8f);
+}
+
+.composer-mcp-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.composer-mcp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 8px;
+  background: var(--cm-surface-panel-strong);
+  border: 1px solid var(--cm-border-default);
+}
+
+.composer-mcp-row-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-mcp-row-button:hover {
+  background: color-mix(in srgb, var(--cm-surface-panel-solid) 45%, transparent);
+}
+
+.composer-mcp-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.composer-mcp-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.composer-mcp-row-icon,
+.composer-mcp-row-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.composer-mcp-row-name {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-stronger);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-mcp-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-height: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.composer-mcp-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.composer-mcp-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--cm-border-elevated);
+  background: var(--cm-surface-panel-elevated);
+  color: var(--text-subtle);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.composer-mcp-tools {
+  padding: 0 10px 10px;
+}
+
+.composer-mcp-tool-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.composer-mcp-tool-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--cm-surface-panel-elevated);
+  border: 1px solid var(--cm-border-default);
+  color: var(--text-subtle);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.composer-mcp-tools-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.composer-mcp-backdrop {
+  position: fixed;
+  inset: 0;
+  border: none;
+  background: transparent;
+  z-index: 39;
+}
+
 .composer-plan-toggle-wrap {
   padding: 2px 8px;
 }
@@ -1185,6 +1384,14 @@
   .app.layout-phone .composer-select-wrap {
     gap: 4px;
     padding: 2px 5px;
+  }
+
+  .app.layout-phone .composer-mcp-popover {
+    z-index: 40;
+  }
+
+  .app.layout-phone .composer-mcp-list {
+    min-height: 0;
   }
 
   .app.layout-phone .composer-select {

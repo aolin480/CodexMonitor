@@ -6,6 +6,8 @@ import type {
   ServiceTier,
   ThreadTokenUsage,
 } from "../../../types";
+import { McpStatusControl } from "../../mcp/components/McpStatusControl";
+import type { McpStatusState } from "../../mcp/types";
 import type { CodexArgsOption } from "../../threads/utils/codexArgsProfiles";
 
 type ComposerMetaBarProps = {
@@ -30,6 +32,8 @@ type ComposerMetaBarProps = {
   selectedCodexArgsOverride?: string | null;
   onSelectCodexArgsOverride?: (value: string | null) => void;
   contextUsage?: ThreadTokenUsage | null;
+  mcpStatus?: McpStatusState;
+  isPhone?: boolean;
   durationBadge?: {
     isProcessing: boolean;
     processingStartedAt?: number | null;
@@ -230,6 +234,8 @@ export function ComposerMetaBar({
   selectedCodexArgsOverride = null,
   onSelectCodexArgsOverride,
   contextUsage = null,
+  mcpStatus,
+  isPhone = false,
   durationBadge = undefined,
 }: ComposerMetaBarProps) {
   const selectedModel =
@@ -458,6 +464,13 @@ export function ComposerMetaBar({
             </select>
           </div>
         )}
+        {mcpStatus ? (
+          <McpStatusControl
+            disabled={disabled}
+            isPhone={isPhone}
+            status={mcpStatus}
+          />
+        ) : null}
         <div className="composer-select-wrap">
           <span className="composer-icon" aria-hidden>
             <svg viewBox="0 0 24 24" fill="none">

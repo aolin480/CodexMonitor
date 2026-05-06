@@ -23,6 +23,7 @@ import type {
   ReviewPromptState,
   ReviewPromptStep,
 } from "../../threads/hooks/useReviewPrompt";
+import type { McpStatusState } from "../../mcp/types";
 import {
   connectorMentionSlug,
   resolveBoundAppMentions,
@@ -87,6 +88,8 @@ type ComposerProps = {
   prompts: CustomPromptOption[];
   files: string[];
   contextUsage?: ThreadTokenUsage | null;
+  mcpStatus?: McpStatusState;
+  isPhone?: boolean;
   processingStartedAt?: number | null;
   lastDurationMs?: number | null;
   queuedMessages?: QueuedMessage[];
@@ -203,6 +206,8 @@ export const Composer = memo(function Composer({
   prompts,
   files,
   contextUsage = null,
+  mcpStatus,
+  isPhone = false,
   processingStartedAt = null,
   lastDurationMs = null,
   queuedMessages = [],
@@ -722,6 +727,8 @@ export const Composer = memo(function Composer({
         accessMode={accessMode}
         onSelectAccessMode={onSelectAccessMode}
         contextUsage={contextUsage}
+        mcpStatus={mcpStatus}
+        isPhone={isPhone}
         durationBadge={
           showDurationBadge
             ? {

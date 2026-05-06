@@ -10,6 +10,8 @@ import type { useMainAppPromptActions } from "@app/hooks/useMainAppPromptActions
 import type { useMainAppSidebarMenuOrchestration } from "@app/hooks/useMainAppSidebarMenuOrchestration";
 import type { useMainAppWorktreeState } from "@app/hooks/useMainAppWorktreeState";
 import type { LayoutNodesOptions } from "@/features/layout/hooks/layoutNodes/types";
+import { useMcpServerStatus } from "@/features/mcp/hooks/useMcpServerStatus";
+import type { McpStatusState } from "@/features/mcp/types";
 
 type SidebarProps = LayoutNodesOptions["primary"]["sidebarProps"];
 type ComposerProps = NonNullable<LayoutNodesOptions["primary"]["composerProps"]>;
@@ -231,6 +233,7 @@ type UseMainAppLayoutSurfacesArgs = {
 type MainAppLayoutSurfacesContext = UseMainAppLayoutSurfacesArgs & {
   sidebarRateLimits: SidebarProps["accountRateLimits"];
   sidebarAccount: SidebarProps["accountInfo"];
+  mcpStatus: McpStatusState;
 };
 
 function buildPrimarySurface({
@@ -273,6 +276,8 @@ function buildPrimarySurface({
   onPlanAccept,
   onPlanSubmitChanges,
   activeTokenUsage,
+  mcpStatus,
+  isPhone,
   latestAgentRuns,
   isLoadingLatestAgents,
   localUsageSnapshot,
@@ -531,6 +536,8 @@ function buildPrimarySurface({
           onSelectCodexArgsOverride,
           accessMode,
           onSelectAccessMode,
+          mcpStatus,
+          isPhone,
           processingStartedAt: activeThreadId
             ? threadStatusById[activeThreadId]?.processingStartedAt ?? null
             : null,
@@ -1121,6 +1128,7 @@ export function useMainAppLayoutSurfaces({
   showDebugButton,
   handleDebugClick,
 }: UseMainAppLayoutSurfacesArgs): LayoutNodesOptions {
+  const mcpStatus = useMcpServerStatus(activeWorkspaceId);
   const sidebarRateLimits = activeWorkspace ? activeRateLimits : homeRateLimits;
   const sidebarAccount = activeWorkspace ? activeAccount : homeAccount;
   const context: MainAppLayoutSurfacesContext = {
@@ -1286,6 +1294,7 @@ export function useMainAppLayoutSurfaces({
     handleDebugClick,
     sidebarRateLimits,
     sidebarAccount,
+    mcpStatus,
   };
 
   return {
