@@ -38,6 +38,17 @@ vi.mock("@services/tauri", async () => {
 });
 
 describe("Messages", () => {
+  let resizeObserverCallback: ResizeObserverCallback | null = null;
+  let resizeObserverDisconnectMock = vi.fn();
+  const OriginalResizeObserver = globalThis.ResizeObserver;
+  const setResizeObserver = (value: typeof ResizeObserver) => {
+    Object.defineProperty(globalThis, "ResizeObserver", {
+      configurable: true,
+      writable: true,
+      value,
+    });
+  };
+
   beforeAll(() => {
     if (!HTMLElement.prototype.scrollIntoView) {
       HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -49,8 +60,12 @@ describe("Messages", () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     cleanup();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    setResizeObserver(OriginalResizeObserver);
+    resizeObserverCallback = null;
+    resizeObserverDisconnectMock = vi.fn();
   });
 
   beforeEach(() => {
@@ -1628,6 +1643,189 @@ describe("Messages", () => {
     );
 
     expect(scrollNode.scrollTop).toBe(900);
+  });
+
+  it("keeps the thread pinned when rendered content grows after a message update", async () => {
+    vi.useFakeTimers();
+    setResizeObserver(vi.fn((callback: ResizeObserverCallback) => {
+      resizeObserverCallback = callback;
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      };
+    }) as unknown as typeof ResizeObserver);
+    const items: ConversationItem[] = [
+      {
+        id: "msg-1",
+        kind: "message",
+        role: "assistant",
+        text: "Streaming response",
+      },
+    ];
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    const scrollNode = container.querySelector(".messages.messages-full");
+    expect(scrollNode).toBeTruthy();
+    const messagesNode = scrollNode as HTMLDivElement;
+
+    Object.defineProperty(messagesNode, "clientHeight", {
+      configurable: true,
+      value: 200,
+    });
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 600,
+    });
+    messagesNode.scrollTop = 600;
+    fireEvent.scroll(messagesNode);
+
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 900,
+    });
+
+    await act(async () => {
+      resizeObserverCallback?.([], {} as ResizeObserver);
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(messagesNode.scrollTop).toBe(900);
+  });
+
+  it("cleans up pending resize auto-scroll work on unmount", async () => {
+    vi.useFakeTimers();
+    const cancelAnimationFrameSpy = vi.spyOn(window, "cancelAnimationFrame");
+    setResizeObserver(vi.fn((callback: ResizeObserverCallback) => {
+      resizeObserverCallback = callback;
+      resizeObserverDisconnectMock = vi.fn();
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: resizeObserverDisconnectMock,
+      };
+    }) as unknown as typeof ResizeObserver);
+    const items: ConversationItem[] = [
+      {
+        id: "msg-1",
+        kind: "message",
+        role: "assistant",
+        text: "Streaming response",
+      },
+    ];
+
+    const { container, unmount } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    const scrollNode = container.querySelector(".messages.messages-full");
+    expect(scrollNode).toBeTruthy();
+    const messagesNode = scrollNode as HTMLDivElement;
+
+    Object.defineProperty(messagesNode, "clientHeight", {
+      configurable: true,
+      value: 200,
+    });
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 600,
+    });
+    messagesNode.scrollTop = 600;
+    fireEvent.scroll(messagesNode);
+
+    act(() => {
+      resizeObserverCallback?.([], {} as ResizeObserver);
+    });
+
+    unmount();
+
+    expect(resizeObserverDisconnectMock).toHaveBeenCalled();
+    expect(cancelAnimationFrameSpy).toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+  });
+
+  it("resumes resize pinning after the user scrolls away and back to bottom", async () => {
+    vi.useFakeTimers();
+    setResizeObserver(vi.fn((callback: ResizeObserverCallback) => {
+      resizeObserverCallback = callback;
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      };
+    }) as unknown as typeof ResizeObserver);
+    const items: ConversationItem[] = [
+      {
+        id: "msg-1",
+        kind: "message",
+        role: "assistant",
+        text: "Streaming response",
+      },
+    ];
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    const scrollNode = container.querySelector(".messages.messages-full");
+    expect(scrollNode).toBeTruthy();
+    const messagesNode = scrollNode as HTMLDivElement;
+
+    Object.defineProperty(messagesNode, "clientHeight", {
+      configurable: true,
+      value: 200,
+    });
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 600,
+    });
+
+    fireEvent.wheel(messagesNode);
+    messagesNode.scrollTop = 100;
+    fireEvent.scroll(messagesNode);
+
+    fireEvent.wheel(messagesNode);
+    messagesNode.scrollTop = 600;
+    fireEvent.scroll(messagesNode);
+
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 900,
+    });
+
+    await act(async () => {
+      resizeObserverCallback?.([], {} as ResizeObserver);
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(messagesNode.scrollTop).toBe(900);
   });
 
   it("shows a plan-ready follow-up prompt after a completed plan tool item", () => {

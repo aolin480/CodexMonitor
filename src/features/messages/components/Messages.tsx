@@ -103,6 +103,7 @@ export const Messages = memo(function Messages({
   const {
     bottomRef,
     containerRef,
+    contentRef,
     updateAutoScroll,
     requestAutoScroll,
     expandedItems,
@@ -234,7 +235,7 @@ export const Messages = memo(function Messages({
       ref={containerRef}
       onScroll={updateAutoScroll}
     >
-      <div className="messages-inner">
+      <div className="messages-inner" ref={contentRef}>
         {groupedItems.map((entry) => {
           if (entry.kind === "toolGroup") {
             const { group } = entry;

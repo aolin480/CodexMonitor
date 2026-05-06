@@ -50,10 +50,15 @@ export function useMessagesViewState({
   onQuoteMessage,
 }: UseMessagesViewStateArgs) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const containerNodeRef = useRef<HTMLDivElement | null>(null);
+  const contentNodeRef = useRef<HTMLDivElement | null>(null);
   const autoScrollRef = useRef(true);
+  const programmaticScrollRef = useRef(false);
   const copyTimeoutRef = useRef<number | null>(null);
   const manuallyToggledExpandedRef = useRef<Set<string>>(new Set());
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const observedContentNodeRef = useRef<HTMLDivElement | null>(null);
 
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [collapsedToolGroups, setCollapsedToolGroups] = useState<Set<string>>(
@@ -65,6 +70,10 @@ export function useMessagesViewState({
 
   const scrollKey = `${scrollKeyForItems(items)}-${activeUserInputRequestId ?? "no-input"}`;
 
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    containerNodeRef.current = node;
+  }, []);
+
   const isNearBottom = useCallback(
     (node: HTMLDivElement) =>
       node.scrollHeight - node.scrollTop - node.clientHeight <= SCROLL_THRESHOLD_PX,
@@ -72,32 +81,104 @@ export function useMessagesViewState({
   );
 
   const updateAutoScroll = useCallback(() => {
-    if (!containerRef.current) {
+    if (programmaticScrollRef.current) {
+      programmaticScrollRef.current = false;
       return;
     }
-    autoScrollRef.current = isNearBottom(containerRef.current);
+    const container = containerNodeRef.current;
+    if (!container) {
+      return;
+    }
+    const shouldAutoScroll = isNearBottom(container);
+    autoScrollRef.current = shouldAutoScroll;
   }, [isNearBottom]);
 
   const requestAutoScroll = useCallback(() => {
-    const container = containerRef.current;
+    const container = containerNodeRef.current;
     const shouldScroll =
       autoScrollRef.current || (container ? isNearBottom(container) : true);
     if (!shouldScroll) {
       return;
     }
     if (container) {
+      programmaticScrollRef.current = true;
       container.scrollTop = container.scrollHeight;
       return;
     }
+    programmaticScrollRef.current = true;
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [isNearBottom]);
+
+  const scheduleAutoScroll = useCallback(() => {
+    if (autoScrollFrameRef.current !== null) {
+      return;
+    }
+    autoScrollFrameRef.current = window.requestAnimationFrame(() => {
+      autoScrollFrameRef.current = null;
+      const container = containerNodeRef.current;
+      if (!container && !bottomRef.current) {
+        return;
+      }
+      if (container && !autoScrollRef.current && !isNearBottom(container)) {
+        return;
+      }
+      requestAutoScroll();
+    });
+  }, [isNearBottom, requestAutoScroll]);
+
+  const cancelAutoScrollFrame = useCallback(() => {
+    if (autoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+  }, []);
+
+  const disconnectResizeObserver = useCallback(() => {
+    resizeObserverRef.current?.disconnect();
+    resizeObserverRef.current = null;
+    observedContentNodeRef.current = null;
+  }, []);
+
+  const contentRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      const hasActiveObserver = resizeObserverRef.current !== null;
+      if (
+        contentNodeRef.current === node &&
+        observedContentNodeRef.current === node &&
+        hasActiveObserver
+      ) {
+        return;
+      }
+      disconnectResizeObserver();
+      contentNodeRef.current = node;
+      if (!node) {
+        contentNodeRef.current = null;
+        return;
+      }
+      scheduleAutoScroll();
+      const schedulePinnedScroll = () => {
+        if (autoScrollRef.current) {
+          scheduleAutoScroll();
+        }
+      };
+      if (typeof ResizeObserver !== "undefined") {
+        const observer = new ResizeObserver(() => {
+          schedulePinnedScroll();
+        });
+        observer.observe(node);
+        resizeObserverRef.current = observer;
+      }
+      observedContentNodeRef.current = node;
+    },
+    [disconnectResizeObserver, scheduleAutoScroll],
+  );
 
   useLayoutEffect(() => {
     autoScrollRef.current = true;
   }, [threadId]);
 
   useLayoutEffect(() => {
-    const container = containerRef.current;
+    const container = containerNodeRef.current;
     const shouldScroll =
       autoScrollRef.current || (container ? isNearBottom(container) : true);
     if (!shouldScroll) {
@@ -111,12 +192,22 @@ export function useMessagesViewState({
   }, [scrollKey, isThinking, isNearBottom, threadId]);
 
   useEffect(() => {
+    if (!autoScrollRef.current) {
+      return;
+    }
+    requestAutoScroll();
+    scheduleAutoScroll();
+  }, [isThinking, requestAutoScroll, scheduleAutoScroll, scrollKey]);
+
+  useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) {
         window.clearTimeout(copyTimeoutRef.current);
       }
+      cancelAutoScrollFrame();
+      disconnectResizeObserver();
     };
-  }, []);
+  }, [cancelAutoScrollFrame, disconnectResizeObserver]);
 
   const toggleExpanded = useCallback((id: string) => {
     manuallyToggledExpandedRef.current.add(id);
@@ -289,6 +380,7 @@ export function useMessagesViewState({
   return {
     bottomRef,
     containerRef,
+    contentRef,
     updateAutoScroll,
     requestAutoScroll,
     expandedItems,
