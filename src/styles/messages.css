@@ -1344,6 +1344,14 @@
   line-height: var(--code-line-height, 1.28);
 }
 
+.message .markdown-codeblock pre,
+.message .markdown-codeblock code,
+.message .markdown-codeblock-single,
+.message .markdown-codeblock-single code {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .message .markdown-codeblock-single {
   margin: 8px 0 14px;
   padding: 10px 12px 18px;

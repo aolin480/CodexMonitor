@@ -603,4 +603,70 @@ describe("Markdown file-like href behavior", () => {
     );
   });
 
+  it("copies selected text from a single-line code block", () => {
+    const onSetData = vi.fn();
+    const { container } = render(
+      <Markdown
+        value={["```text", "warp-terminal-context", "```"].join("\n")}
+        className="markdown"
+        codeBlockStyle="message"
+      />,
+    );
+    const codeNode = screen.getByText("warp-terminal-context").firstChild;
+    if (!(codeNode instanceof Text)) {
+      throw new Error("Expected code text node");
+    }
+
+    const range = document.createRange();
+    range.setStart(codeNode, 0);
+    range.setEnd(codeNode, "warp-terminal-context".length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+    Object.defineProperty(copyEvent, "clipboardData", {
+      value: { setData: onSetData },
+    });
+    container.querySelector("code")?.dispatchEvent(copyEvent);
+
+    expect(onSetData).toHaveBeenCalledWith("text/plain", "warp-terminal-context");
+    expect(copyEvent.defaultPrevented).toBe(true);
+    selection?.removeAllRanges();
+  });
+
+  it("copies selected text from a fenced code block", () => {
+    const onSetData = vi.fn();
+    const { container } = render(
+      <Markdown
+        value={["```text", "Use the warp-terminal-context MCP server", "```"].join("\n")}
+        className="markdown"
+        codeBlockStyle="message"
+      />,
+    );
+    const codeNode = screen.getByText("Use the warp-terminal-context MCP server").firstChild;
+    if (!(codeNode instanceof Text)) {
+      throw new Error("Expected code text node");
+    }
+
+    const line = "Use the warp-terminal-context MCP server";
+    const start = line.indexOf("warp-terminal-context");
+    const range = document.createRange();
+    range.setStart(codeNode, start);
+    range.setEnd(codeNode, start + "warp-terminal-context".length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+    Object.defineProperty(copyEvent, "clipboardData", {
+      value: { setData: onSetData },
+    });
+    container.querySelector("code")?.dispatchEvent(copyEvent);
+
+    expect(onSetData).toHaveBeenCalledWith("text/plain", "warp-terminal-context");
+    expect(copyEvent.defaultPrevented).toBe(true);
+    selection?.removeAllRanges();
+  });
+
 });

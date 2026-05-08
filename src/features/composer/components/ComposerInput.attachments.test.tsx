@@ -163,6 +163,38 @@ function setMockFileReader() {
 }
 
 describe("Composer attachments integration", () => {
+  it("copies exactly the selected textarea text", async () => {
+    const onSetData = vi.fn();
+    const harness = renderComposerHarness({
+      activeThreadId: "thread-1",
+      activeWorkspaceId: "ws-1",
+    });
+    const textarea = getTextarea(harness.container);
+
+    await act(async () => {
+      textarea.value = "before warp-terminal-context after";
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    textarea.setSelectionRange(7, 28);
+    const event = new Event("copy", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        setData: onSetData,
+      },
+    });
+
+    textarea.dispatchEvent(event);
+
+    expect(onSetData).toHaveBeenCalledWith(
+      "text/plain",
+      "warp-terminal-context",
+    );
+    expect(event.defaultPrevented).toBe(true);
+
+    harness.unmount();
+  });
+
   it("attaches dropped image files, filters non-images, and dedupes paths", async () => {
     const harness = renderComposerHarness({
       activeThreadId: "thread-1",

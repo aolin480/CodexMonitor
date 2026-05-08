@@ -226,6 +226,21 @@ export function ComposerInput({
     [handlePaste, onTextPaste],
   );
 
+  const handleTextareaCopy = useCallback(
+    (event: ClipboardEvent<HTMLTextAreaElement>) => {
+      const textarea = textareaRef.current;
+      if (!textarea || textarea.selectionStart === textarea.selectionEnd) {
+        return;
+      }
+      event.clipboardData.setData(
+        "text/plain",
+        textarea.value.slice(textarea.selectionStart, textarea.selectionEnd),
+      );
+      event.preventDefault();
+    },
+    [textareaRef],
+  );
+
   const handleMobileAttachClick = useCallback(() => {
     if (disabled || !onAddAttachment) {
       return;
@@ -309,6 +324,7 @@ export function ComposerInput({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onPaste={handleTextareaPaste}
+            onCopy={handleTextareaCopy}
           />
           <div className="composer-input-actions">
             {showPhoneFollowUpControls && (

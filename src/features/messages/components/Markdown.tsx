@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import type { ClipboardEvent } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -46,6 +47,26 @@ type PreProps = {
 type LinkBlockProps = {
   urls: string[];
 };
+
+function getCodeSelectionText(root: HTMLElement, fallback: string) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+  const selectedInsideRoot =
+    root.contains(range.commonAncestorContainer) ||
+    root.contains(selection.anchorNode) ||
+    root.contains(selection.focusNode);
+
+  if (!selectedInsideRoot) {
+    return null;
+  }
+
+  const selectedText = selection.toString();
+  return selectedText.trim().length > 0 ? selectedText : fallback;
+}
 
 function extractLanguageTag(className?: string) {
   if (!className) {
@@ -351,6 +372,7 @@ type CodeBlockCopyMode = "code" | "markdown";
 function CodeBlock({ className, value }: CodeBlockProps) {
   const [copiedMode, setCopiedMode] = useState<CodeBlockCopyMode | null>(null);
   const copyTimeoutRef = useRef<number | null>(null);
+  const preRef = useRef<HTMLPreElement | null>(null);
   const languageTag = extractLanguageTag(className);
   const languageLabel = languageTag ?? "Code";
   const fencedValue = `\`\`\`${languageTag ?? ""}\n${value}\n\`\`\``;
@@ -378,6 +400,22 @@ function CodeBlock({ className, value }: CodeBlockProps) {
     }
   };
 
+  const handleSelectedTextCopy = useCallback(
+    (event: ClipboardEvent<HTMLPreElement>) => {
+      const pre = preRef.current;
+      if (!pre) {
+        return;
+      }
+      const copyText = getCodeSelectionText(pre, value);
+      if (copyText === null) {
+        return;
+      }
+      event.clipboardData.setData("text/plain", copyText);
+      event.preventDefault();
+    },
+    [value],
+  );
+
   return (
     <div className="markdown-codeblock">
       <div className="markdown-codeblock-header">
@@ -403,10 +441,39 @@ function CodeBlock({ className, value }: CodeBlockProps) {
           </button>
         </div>
       </div>
-      <pre>
+      <pre ref={preRef} onCopy={handleSelectedTextCopy}>
         <code className={className}>{value}</code>
       </pre>
     </div>
+  );
+}
+
+function SingleLineCodeBlock({ className, value }: CodeBlockProps) {
+  const preRef = useRef<HTMLPreElement | null>(null);
+  const handleSelectedTextCopy = useCallback(
+    (event: ClipboardEvent<HTMLPreElement>) => {
+      const pre = preRef.current;
+      if (!pre) {
+        return;
+      }
+      const copyText = getCodeSelectionText(pre, value);
+      if (copyText === null) {
+        return;
+      }
+      event.clipboardData.setData("text/plain", copyText);
+      event.preventDefault();
+    },
+    [value],
+  );
+
+  return (
+    <pre
+      ref={preRef}
+      className="markdown-codeblock-single"
+      onCopy={handleSelectedTextCopy}
+    >
+      <code className={className}>{value}</code>
+    </pre>
   );
 }
 
@@ -421,11 +488,7 @@ function PreBlock({ node, children }: PreProps) {
   }
   const isSingleLine = !value.includes("\n");
   if (isSingleLine) {
-    return (
-      <pre className="markdown-codeblock-single">
-        <code className={className}>{value}</code>
-      </pre>
-    );
+    return <SingleLineCodeBlock className={className} value={value} />;
   }
   return <CodeBlock className={className} value={value} />;
 }

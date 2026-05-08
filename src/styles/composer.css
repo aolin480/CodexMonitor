@@ -958,6 +958,12 @@
   flex-direction: column;
 }
 
+.composer-mcp-popover,
+.composer-mcp-popover * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .composer-mcp-header {
   display: flex;
   justify-content: space-between;
@@ -1020,6 +1026,14 @@
   padding: 10px;
   text-align: left;
   cursor: pointer;
+}
+
+.composer-mcp-row-actions,
+.composer-mcp-row-icon,
+.composer-mcp-row-chevron,
+.composer-mcp-count {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .composer-mcp-row-button:hover {
