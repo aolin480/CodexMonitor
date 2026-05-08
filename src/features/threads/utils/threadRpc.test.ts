@@ -18,6 +18,7 @@ describe("threadRpc", () => {
     expect(state).toEqual({
       activeTurnId: "turn-explicit",
       activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: true,
       confidentNoActiveTurn: false,
     });
     expect(
@@ -35,6 +36,7 @@ describe("threadRpc", () => {
     expect(state).toEqual({
       activeTurnId: null,
       activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: false,
       confidentNoActiveTurn: true,
     });
   });
@@ -48,6 +50,33 @@ describe("threadRpc", () => {
     expect(state).toEqual({
       activeTurnId: "turn-live",
       activeTurnStartedAtMs: 1_700_000_000_000,
+      hasActiveTurnSignal: true,
+      confidentNoActiveTurn: false,
+    });
+  });
+
+  it("detects active turns from in-progress item statuses when turn status is missing", () => {
+    const state = getResumedTurnState({
+      id: "thread-1",
+      turns: [
+        {
+          id: "turn-live",
+          started_at: 1_700_000_000,
+          items: [
+            {
+              id: "item-command",
+              type: "commandExecution",
+              status: "in_progress",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(state).toEqual({
+      activeTurnId: "turn-live",
+      activeTurnStartedAtMs: 1_700_000_000_000,
+      hasActiveTurnSignal: true,
       confidentNoActiveTurn: false,
     });
   });
@@ -64,6 +93,7 @@ describe("threadRpc", () => {
     expect(state).toEqual({
       activeTurnId: null,
       activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: false,
       confidentNoActiveTurn: true,
     });
   });
@@ -77,6 +107,7 @@ describe("threadRpc", () => {
     expect(state).toEqual({
       activeTurnId: null,
       activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: false,
       confidentNoActiveTurn: false,
     });
   });

@@ -161,7 +161,7 @@ export function buildResumeHydrationPlan({
   const resumedActiveTurnId = keepLocalProcessing
     ? localActiveTurnId
     : resumedTurnState.activeTurnId;
-  const shouldMarkProcessing = keepLocalProcessing || Boolean(resumedActiveTurnId);
+  const shouldMarkProcessing = keepLocalProcessing || resumedTurnState.hasActiveTurnSignal;
   const processingTimestamp = resumedTurnState.activeTurnStartedAtMs ?? Date.now();
   const hasOverlap =
     items.length > 0 &&

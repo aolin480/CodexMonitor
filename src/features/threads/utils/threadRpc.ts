@@ -208,6 +208,7 @@ export function getSubagentMetadataFromThread(
 export type ResumedTurnState = {
   activeTurnId: string | null;
   activeTurnStartedAtMs: number | null;
+  hasActiveTurnSignal: boolean;
   confidentNoActiveTurn: boolean;
 };
 
@@ -288,12 +289,25 @@ function classifyTurnStatus(status: string): TurnStatusKind {
   return "unknown";
 }
 
+function turnHasActiveItemStatus(turn: Record<string, unknown>) {
+  const items = Array.isArray(turn.items)
+    ? (turn.items as Array<Record<string, unknown>>)
+    : [];
+  return items.some((item) => {
+    const status = classifyTurnStatus(
+      normalizeTurnStatus(item.status ?? item.itemStatus ?? item.item_status),
+    );
+    return status === "active";
+  });
+}
+
 function getExplicitActiveTurnState(
   thread: Record<string, unknown>,
 ): {
   explicit: boolean;
   activeTurnId: string | null;
   activeTurnStartedAtMs: number | null;
+  hasActiveTurnSignal: boolean;
 } {
   const hasExplicitTurnId =
     "activeTurnId" in thread || "active_turn_id" in thread;
@@ -303,6 +317,7 @@ function getExplicitActiveTurnState(
       explicit: true,
       activeTurnId: activeTurnId || null,
       activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: Boolean(activeTurnId),
     };
   }
 
@@ -322,6 +337,7 @@ function getExplicitActiveTurnState(
       explicit: false,
       activeTurnId: null,
       activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: false,
     };
   }
   const objectTurnId = asString(
@@ -331,6 +347,7 @@ function getExplicitActiveTurnState(
     explicit: true,
     activeTurnId: objectTurnId || null,
     activeTurnStartedAtMs: activeTurn ? turnStartedAtMs(activeTurn) : null,
+    hasActiveTurnSignal: Boolean(objectTurnId || activeTurn),
   };
 }
 
@@ -342,6 +359,7 @@ export function getResumedTurnState(
     return {
       activeTurnId: explicitState.activeTurnId,
       activeTurnStartedAtMs: explicitState.activeTurnStartedAtMs,
+      hasActiveTurnSignal: explicitState.hasActiveTurnSignal,
       confidentNoActiveTurn: !explicitState.activeTurnId,
     };
   }
@@ -351,6 +369,7 @@ export function getResumedTurnState(
     : [];
   let sawTerminalStatus = false;
   let sawUnknownStatus = false;
+  let sawActiveSignalWithoutTurnId = false;
   for (let index = turns.length - 1; index >= 0; index -= 1) {
     const turn = turns[index];
     if (!turn || typeof turn !== "object") {
@@ -362,15 +381,18 @@ export function getResumedTurnState(
         turn.status ?? turn.turnStatus ?? turn.turn_status,
       ),
     );
-    if (status === "active") {
+    const hasActiveItemStatus = turnHasActiveItemStatus(turn);
+    if (status === "active" || hasActiveItemStatus) {
       const turnId = asString(turn.id ?? turn.turnId ?? turn.turn_id).trim();
       if (turnId) {
         return {
           activeTurnId: turnId,
           activeTurnStartedAtMs: turnStartedAtMs(turn),
+          hasActiveTurnSignal: true,
           confidentNoActiveTurn: false,
         };
       }
+      sawActiveSignalWithoutTurnId = true;
       sawUnknownStatus = true;
       continue;
     }
@@ -383,6 +405,7 @@ export function getResumedTurnState(
   return {
     activeTurnId: null,
     activeTurnStartedAtMs: null,
+    hasActiveTurnSignal: sawActiveSignalWithoutTurnId,
     confidentNoActiveTurn: sawTerminalStatus && !sawUnknownStatus,
   };
 }
