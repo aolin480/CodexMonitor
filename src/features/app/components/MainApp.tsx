@@ -1937,6 +1937,12 @@ export default function MainApp() {
       hasActiveWorkspace: Boolean(activeWorkspace),
       backendMode: appSettings.backendMode,
       remoteThreadConnectionState: compactThreadConnectionState,
+      activeThreadIsProcessing: activeThreadId
+        ? threadStatusById[activeThreadId]?.isProcessing ?? false
+        : false,
+      activeThreadProcessingStartedAt: activeThreadId
+        ? threadStatusById[activeThreadId]?.processingStartedAt ?? null
+        : null,
     },
   });
 

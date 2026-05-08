@@ -858,15 +858,50 @@
 
 .actions {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
+}
+
+.compact-thread-working-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(46vw, 190px);
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--status-warning) 34%, transparent);
+  padding: 5px 9px;
+  color: var(--text-stronger);
+  background: color-mix(in srgb, var(--cm-surface-panel-strong) 86%, transparent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.compact-thread-working-indicator .working-spinner {
+  width: 13px;
+  height: 13px;
+  border-width: 2px;
+  flex: 0 0 auto;
+}
+
+.compact-thread-working-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.compact-thread-working-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
 }
 
 .compact-workspace-live-indicator {
   display: inline-flex;
   align-items: center;
-  margin-left: 10px;
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
   padding: 3px 8px;
