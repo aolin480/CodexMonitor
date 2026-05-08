@@ -260,7 +260,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     expect(unlistenBlur).toHaveBeenCalledTimes(1);
   });
 
-  it("does not poll while processing and refreshes when visibility returns", async () => {
+  it("polls while processing and pauses while hidden", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -280,10 +280,16 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     );
 
     await act(async () => {
-      vi.advanceTimersByTime(20_000);
+      vi.advanceTimersByTime(2_999);
       await Promise.resolve();
     });
     expect(refreshThread).toHaveBeenCalledTimes(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      await Promise.resolve();
+    });
+    expect(refreshThread).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       visibilityState = "hidden";
@@ -291,7 +297,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
       vi.advanceTimersByTime(20_000);
       await Promise.resolve();
     });
-    expect(refreshThread).toHaveBeenCalledTimes(0);
+    expect(refreshThread).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       visibilityState = "visible";
@@ -299,16 +305,16 @@ describe("useRemoteThreadRefreshOnFocus", () => {
       vi.advanceTimersByTime(500);
       await Promise.resolve();
     });
-    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledTimes(2);
 
     await act(async () => {
-      vi.advanceTimersByTime(20_000);
+      vi.advanceTimersByTime(3_000);
       await Promise.resolve();
     });
-    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledTimes(3);
   });
 
-  it("keeps a low-frequency poll for active remote threads when not processing", async () => {
+  it("keeps a 3 second poll for active remote threads", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -328,7 +334,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     );
 
     await act(async () => {
-      vi.advanceTimersByTime(11_999);
+      vi.advanceTimersByTime(2_999);
       await Promise.resolve();
     });
     expect(refreshThread).toHaveBeenCalledTimes(0);
@@ -338,5 +344,32 @@ describe("useRemoteThreadRefreshOnFocus", () => {
       await Promise.resolve();
     });
     expect(refreshThread).toHaveBeenCalledTimes(1);
+  });
+
+  it("polls active local desktop threads so mobile-originated updates hydrate", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useRemoteThreadRefreshOnFocus({
+        backendMode: "local",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        refreshThread,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
   });
 });

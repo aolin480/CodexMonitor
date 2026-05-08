@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { WorkspaceInfo } from "../../../types";
 
-export const REMOTE_THREAD_POLL_INTERVAL_MS = 12000;
+export const REMOTE_THREAD_POLL_INTERVAL_MS = 3000;
 
 type UseRemoteThreadRefreshOnFocusOptions = {
   backendMode: string;
@@ -18,7 +18,6 @@ export function useRemoteThreadRefreshOnFocus({
   backendMode,
   activeWorkspace,
   activeThreadId,
-  activeThreadIsProcessing = false,
   suspendPolling = false,
   reconnectWorkspace,
   refreshThread,
@@ -54,7 +53,7 @@ export function useRemoteThreadRefreshOnFocus({
     let unlistenWindowBlur: (() => void) | null = null;
 
     const canRefresh = () =>
-      backendMode === "remote" &&
+      (backendMode === "remote" || backendMode === "local") &&
       Boolean(workspaceId) &&
       Boolean(activeThreadId);
 
@@ -118,7 +117,6 @@ export function useRemoteThreadRefreshOnFocus({
       if (
         !canRefresh() ||
         suspendPolling ||
-        activeThreadIsProcessing ||
         !windowFocused ||
         document.visibilityState !== "visible"
       ) {
@@ -206,7 +204,6 @@ export function useRemoteThreadRefreshOnFocus({
     };
   }, [
     activeThreadId,
-    activeThreadIsProcessing,
     backendMode,
     suspendPolling,
     workspaceId,
