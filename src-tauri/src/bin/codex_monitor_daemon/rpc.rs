@@ -85,10 +85,7 @@ pub(super) fn parse_optional_string(value: &Value, key: &str) -> Option<String> 
     }
 }
 
-pub(super) fn parse_optional_nullable_string(
-    value: &Value,
-    key: &str,
-) -> Option<Option<String>> {
+pub(super) fn parse_optional_nullable_string(value: &Value, key: &str) -> Option<Option<String>> {
     match value {
         Value::Object(map) => match map.get(key) {
             Some(Value::Null) => Some(None),
@@ -162,7 +159,22 @@ pub(super) async fn forward_events(
     loop {
         let event = match rx.recv().await {
             Ok(event) => event,
-            Err(broadcast::error::RecvError::Lagged(_)) => continue,
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                let payload = json!({
+                    "method": "app-server-event",
+                    "params": {
+                        "workspace_id": "",
+                        "message": {
+                            "method": "codex/event_stream_lagged",
+                            "params": { "skipped": skipped },
+                        },
+                    },
+                });
+                if out_tx_events.send(payload.to_string()).is_err() {
+                    break;
+                }
+                continue;
+            }
             Err(broadcast::error::RecvError::Closed) => break,
         };
 

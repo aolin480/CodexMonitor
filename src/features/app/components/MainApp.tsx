@@ -533,6 +533,7 @@ export default function MainApp() {
       activeThreadIsProcessing: Boolean(
         activeThreadId && threadStatusById[activeThreadId]?.isProcessing,
       ),
+      isMobileRuntime,
       refreshThread,
       reconnectWorkspace: connectWorkspace,
     });

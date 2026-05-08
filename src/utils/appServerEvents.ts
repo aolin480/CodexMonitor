@@ -8,6 +8,7 @@ export const SUPPORTED_APP_SERVER_METHODS = [
   "codex/backgroundThread",
   "codex/connected",
   "codex/event/skills_update_available",
+  "codex/event_stream_lagged",
   "error",
   "hook/completed",
   "hook/started",
@@ -40,6 +41,7 @@ export type SupportedAppServerMethod = (typeof SUPPORTED_APP_SERVER_METHODS)[num
 export const METHODS_HANDLED_OUTSIDE_USE_APP_SERVER_EVENTS = [
   "app/list/updated",
   "codex/event/skills_update_available",
+  "codex/event_stream_lagged",
 ] as const satisfies readonly SupportedAppServerMethod[];
 
 const SUPPORTED_METHOD_SET = new Set<string>(SUPPORTED_APP_SERVER_METHODS);

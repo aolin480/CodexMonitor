@@ -1,4 +1,4 @@
-# App-Server Events Reference (Codex `19702e190ebf16f789617ca5f16bfc373c238fe7`)
+# App-Server Events Reference (Codex `3377afd84a420193839a06e237118e7a267e9f94`)
 
 This document helps agents quickly answer:
 - Which app-server events CodexMonitor supports right now.
@@ -101,6 +101,8 @@ These arrive on the same frontend event stream but are not Codex v2
 - `codex/connected` (CodexMonitor synthetic bridge event)
 - `codex/event/skills_update_available` (handled via
   `isSkillsUpdateAvailableEvent(...)` in `useSkills.ts`)
+- `codex/event_stream_lagged` (CodexMonitor daemon bridge event; active
+  remote thread hooks treat this as a forced catch-up signal)
 
 ## Conversation Compaction Signals (Codex v2)
 

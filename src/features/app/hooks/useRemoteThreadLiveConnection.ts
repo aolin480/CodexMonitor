@@ -23,6 +23,7 @@ type UseRemoteThreadLiveConnectionOptions = {
   activeThreadId: string | null;
   activeThreadHasLocalSnapshot?: boolean;
   activeThreadIsProcessing?: boolean;
+  isMobileRuntime?: boolean;
   refreshThread: (workspaceId: string, threadId: string) => Promise<unknown> | unknown;
   reconnectWorkspace?: (workspace: WorkspaceInfo) => Promise<unknown> | unknown;
 };
@@ -80,6 +81,7 @@ export function useRemoteThreadLiveConnection({
   activeThreadId,
   activeThreadHasLocalSnapshot = true,
   activeThreadIsProcessing = false,
+  isMobileRuntime = false,
   refreshThread,
   reconnectWorkspace,
 }: UseRemoteThreadLiveConnectionOptions) {
@@ -101,6 +103,7 @@ export function useRemoteThreadLiveConnection({
   const activeThreadIdRef = useRef(activeThreadId);
   const activeThreadHasLocalSnapshotRef = useRef(activeThreadHasLocalSnapshot);
   const activeThreadIsProcessingRef = useRef(activeThreadIsProcessing);
+  const isMobileRuntimeRef = useRef(isMobileRuntime);
   const refreshThreadRef = useRef(refreshThread);
   const reconnectWorkspaceRef = useRef(reconnectWorkspace);
   const connectionStateRef = useRef(connectionState);
@@ -120,6 +123,7 @@ export function useRemoteThreadLiveConnection({
     activeThreadIdRef.current = activeThreadId;
     activeThreadHasLocalSnapshotRef.current = activeThreadHasLocalSnapshot;
     activeThreadIsProcessingRef.current = activeThreadIsProcessing;
+    isMobileRuntimeRef.current = isMobileRuntime;
     refreshThreadRef.current = refreshThread;
     reconnectWorkspaceRef.current = reconnectWorkspace;
   }, [
@@ -128,6 +132,7 @@ export function useRemoteThreadLiveConnection({
     activeThreadId,
     activeThreadHasLocalSnapshot,
     activeThreadIsProcessing,
+    isMobileRuntime,
     refreshThread,
     reconnectWorkspace,
   ]);
@@ -345,6 +350,20 @@ export function useRemoteThreadLiveConnection({
         return;
       }
       if (event.workspace_id !== activeWorkspaceId) {
+        if (method === "codex/event_stream_lagged") {
+          void reconnectLive(activeWorkspaceId, selectedThreadId, {
+            runResume: true,
+            reason: "connected-recovery",
+          });
+        }
+        return;
+      }
+
+      if (method === "codex/event_stream_lagged") {
+        void reconnectLive(activeWorkspaceId, selectedThreadId, {
+          runResume: true,
+          reason: "connected-recovery",
+        });
         return;
       }
 
@@ -439,6 +458,11 @@ export function useRemoteThreadLiveConnection({
     };
 
     const handleBlur = () => {
+      if (isMobileRuntimeRef.current) {
+        // iOS WebViews emit focus/blur for keyboard and app chrome transitions.
+        // Keep the live stream attached; visibility resumes still force catch-up.
+        return;
+      }
       reconnectSequenceRef.current += 1;
       desiredSubscriptionKeyRef.current = null;
       const currentKey = activeSubscriptionKeyRef.current;

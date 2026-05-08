@@ -376,6 +376,77 @@ describe("useRemoteThreadLiveConnection", () => {
     expect(threadLiveUnsubscribeMock).toHaveBeenCalledWith("ws-1", "thread-1");
   });
 
+  it("keeps mobile live subscription attached during window blur", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useRemoteThreadLiveConnection({
+        backendMode: "remote",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        isMobileRuntime: true,
+        refreshThread,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(threadLiveSubscribeMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("blur"));
+      await Promise.resolve();
+    });
+
+    expect(threadLiveUnsubscribeMock).not.toHaveBeenCalled();
+    expect(refreshThread).toHaveBeenCalledTimes(0);
+  });
+
+  it("refreshes and reconnects active thread after daemon event stream lag", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useRemoteThreadLiveConnection({
+        backendMode: "remote",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        refreshThread,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(threadLiveSubscribeMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      for (const listener of appServerListeners) {
+        listener({
+          workspace_id: "",
+          method: "codex/event_stream_lagged",
+          params: { skipped: 3 },
+        });
+      }
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
+    expect(threadLiveSubscribeMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("starts a fresh reconnect after blur cancels same-key in-flight attempt", async () => {
     let resolveFirstSubscribe: (() => void) | null = null;
     const firstSubscribe = new Promise<void>((resolve) => {
