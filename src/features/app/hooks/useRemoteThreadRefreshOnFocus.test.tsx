@@ -372,4 +372,35 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     expect(refreshThread).toHaveBeenCalledTimes(1);
     expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
   });
+
+  it("keeps polling while the desktop window is blurred but visible", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useRemoteThreadRefreshOnFocus({
+        backendMode: "local",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        refreshThread,
+      }),
+    );
+
+    act(() => {
+      window.dispatchEvent(new Event("blur"));
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
+  });
 });

@@ -47,8 +47,6 @@ export function useRemoteThreadRefreshOnFocus({
     let refreshInFlight = false;
     let reconnectInFlight = false;
     let didCleanup = false;
-    let windowFocused =
-      typeof document === "undefined" ? true : document.visibilityState === "visible";
     let unlistenWindowFocus: (() => void) | null = null;
     let unlistenWindowBlur: (() => void) | null = null;
 
@@ -117,7 +115,6 @@ export function useRemoteThreadRefreshOnFocus({
       if (
         !canRefresh() ||
         suspendPolling ||
-        !windowFocused ||
         document.visibilityState !== "visible"
       ) {
         return;
@@ -129,7 +126,6 @@ export function useRemoteThreadRefreshOnFocus({
     };
 
     const handleFocus = () => {
-      windowFocused = true;
       if (!suspendPolling) {
         refreshActiveThread();
       }
@@ -137,13 +133,11 @@ export function useRemoteThreadRefreshOnFocus({
     };
 
     const handleBlur = () => {
-      windowFocused = false;
       updatePolling();
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        windowFocused = true;
         if (!suspendPolling) {
           refreshActiveThread();
         }
