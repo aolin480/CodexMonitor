@@ -289,6 +289,29 @@ function classifyTurnStatus(status: string): TurnStatusKind {
   return "unknown";
 }
 
+function getThreadStatusKind(thread: Record<string, unknown>): TurnStatusKind {
+  const status = asRecord(thread.status ?? thread.threadStatus ?? thread.thread_status);
+  const rawStatus =
+    status?.type ??
+    status?.statusType ??
+    status?.status_type ??
+    thread.status ??
+    thread.threadStatus ??
+    thread.thread_status;
+  const statusType = normalizeTurnStatus(rawStatus);
+  if (statusType === "active") {
+    return "active";
+  }
+  if (
+    statusType === "idle" ||
+    statusType === "notloaded" ||
+    statusType === "systemerror"
+  ) {
+    return "terminal";
+  }
+  return "unknown";
+}
+
 function turnHasActiveItemStatus(turn: Record<string, unknown>) {
   const items = Array.isArray(turn.items)
     ? (turn.items as Array<Record<string, unknown>>)
@@ -299,6 +322,30 @@ function turnHasActiveItemStatus(turn: Record<string, unknown>) {
     );
     return status === "active";
   });
+}
+
+function turnHasPendingUserOnlyState(turn: Record<string, unknown>) {
+  const items = Array.isArray(turn.items)
+    ? (turn.items as Array<Record<string, unknown>>)
+    : [];
+  if (items.length === 0) {
+    return false;
+  }
+
+  let sawUserMessage = false;
+  for (const item of items) {
+    const type = asString(item.type).trim();
+    if (!type) {
+      continue;
+    }
+    if (type === "userMessage") {
+      sawUserMessage = true;
+      continue;
+    }
+    return false;
+  }
+
+  return sawUserMessage;
 }
 
 function getExplicitActiveTurnState(
@@ -367,6 +414,15 @@ export function getResumedTurnState(
   const turns = Array.isArray(thread.turns)
     ? (thread.turns as Array<Record<string, unknown>>)
     : [];
+  const threadStatusKind = getThreadStatusKind(thread);
+  if (threadStatusKind === "terminal") {
+    return {
+      activeTurnId: null,
+      activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: false,
+      confidentNoActiveTurn: true,
+    };
+  }
   let sawTerminalStatus = false;
   let sawUnknownStatus = false;
   let sawActiveSignalWithoutTurnId = false;
@@ -382,7 +438,22 @@ export function getResumedTurnState(
       ),
     );
     const hasActiveItemStatus = turnHasActiveItemStatus(turn);
+    const hasPendingUserOnlyState = turnHasPendingUserOnlyState(turn);
     if (status === "active" || hasActiveItemStatus) {
+      const turnId = asString(turn.id ?? turn.turnId ?? turn.turn_id).trim();
+      if (turnId) {
+        return {
+          activeTurnId: turnId,
+          activeTurnStartedAtMs: turnStartedAtMs(turn),
+          hasActiveTurnSignal: true,
+          confidentNoActiveTurn: false,
+        };
+      }
+      sawActiveSignalWithoutTurnId = true;
+      sawUnknownStatus = true;
+      continue;
+    }
+    if (hasPendingUserOnlyState) {
       const turnId = asString(turn.id ?? turn.turnId ?? turn.turn_id).trim();
       if (turnId) {
         return {
@@ -401,6 +472,14 @@ export function getResumedTurnState(
       continue;
     }
     sawUnknownStatus = true;
+  }
+  if (threadStatusKind === "active") {
+    return {
+      activeTurnId: null,
+      activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: true,
+      confidentNoActiveTurn: false,
+    };
   }
   return {
     activeTurnId: null,

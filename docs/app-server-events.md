@@ -174,6 +174,7 @@ These are v2 request methods CodexMonitor currently sends to Codex app-server:
 
 Notes:
 - `turn/start` now forwards the optional `serviceTier` override (`"fast"` for `/fast`, `null` for default/off) alongside `model`, `effort`, and `collaborationMode`.
+- `thread/resume` responses include canonical `thread.status`; CodexMonitor treats `status.type = "active"` as a processing signal for cross-device catch-up even when no active turn id is present in the resumed turns.
 
 ## Missing Client Requests (Codex v2 ClientRequest Methods)
 

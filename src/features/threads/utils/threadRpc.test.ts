@@ -81,6 +81,77 @@ describe("threadRpc", () => {
     });
   });
 
+  it("detects active turns from user-only resumed turns when live status is unavailable", () => {
+    const state = getResumedTurnState({
+      id: "thread-1",
+      turns: [
+        {
+          id: "turn-live",
+          started_at: 1_700_000_000,
+          items: [
+            {
+              id: "item-user",
+              type: "userMessage",
+              content: [{ type: "text", text: "Please continue." }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(state).toEqual({
+      activeTurnId: "turn-live",
+      activeTurnStartedAtMs: 1_700_000_000_000,
+      hasActiveTurnSignal: true,
+      confidentNoActiveTurn: false,
+    });
+  });
+
+  it("uses top-level active thread status as a resume processing signal", () => {
+    const state = getResumedTurnState({
+      id: "thread-1",
+      status: { type: "active", activeFlags: [] },
+      turns: [{ id: "turn-1", status: "completed", items: [] }],
+    });
+
+    expect(state).toEqual({
+      activeTurnId: null,
+      activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: true,
+      confidentNoActiveTurn: false,
+    });
+  });
+
+  it("prefers active turn ids over top-level active thread status", () => {
+    const state = getResumedTurnState({
+      id: "thread-1",
+      status: { type: "active", activeFlags: [] },
+      turns: [{ id: "turn-live", status: "inProgress", started_at: 1_700_000_000 }],
+    });
+
+    expect(state).toEqual({
+      activeTurnId: "turn-live",
+      activeTurnStartedAtMs: 1_700_000_000_000,
+      hasActiveTurnSignal: true,
+      confidentNoActiveTurn: false,
+    });
+  });
+
+  it("treats top-level idle thread status as confidently idle", () => {
+    const state = getResumedTurnState({
+      id: "thread-1",
+      status: { type: "idle" },
+      turns: [{ id: "turn-stale", status: "inProgress", items: [] }],
+    });
+
+    expect(state).toEqual({
+      activeTurnId: null,
+      activeTurnStartedAtMs: null,
+      hasActiveTurnSignal: false,
+      confidentNoActiveTurn: true,
+    });
+  });
+
   it("marks completed-only turn snapshots as confidently idle", () => {
     const state = getResumedTurnState({
       id: "thread-1",

@@ -495,6 +495,73 @@ describe("useThreadActions", () => {
     });
   });
 
+  it("keeps local processing when resume looks idle but the latest message still awaits a reply", async () => {
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-1",
+          preview: "Need a reply",
+          status: { type: "idle" },
+          updated_at: 1000,
+          turns: [
+            {
+              id: "turn-remote",
+              status: "completed",
+              items: [
+                {
+                  id: "item-user",
+                  type: "userMessage",
+                  content: [{ type: "text", text: "Still working?" }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    vi.mocked(buildItemsFromThread).mockReturnValue([
+      {
+        id: "item-user",
+        kind: "message",
+        role: "user",
+        text: "Still working?",
+      },
+    ]);
+    vi.mocked(isReviewingFromThread).mockReturnValue(false);
+
+    const { result, dispatch, args } = renderActions({
+      threadStatusById: {
+        "thread-1": {
+          isProcessing: true,
+          isReviewing: false,
+          hasUnread: false,
+          processingStartedAt: 123,
+          lastDurationMs: null,
+        },
+      },
+      activeTurnIdByThread: {
+        "thread-1": "turn-local",
+      },
+    });
+
+    await act(async () => {
+      await result.current.resumeThreadForWorkspace("ws-1", "thread-1", true, true);
+    });
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "markProcessing",
+      threadId: "thread-1",
+      isProcessing: true,
+      timestamp: expect.any(Number),
+    });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setActiveTurnId",
+      threadId: "thread-1",
+      turnId: "turn-local",
+    });
+    expect(args.threadStatusById["thread-1"]?.isProcessing).toBe(true);
+  });
+
   it("uses latest local processing state while resume is in flight", async () => {
     let resolveResume: ((value: Record<string, unknown>) => void) | null = null;
     vi.mocked(resumeThread).mockImplementation(
@@ -593,6 +660,92 @@ describe("useThreadActions", () => {
       type: "setActiveTurnId",
       threadId: "thread-3",
       turnId: "turn-2",
+    });
+  });
+
+  it("hydrates processing state from top-level active thread status on resume", async () => {
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-3",
+          preview: "Working thread",
+          status: { type: "active", activeFlags: [] },
+          updated_at: 1000,
+          turns: [{ id: "turn-1", status: "completed", items: [] }],
+        },
+      },
+    });
+    vi.mocked(buildItemsFromThread).mockReturnValue([]);
+    vi.mocked(isReviewingFromThread).mockReturnValue(false);
+
+    const { result, dispatch } = renderActions();
+
+    await act(async () => {
+      await result.current.resumeThreadForWorkspace("ws-1", "thread-3", true);
+    });
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "markProcessing",
+      threadId: "thread-3",
+      isProcessing: true,
+      timestamp: expect.any(Number),
+    });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setActiveTurnId",
+      threadId: "thread-3",
+      turnId: null,
+    });
+  });
+
+  it("hydrates processing state from user-only resumed turns when sessions are split", async () => {
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-3",
+          preview: "Working thread",
+          updated_at: 1000,
+          turns: [
+            {
+              id: "turn-3",
+              started_at: 1_700_000_000,
+              items: [
+                {
+                  id: "item-user",
+                  type: "userMessage",
+                  content: [{ type: "text", text: "Run this on mobile." }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    vi.mocked(buildItemsFromThread).mockReturnValue([
+      {
+        id: "item-user",
+        kind: "message",
+        role: "user",
+        text: "Run this on mobile.",
+      },
+    ]);
+    vi.mocked(isReviewingFromThread).mockReturnValue(false);
+
+    const { result, dispatch } = renderActions();
+
+    await act(async () => {
+      await result.current.resumeThreadForWorkspace("ws-1", "thread-3", true);
+    });
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "markProcessing",
+      threadId: "thread-3",
+      isProcessing: true,
+      timestamp: 1_700_000_000_000,
+    });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setActiveTurnId",
+      threadId: "thread-3",
+      turnId: "turn-3",
     });
   });
 

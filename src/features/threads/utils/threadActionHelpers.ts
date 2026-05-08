@@ -154,15 +154,6 @@ export function buildResumeHydrationPlan({
   }
 
   const resumedTurnState = getResumedTurnState(thread);
-  const keepLocalProcessing =
-    (localStatus?.isProcessing ?? false) &&
-    !resumedTurnState.activeTurnId &&
-    !resumedTurnState.confidentNoActiveTurn;
-  const resumedActiveTurnId = keepLocalProcessing
-    ? localActiveTurnId
-    : resumedTurnState.activeTurnId;
-  const shouldMarkProcessing = keepLocalProcessing || resumedTurnState.hasActiveTurnSignal;
-  const processingTimestamp = resumedTurnState.activeTurnStartedAtMs ?? Date.now();
   const hasOverlap =
     items.length > 0 &&
     localItems.length > 0 &&
@@ -175,6 +166,22 @@ export function buildResumeHydrationPlan({
           ? localItems
           : mergeThreadItems(items, localItems)
       : localItems;
+  const latestConversationMessage = [...mergedItems]
+    .reverse()
+    .find(
+      (item): item is Extract<ConversationItem, { kind: "message" }> =>
+        item.kind === "message",
+    );
+  const latestMessageWaitingForReply = latestConversationMessage?.role === "user";
+  const keepLocalProcessing =
+    (localStatus?.isProcessing ?? false) &&
+    !resumedTurnState.activeTurnId &&
+    (!resumedTurnState.confidentNoActiveTurn || latestMessageWaitingForReply);
+  const resumedActiveTurnId = keepLocalProcessing
+    ? localActiveTurnId
+    : resumedTurnState.activeTurnId;
+  const shouldMarkProcessing = keepLocalProcessing || resumedTurnState.hasActiveTurnSignal;
+  const processingTimestamp = resumedTurnState.activeTurnStartedAtMs ?? Date.now();
   const preview = asString(thread.preview ?? "");
   const syncedName = resolveSyncedThreadName(asString(thread.name ?? ""));
   const customName = getCustomName(workspaceId, threadId);
