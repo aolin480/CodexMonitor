@@ -409,6 +409,129 @@ describe("useRemoteThreadLiveConnection", () => {
     expect(refreshThread).toHaveBeenCalledTimes(0);
   });
 
+  it("polls the active mobile remote thread every 3 seconds while visible", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useRemoteThreadLiveConnection({
+        backendMode: "remote",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        isMobileRuntime: true,
+        refreshThread,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(refreshThread).toHaveBeenCalledTimes(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(2_999);
+      await Promise.resolve();
+    });
+    expect(refreshThread).toHaveBeenCalledTimes(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      await Promise.resolve();
+    });
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenLastCalledWith("ws-1", "thread-1");
+
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+      await Promise.resolve();
+    });
+    expect(refreshThread).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not poll active mobile remote thread while document is hidden", async () => {
+    visibilityState = "hidden";
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useRemoteThreadLiveConnection({
+        backendMode: "remote",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        isMobileRuntime: true,
+        refreshThread,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(9_000);
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(0);
+  });
+
+  it("does not overlap mobile active thread polls", async () => {
+    let resolveRefresh: (() => void) | null = null;
+    const refreshPromise = new Promise<void>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const refreshThread = vi
+      .fn()
+      .mockReturnValueOnce(refreshPromise)
+      .mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useRemoteThreadLiveConnection({
+        backendMode: "remote",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        isMobileRuntime: true,
+        refreshThread,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+      await Promise.resolve();
+    });
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(9_000);
+      await Promise.resolve();
+    });
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRefresh?.();
+      await refreshPromise;
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+      await Promise.resolve();
+    });
+    expect(refreshThread).toHaveBeenCalledTimes(2);
+  });
+
   it("refreshes and reconnects active thread after daemon event stream lag", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 

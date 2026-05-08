@@ -11,6 +11,7 @@ import type { WorkspaceInfo } from "@/types";
 export type RemoteThreadConnectionState = "live" | "polling" | "disconnected";
 
 const SELF_DETACH_IGNORE_WINDOW_MS = 10_000;
+const MOBILE_ACTIVE_THREAD_POLL_INTERVAL_MS = 3_000;
 
 type ReconnectOptions = {
   runResume?: boolean;
@@ -110,6 +111,7 @@ export function useRemoteThreadLiveConnection({
   const activeSubscriptionKeyRef = useRef<string | null>(null);
   const desiredSubscriptionKeyRef = useRef<string | null>(null);
   const ignoreDetachedEventsUntilRef = useRef<Map<string, number>>(new Map());
+  const mobileRefreshInFlightKeyRef = useRef<string | null>(null);
   const inFlightReconnectRef = useRef<{
     key: string;
     sequence: number;
@@ -431,6 +433,92 @@ export function useRemoteThreadLiveConnection({
       unlisten();
     };
   }, [reconnectLive, reconcileDisconnectedState, setState]);
+
+  useEffect(() => {
+    if (
+      backendMode !== "remote" ||
+      !isMobileRuntime ||
+      !activeWorkspaceId ||
+      !activeThreadId ||
+      !activeWorkspaceConnected
+    ) {
+      return;
+    }
+
+    let didCleanup = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+    let scheduleNextPoll: () => void;
+
+    const runPoll = async () => {
+      if (didCleanup) {
+        return;
+      }
+      if (!isDocumentVisible()) {
+        scheduleNextPoll();
+        return;
+      }
+      const workspaceId = activeWorkspaceRef.current?.id ?? null;
+      const threadId = activeThreadIdRef.current;
+      if (
+        backendModeRef.current !== "remote" ||
+        !isMobileRuntimeRef.current ||
+        !workspaceId ||
+        !threadId ||
+        !activeWorkspaceRef.current?.connected
+      ) {
+        return;
+      }
+
+      const pollKey = keyForThread(workspaceId, threadId);
+      if (mobileRefreshInFlightKeyRef.current === pollKey) {
+        scheduleNextPoll();
+        return;
+      }
+
+      mobileRefreshInFlightKeyRef.current = pollKey;
+      try {
+        await Promise.resolve(refreshThreadRef.current(workspaceId, threadId));
+      } catch {
+        if (
+          !didCleanup &&
+          activeWorkspaceRef.current?.id === workspaceId &&
+          activeThreadIdRef.current === threadId
+        ) {
+          reconcileDisconnectedState();
+        }
+      } finally {
+        if (mobileRefreshInFlightKeyRef.current === pollKey) {
+          mobileRefreshInFlightKeyRef.current = null;
+        }
+        scheduleNextPoll();
+      }
+    };
+
+    scheduleNextPoll = () => {
+      if (didCleanup) {
+        return;
+      }
+      pollTimer = setTimeout(() => {
+        void runPoll();
+      }, MOBILE_ACTIVE_THREAD_POLL_INTERVAL_MS);
+    };
+
+    scheduleNextPoll();
+    return () => {
+      didCleanup = true;
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+      }
+    };
+  }, [
+    activeThreadId,
+    activeWorkspaceConnected,
+    activeWorkspaceId,
+    backendMode,
+    isMobileRuntime,
+    reconcileDisconnectedState,
+  ]);
 
   useEffect(() => {
     let unlistenWindowFocus: (() => void) | null = null;
