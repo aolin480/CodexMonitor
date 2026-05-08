@@ -11,7 +11,7 @@ import type { WorkspaceInfo } from "@/types";
 export type RemoteThreadConnectionState = "live" | "polling" | "disconnected";
 
 const SELF_DETACH_IGNORE_WINDOW_MS = 10_000;
-const MOBILE_ACTIVE_THREAD_POLL_INTERVAL_MS = 3_000;
+const ACTIVE_THREAD_POLL_INTERVAL_MS = 3_000;
 
 type ReconnectOptions = {
   runResume?: boolean;
@@ -111,7 +111,7 @@ export function useRemoteThreadLiveConnection({
   const activeSubscriptionKeyRef = useRef<string | null>(null);
   const desiredSubscriptionKeyRef = useRef<string | null>(null);
   const ignoreDetachedEventsUntilRef = useRef<Map<string, number>>(new Map());
-  const mobileRefreshInFlightKeyRef = useRef<string | null>(null);
+  const activeThreadRefreshInFlightKeyRef = useRef<string | null>(null);
   const inFlightReconnectRef = useRef<{
     key: string;
     sequence: number;
@@ -437,7 +437,6 @@ export function useRemoteThreadLiveConnection({
   useEffect(() => {
     if (
       backendMode !== "remote" ||
-      !isMobileRuntime ||
       !activeWorkspaceId ||
       !activeThreadId ||
       !activeWorkspaceConnected
@@ -462,7 +461,6 @@ export function useRemoteThreadLiveConnection({
       const threadId = activeThreadIdRef.current;
       if (
         backendModeRef.current !== "remote" ||
-        !isMobileRuntimeRef.current ||
         !workspaceId ||
         !threadId ||
         !activeWorkspaceRef.current?.connected
@@ -471,12 +469,12 @@ export function useRemoteThreadLiveConnection({
       }
 
       const pollKey = keyForThread(workspaceId, threadId);
-      if (mobileRefreshInFlightKeyRef.current === pollKey) {
+      if (activeThreadRefreshInFlightKeyRef.current === pollKey) {
         scheduleNextPoll();
         return;
       }
 
-      mobileRefreshInFlightKeyRef.current = pollKey;
+      activeThreadRefreshInFlightKeyRef.current = pollKey;
       try {
         await Promise.resolve(refreshThreadRef.current(workspaceId, threadId));
       } catch {
@@ -488,8 +486,8 @@ export function useRemoteThreadLiveConnection({
           reconcileDisconnectedState();
         }
       } finally {
-        if (mobileRefreshInFlightKeyRef.current === pollKey) {
-          mobileRefreshInFlightKeyRef.current = null;
+        if (activeThreadRefreshInFlightKeyRef.current === pollKey) {
+          activeThreadRefreshInFlightKeyRef.current = null;
         }
         scheduleNextPoll();
       }
@@ -501,7 +499,7 @@ export function useRemoteThreadLiveConnection({
       }
       pollTimer = setTimeout(() => {
         void runPoll();
-      }, MOBILE_ACTIVE_THREAD_POLL_INTERVAL_MS);
+      }, ACTIVE_THREAD_POLL_INTERVAL_MS);
     };
 
     scheduleNextPoll();
@@ -516,7 +514,6 @@ export function useRemoteThreadLiveConnection({
     activeWorkspaceConnected,
     activeWorkspaceId,
     backendMode,
-    isMobileRuntime,
     reconcileDisconnectedState,
   ]);
 

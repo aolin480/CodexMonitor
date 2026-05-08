@@ -68,7 +68,7 @@ describe("useRemoteThreadLiveConnection", () => {
     vi.useRealTimers();
   });
 
-  it("does not reconnect during normal idle period without detach signal", async () => {
+  it("polls the active desktop remote thread without reconnecting during normal idle periods", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -112,7 +112,7 @@ describe("useRemoteThreadLiveConnection", () => {
 
     expect(threadLiveSubscribeMock).toHaveBeenCalledTimes(1);
     expect(threadLiveUnsubscribeMock).toHaveBeenCalledTimes(0);
-    expect(refreshThread).toHaveBeenCalledTimes(0);
+    expect(refreshThread.mock.calls.length).toBeGreaterThanOrEqual(1);
     expect(pushErrorToastMock).not.toHaveBeenCalled();
   });
 
@@ -409,7 +409,7 @@ describe("useRemoteThreadLiveConnection", () => {
     expect(refreshThread).toHaveBeenCalledTimes(0);
   });
 
-  it("polls the active mobile remote thread every 3 seconds while visible", async () => {
+  it("polls the active remote thread every 3 seconds while visible", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -453,7 +453,7 @@ describe("useRemoteThreadLiveConnection", () => {
     expect(refreshThread).toHaveBeenCalledTimes(2);
   });
 
-  it("does not poll active mobile remote thread while document is hidden", async () => {
+  it("does not poll active remote thread while document is hidden", async () => {
     visibilityState = "hidden";
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
@@ -481,7 +481,7 @@ describe("useRemoteThreadLiveConnection", () => {
     expect(refreshThread).toHaveBeenCalledTimes(0);
   });
 
-  it("does not overlap mobile active thread polls", async () => {
+  it("does not overlap active remote thread polls", async () => {
     let resolveRefresh: (() => void) | null = null;
     const refreshPromise = new Promise<void>((resolve) => {
       resolveRefresh = resolve;
