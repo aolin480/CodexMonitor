@@ -14,6 +14,16 @@ import {
   prefersUpdatedSort,
 } from "./common";
 
+function prepareStateItems(
+  items: ConversationItem[],
+  maxItemsPerThread: ThreadState["maxItemsPerThread"],
+) {
+  return prepareThreadItems(items, {
+    maxItemsPerThread,
+    summarizeExploration: false,
+  });
+}
+
 export function reduceThreadItems(state: ThreadState, action: ThreadAction): ThreadState {
   switch (action.type) {
     case "addAssistantMessage": {
@@ -28,7 +38,10 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareThreadItems([...list, message], { maxItemsPerThread: state.maxItemsPerThread }),
+          [action.threadId]: prepareStateItems(
+            [...list, message],
+            state.maxItemsPerThread,
+          ),
         },
       };
     }
@@ -49,7 +62,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
           text: action.delta,
         });
       }
-      const updatedItems = prepareThreadItems(list, { maxItemsPerThread: state.maxItemsPerThread });
+      const updatedItems = prepareStateItems(list, state.maxItemsPerThread);
       const nextThreadsByWorkspace = maybeRenameThreadFromAgent({
         workspaceId: action.workspaceId,
         threadId: action.threadId,
@@ -84,7 +97,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
           text: action.text,
         });
       }
-      const updatedItems = prepareThreadItems(list, { maxItemsPerThread: state.maxItemsPerThread });
+      const updatedItems = prepareStateItems(list, state.maxItemsPerThread);
       const nextThreadsByWorkspace = maybeRenameThreadFromAgent({
         workspaceId: action.workspaceId,
         threadId: action.threadId,
@@ -127,7 +140,10 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         }
       }
       const nextItem = ensureUniqueReviewId(list, item);
-      const updatedItems = prepareThreadItems(upsertItem(list, nextItem), { maxItemsPerThread: state.maxItemsPerThread });
+      const updatedItems = prepareStateItems(
+        upsertItem(list, nextItem),
+        state.maxItemsPerThread,
+      );
       let nextThreadsByWorkspace = state.threadsByWorkspace;
       if (isUserMessage) {
         const threads = state.threadsByWorkspace[action.workspaceId] ?? [];
@@ -176,7 +192,10 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareThreadItems(action.items, { maxItemsPerThread: state.maxItemsPerThread }),
+          [action.threadId]: prepareStateItems(
+            action.items,
+            state.maxItemsPerThread,
+          ),
         },
       };
     case "appendReasoningSummary": {
@@ -206,7 +225,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareThreadItems(next, { maxItemsPerThread: state.maxItemsPerThread }),
+          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
         },
       };
     }
@@ -234,7 +253,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareThreadItems(next, { maxItemsPerThread: state.maxItemsPerThread }),
+          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
         },
       };
     }
@@ -265,7 +284,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareThreadItems(next, { maxItemsPerThread: state.maxItemsPerThread }),
+          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
         },
       };
     }
@@ -302,7 +321,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareThreadItems(next, { maxItemsPerThread: state.maxItemsPerThread }),
+          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
         },
       };
     }
@@ -323,7 +342,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareThreadItems(next, { maxItemsPerThread: state.maxItemsPerThread }),
+          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
         },
       };
     }

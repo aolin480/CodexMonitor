@@ -18,6 +18,7 @@ export function useRemoteThreadRefreshOnFocus({
   backendMode,
   activeWorkspace,
   activeThreadId,
+  activeThreadIsProcessing = false,
   suspendPolling = false,
   reconnectWorkspace,
   refreshThread,
@@ -114,6 +115,7 @@ export function useRemoteThreadRefreshOnFocus({
       }
       if (
         !canRefresh() ||
+        !activeThreadIsProcessing ||
         suspendPolling ||
         document.visibilityState !== "visible"
       ) {
@@ -198,6 +200,7 @@ export function useRemoteThreadRefreshOnFocus({
     };
   }, [
     activeThreadId,
+    activeThreadIsProcessing,
     backendMode,
     suspendPolling,
     workspaceId,

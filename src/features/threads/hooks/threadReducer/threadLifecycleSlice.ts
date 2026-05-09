@@ -400,11 +400,23 @@ export function reduceThreadLifecycle(
         };
       }
       const existingThreads = state.threadsByWorkspace[action.workspaceId] ?? [];
+      const incomingById = new Map(
+        visibleThreads.map((thread) => [thread.id, thread] as const),
+      );
       const existingById = new Map(
         existingThreads.map((thread) => [thread.id, thread] as const),
       );
-      const reconciled = [...visibleThreads];
+      const reconciled = existingThreads
+        .filter((thread) => !hidden[thread.id] && incomingById.has(thread.id))
+        .map((thread) => incomingById.get(thread.id) ?? thread);
       const includedIds = new Set(reconciled.map((thread) => thread.id));
+      visibleThreads.forEach((thread) => {
+        if (includedIds.has(thread.id)) {
+          return;
+        }
+        reconciled.push(thread);
+        includedIds.add(thread.id);
+      });
       const freshenAnchorSummary = (summary: ThreadSummary) => {
         const lastMessageTimestamp =
           state.lastAgentMessageByThread[summary.id]?.timestamp ?? 0;

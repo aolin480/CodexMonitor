@@ -650,6 +650,39 @@ describe("threadReducer", () => {
     ).toBe(300);
   });
 
+  it("keeps existing sidebar order during preserve-state thread refreshes", () => {
+    const base: ThreadState = {
+      ...initialState,
+      threadsByWorkspace: {
+        "ws-1": [
+          { id: "thread-a", name: "A", updatedAt: 100 },
+          { id: "thread-b", name: "B", updatedAt: 90 },
+          { id: "thread-c", name: "C", updatedAt: 80 },
+        ],
+      },
+    };
+
+    const next = threadReducer(base, {
+      type: "setThreads",
+      workspaceId: "ws-1",
+      sortKey: "updated_at",
+      preserveAnchors: true,
+      threads: [
+        { id: "thread-c", name: "C fresh", updatedAt: 300 },
+        { id: "thread-a", name: "A fresh", updatedAt: 200 },
+        { id: "thread-new", name: "New", updatedAt: 150 },
+      ],
+    });
+
+    expect(next.threadsByWorkspace["ws-1"]?.map((thread) => thread.id)).toEqual([
+      "thread-a",
+      "thread-c",
+      "thread-new",
+    ]);
+    expect(next.threadsByWorkspace["ws-1"]?.[0]?.name).toBe("A fresh");
+    expect(next.threadsByWorkspace["ws-1"]?.[1]?.name).toBe("C fresh");
+  });
+
   it("does not resurrect hidden anchors on partial setThreads payloads", () => {
     const base: ThreadState = {
       ...initialState,
@@ -742,6 +775,30 @@ describe("threadReducer", () => {
     });
     expect(trimmed.itemsByThread["thread-1"]).toHaveLength(3);
     expect(trimmed.itemsByThread["thread-1"]?.[0]?.id).toBe("msg-2");
+  });
+
+  it("keeps command execution items in reducer state instead of summarizing them", () => {
+    const commandItem: ConversationItem = {
+      id: "cmd-1",
+      kind: "tool",
+      toolType: "commandExecution",
+      title: "Command: cat src/foo.ts",
+      detail: "",
+      status: "completed",
+      output: "",
+    };
+
+    const next = threadReducer(initialState, {
+      type: "setThreadItems",
+      threadId: "thread-1",
+      items: [commandItem],
+    });
+
+    expect(next.itemsByThread["thread-1"]?.[0]).toMatchObject({
+      id: "cmd-1",
+      kind: "tool",
+      toolType: "commandExecution",
+    });
   });
 
 });

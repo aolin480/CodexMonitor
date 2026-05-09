@@ -314,7 +314,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     expect(refreshThread).toHaveBeenCalledTimes(3);
   });
 
-  it("keeps a 3 second poll for active remote threads", async () => {
+  it("does not poll idle active remote threads", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -343,10 +343,10 @@ describe("useRemoteThreadRefreshOnFocus", () => {
       vi.advanceTimersByTime(1);
       await Promise.resolve();
     });
-    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledTimes(0);
   });
 
-  it("polls active local desktop threads so mobile-originated updates hydrate", async () => {
+  it("polls active local desktop threads while processing", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -360,6 +360,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
           settings: { sidebarCollapsed: false },
         },
         activeThreadId: "thread-1",
+        activeThreadIsProcessing: true,
         refreshThread,
       }),
     );
@@ -373,7 +374,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
   });
 
-  it("keeps polling while the desktop window is blurred but visible", async () => {
+  it("keeps polling processing threads while the desktop window is blurred but visible", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -387,6 +388,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
           settings: { sidebarCollapsed: false },
         },
         activeThreadId: "thread-1",
+        activeThreadIsProcessing: true,
         refreshThread,
       }),
     );
