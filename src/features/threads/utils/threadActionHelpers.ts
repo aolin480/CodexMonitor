@@ -158,11 +158,29 @@ export function buildResumeHydrationPlan({
     items.length > 0 &&
     localItems.length > 0 &&
     items.some((item) => localItems.some((local) => local.id === item.id));
+  const shouldPreserveLocalStreamingItems =
+    replaceLocal && (localStatus?.isProcessing ?? false) && localItems.length > 0;
+  const remoteItemIds = new Set(items.map((item) => item.id));
+  const shouldPreserveLocalDurableEvents =
+    replaceLocal &&
+    localItems.some(
+      (item) =>
+        !remoteItemIds.has(item.id) &&
+        (item.kind === "tool" ||
+          item.kind === "diff" ||
+          item.kind === "review" ||
+          item.kind === "userInput"),
+    );
   const mergedItems =
     items.length > 0
-      ? replaceLocal
+      ? replaceLocal &&
+        !shouldPreserveLocalStreamingItems &&
+        !shouldPreserveLocalDurableEvents
         ? items
-        : localItems.length > 0 && !hasOverlap
+        : localItems.length > 0 &&
+            !hasOverlap &&
+            !shouldPreserveLocalStreamingItems &&
+            !shouldPreserveLocalDurableEvents
           ? localItems
           : mergeThreadItems(items, localItems)
       : localItems;

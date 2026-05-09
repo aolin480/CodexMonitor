@@ -562,6 +562,139 @@ describe("useThreadActions", () => {
     expect(args.threadStatusById["thread-1"]?.isProcessing).toBe(true);
   });
 
+  it("preserves local streaming text when a forced active resume snapshot is stale", async () => {
+    const remoteAssistantItem: ConversationItem = {
+      id: "assistant-live",
+      kind: "message",
+      role: "assistant",
+      text: "First paragraph.",
+    };
+    const localAssistantItem: ConversationItem = {
+      id: "assistant-live",
+      kind: "message",
+      role: "assistant",
+      text: "First paragraph.\n\nSecond paragraph still streaming.",
+    };
+    const mergedAssistantItem: ConversationItem = localAssistantItem;
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-1",
+          preview: "First paragraph.",
+          status: { type: "active", activeFlags: [] },
+          updated_at: 1000,
+          turns: [
+            {
+              id: "turn-live",
+              status: "inProgress",
+              items: [
+                {
+                  id: "assistant-live",
+                  type: "agentMessage",
+                  text: "First paragraph.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    vi.mocked(buildItemsFromThread).mockReturnValue([remoteAssistantItem]);
+    vi.mocked(mergeThreadItems).mockReturnValue([mergedAssistantItem]);
+    vi.mocked(isReviewingFromThread).mockReturnValue(false);
+
+    const { result, dispatch } = renderActions({
+      itemsByThread: { "thread-1": [localAssistantItem] },
+      threadStatusById: {
+        "thread-1": {
+          isProcessing: true,
+          hasUnread: false,
+          isReviewing: false,
+          processingStartedAt: 10,
+          lastDurationMs: null,
+        },
+      },
+    });
+
+    await act(async () => {
+      await result.current.resumeThreadForWorkspace("ws-1", "thread-1", true, true);
+    });
+
+    expect(mergeThreadItems).toHaveBeenCalledWith(
+      [remoteAssistantItem],
+      [localAssistantItem],
+    );
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setThreadItems",
+      threadId: "thread-1",
+      items: [mergedAssistantItem],
+    });
+  });
+
+  it("preserves local file change events when a forced resume snapshot omits them", async () => {
+    const remoteAssistantItem: ConversationItem = {
+      id: "assistant-1",
+      kind: "message",
+      role: "assistant",
+      text: "I edited the file.",
+    };
+    const localFileChangeItem: ConversationItem = {
+      id: "file-change-1",
+      kind: "tool",
+      toolType: "fileChange",
+      title: "File changes",
+      detail: "M remote.sh",
+      status: "completed",
+      output: "",
+      changes: [{ path: "remote.sh", kind: "update", diff: "+line" }],
+    };
+    const mergedItems = [remoteAssistantItem, localFileChangeItem];
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-1",
+          preview: "I edited the file.",
+          status: { type: "idle" },
+          updated_at: 1000,
+          turns: [
+            {
+              id: "turn-1",
+              status: "completed",
+              items: [
+                {
+                  id: "assistant-1",
+                  type: "agentMessage",
+                  text: "I edited the file.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    vi.mocked(buildItemsFromThread).mockReturnValue([remoteAssistantItem]);
+    vi.mocked(mergeThreadItems).mockReturnValue(mergedItems);
+    vi.mocked(isReviewingFromThread).mockReturnValue(false);
+
+    const { result, dispatch } = renderActions({
+      itemsByThread: { "thread-1": [localFileChangeItem] },
+    });
+
+    await act(async () => {
+      await result.current.resumeThreadForWorkspace("ws-1", "thread-1", true, true);
+    });
+
+    expect(mergeThreadItems).toHaveBeenCalledWith(
+      [remoteAssistantItem],
+      [localFileChangeItem],
+    );
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setThreadItems",
+      threadId: "thread-1",
+      items: mergedItems,
+    });
+  });
+
   it("uses latest local processing state while resume is in flight", async () => {
     let resolveResume: ((value: Record<string, unknown>) => void) | null = null;
     vi.mocked(resumeThread).mockImplementation(
