@@ -115,7 +115,6 @@ export function useRemoteThreadRefreshOnFocus({
       }
       if (
         !canRefresh() ||
-        !activeThreadIsProcessing ||
         suspendPolling ||
         document.visibilityState !== "visible"
       ) {

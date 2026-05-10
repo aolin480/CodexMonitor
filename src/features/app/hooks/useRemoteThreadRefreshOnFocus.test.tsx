@@ -314,7 +314,7 @@ describe("useRemoteThreadRefreshOnFocus", () => {
     expect(refreshThread).toHaveBeenCalledTimes(3);
   });
 
-  it("does not poll idle active remote threads", async () => {
+  it("polls idle active remote threads for cross-device catch-up", async () => {
     const refreshThread = vi.fn().mockResolvedValue(undefined);
 
     renderHook(() =>
@@ -343,7 +343,36 @@ describe("useRemoteThreadRefreshOnFocus", () => {
       vi.advanceTimersByTime(1);
       await Promise.resolve();
     });
-    expect(refreshThread).toHaveBeenCalledTimes(0);
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
+  });
+
+  it("polls idle active local desktop threads for mobile-originated updates", async () => {
+    const refreshThread = vi.fn().mockResolvedValue(undefined);
+
+    renderHook(() =>
+      useRemoteThreadRefreshOnFocus({
+        backendMode: "local",
+        activeWorkspace: {
+          id: "ws-1",
+          name: "Workspace",
+          path: "/tmp/ws-1",
+          connected: true,
+          settings: { sidebarCollapsed: false },
+        },
+        activeThreadId: "thread-1",
+        activeThreadIsProcessing: false,
+        refreshThread,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+      await Promise.resolve();
+    });
+
+    expect(refreshThread).toHaveBeenCalledTimes(1);
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
   });
 
   it("polls active local desktop threads while processing", async () => {
