@@ -6,6 +6,10 @@
   min-width: 0;
 }
 
+.messages-thinking {
+  overflow-anchor: none;
+}
+
 .messages-full {
   background: transparent;
   border-radius: 0;

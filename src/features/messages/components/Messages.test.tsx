@@ -1703,6 +1703,128 @@ describe("Messages", () => {
     expect(messagesNode.scrollTop).toBe(900);
   });
 
+  it("keeps streaming pinned after layout-driven upward scroll events", async () => {
+    vi.useFakeTimers();
+    setResizeObserver(vi.fn((callback: ResizeObserverCallback) => {
+      resizeObserverCallback = callback;
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      };
+    }) as unknown as typeof ResizeObserver);
+    const items: ConversationItem[] = [
+      {
+        id: "msg-1",
+        kind: "message",
+        role: "assistant",
+        text: "Streaming response",
+      },
+    ];
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    const scrollNode = container.querySelector(".messages.messages-full");
+    expect(scrollNode).toBeTruthy();
+    const messagesNode = scrollNode as HTMLDivElement;
+
+    Object.defineProperty(messagesNode, "clientHeight", {
+      configurable: true,
+      value: 200,
+    });
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 600,
+    });
+    messagesNode.scrollTop = 600;
+    fireEvent.scroll(messagesNode);
+
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 900,
+    });
+    messagesNode.scrollTop = 520;
+    fireEvent.scroll(messagesNode);
+
+    await act(async () => {
+      resizeObserverCallback?.([], {} as ResizeObserver);
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(messagesNode.scrollTop).toBe(900);
+  });
+
+  it("does not re-pin after the user scrolls slightly upward within the bottom threshold", async () => {
+    vi.useFakeTimers();
+    setResizeObserver(vi.fn((callback: ResizeObserverCallback) => {
+      resizeObserverCallback = callback;
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      };
+    }) as unknown as typeof ResizeObserver);
+    const items: ConversationItem[] = [
+      {
+        id: "msg-1",
+        kind: "message",
+        role: "assistant",
+        text: "Stable response",
+      },
+    ];
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    const scrollNode = container.querySelector(".messages.messages-full");
+    expect(scrollNode).toBeTruthy();
+    const messagesNode = scrollNode as HTMLDivElement;
+
+    Object.defineProperty(messagesNode, "clientHeight", {
+      configurable: true,
+      value: 200,
+    });
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 600,
+    });
+    messagesNode.scrollTop = 400;
+    fireEvent.scroll(messagesNode);
+
+    fireEvent.wheel(messagesNode, { deltaY: -32 });
+    messagesNode.scrollTop = 350;
+    fireEvent.scroll(messagesNode);
+
+    Object.defineProperty(messagesNode, "scrollHeight", {
+      configurable: true,
+      value: 650,
+    });
+
+    await act(async () => {
+      resizeObserverCallback?.([], {} as ResizeObserver);
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(messagesNode.scrollTop).toBe(350);
+  });
+
   it("cleans up pending resize auto-scroll work on unmount", async () => {
     vi.useFakeTimers();
     const cancelAnimationFrameSpy = vi.spyOn(window, "cancelAnimationFrame");

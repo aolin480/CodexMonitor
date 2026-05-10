@@ -434,7 +434,7 @@ export function statusToneFromText(status?: string): StatusTone {
   if (/(fail|error)/.test(normalized)) {
     return "failed";
   }
-  if (/(pending|running|processing|started|in[_\s-]?progress)/.test(normalized)) {
+  if (/(pending|running|processing|started|in[_\s-]?progress|inprogress)/.test(normalized)) {
     return "processing";
   }
   if (/(complete|completed|success|done)/.test(normalized)) {

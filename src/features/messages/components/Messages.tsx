@@ -105,6 +105,7 @@ export const Messages = memo(function Messages({
     containerRef,
     contentRef,
     updateAutoScroll,
+    updateUserScrollIntent,
     requestAutoScroll,
     expandedItems,
     toggleExpanded,
@@ -231,8 +232,9 @@ export const Messages = memo(function Messages({
 
   return (
     <div
-      className="messages messages-full"
+      className={`messages messages-full ${isThinking ? "messages-thinking" : ""}`}
       ref={containerRef}
+      onWheel={updateUserScrollIntent}
       onScroll={updateAutoScroll}
     >
       <div className="messages-inner" ref={contentRef}>

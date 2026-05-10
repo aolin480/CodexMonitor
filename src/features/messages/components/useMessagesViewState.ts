@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type WheelEvent,
 } from "react";
 import type { ConversationItem } from "../../../types";
 import { isPlanReadyTaggedMessage } from "../../../utils/internalPlanReadyMessages";
@@ -53,7 +54,11 @@ export function useMessagesViewState({
   const containerNodeRef = useRef<HTMLDivElement | null>(null);
   const contentNodeRef = useRef<HTMLDivElement | null>(null);
   const autoScrollRef = useRef(true);
+  const userPausedAutoScrollRef = useRef(false);
   const programmaticScrollRef = useRef(false);
+  const lastScrollTopRef = useRef(0);
+  const lastUserScrollDirectionRef = useRef<"up" | "down" | null>(null);
+  const lastUserScrollIntentAtRef = useRef(0);
   const copyTimeoutRef = useRef<number | null>(null);
   const manuallyToggledExpandedRef = useRef<Set<string>>(new Set());
   const autoScrollFrameRef = useRef<number | null>(null);
@@ -81,22 +86,75 @@ export function useMessagesViewState({
   );
 
   const updateAutoScroll = useCallback(() => {
-    if (programmaticScrollRef.current) {
-      programmaticScrollRef.current = false;
-      return;
-    }
     const container = containerNodeRef.current;
     if (!container) {
       return;
     }
-    const shouldAutoScroll = isNearBottom(container);
-    autoScrollRef.current = shouldAutoScroll;
+    const currentScrollTop = container.scrollTop;
+    if (programmaticScrollRef.current) {
+      programmaticScrollRef.current = false;
+      lastScrollTopRef.current = currentScrollTop;
+      return;
+    }
+    const nearBottom = isNearBottom(container);
+    const previousScrollTop = lastScrollTopRef.current;
+    const movedUp = currentScrollTop < previousScrollTop - 1;
+    const movedDown = currentScrollTop > previousScrollTop + 1;
+    const now = Date.now();
+    const hasRecentUserScrollIntent = now - lastUserScrollIntentAtRef.current < 800;
+    const userDirection = hasRecentUserScrollIntent
+      ? lastUserScrollDirectionRef.current
+      : null;
+
+    if (!hasRecentUserScrollIntent) {
+      if (!userPausedAutoScrollRef.current && (nearBottom || autoScrollRef.current)) {
+        autoScrollRef.current = true;
+      }
+      lastScrollTopRef.current = currentScrollTop;
+      return;
+    }
+
+    if (userDirection === "up" || movedUp) {
+      userPausedAutoScrollRef.current = true;
+      autoScrollRef.current = false;
+    } else if (userDirection === "down" && nearBottom) {
+      userPausedAutoScrollRef.current = false;
+      autoScrollRef.current = true;
+    } else if (!nearBottom) {
+      autoScrollRef.current = false;
+    } else if (!userPausedAutoScrollRef.current && (movedDown || autoScrollRef.current)) {
+      autoScrollRef.current = true;
+    }
+    lastScrollTopRef.current = currentScrollTop;
   }, [isNearBottom]);
+
+  const updateUserScrollIntent = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      if (Math.abs(event.deltaY) < 1) {
+        return;
+      }
+      const direction = event.deltaY < 0 ? "up" : "down";
+      lastUserScrollDirectionRef.current = direction;
+      lastUserScrollIntentAtRef.current = Date.now();
+      if (direction === "up") {
+        userPausedAutoScrollRef.current = true;
+        autoScrollRef.current = false;
+        return;
+      }
+      const container = containerNodeRef.current;
+      if (container && isNearBottom(container)) {
+        userPausedAutoScrollRef.current = false;
+        autoScrollRef.current = true;
+      }
+    },
+    [isNearBottom],
+  );
 
   const requestAutoScroll = useCallback(() => {
     const container = containerNodeRef.current;
     const shouldScroll =
-      autoScrollRef.current || (container ? isNearBottom(container) : true);
+      autoScrollRef.current ||
+      (container ? !userPausedAutoScrollRef.current && isNearBottom(container) : true);
     if (!shouldScroll) {
       return;
     }
@@ -158,6 +216,7 @@ export function useMessagesViewState({
       scheduleAutoScroll();
       const schedulePinnedScroll = () => {
         if (autoScrollRef.current) {
+          requestAutoScroll();
           scheduleAutoScroll();
         }
       };
@@ -170,17 +229,22 @@ export function useMessagesViewState({
       }
       observedContentNodeRef.current = node;
     },
-    [disconnectResizeObserver, scheduleAutoScroll],
+    [disconnectResizeObserver, requestAutoScroll, scheduleAutoScroll],
   );
 
   useLayoutEffect(() => {
     autoScrollRef.current = true;
+    userPausedAutoScrollRef.current = false;
+    lastScrollTopRef.current = 0;
+    lastUserScrollDirectionRef.current = null;
+    lastUserScrollIntentAtRef.current = 0;
   }, [threadId]);
 
   useLayoutEffect(() => {
     const container = containerNodeRef.current;
     const shouldScroll =
-      autoScrollRef.current || (container ? isNearBottom(container) : true);
+      autoScrollRef.current ||
+      (container ? !userPausedAutoScrollRef.current && isNearBottom(container) : true);
     if (!shouldScroll) {
       return;
     }
@@ -382,6 +446,7 @@ export function useMessagesViewState({
     containerRef,
     contentRef,
     updateAutoScroll,
+    updateUserScrollIntent,
     requestAutoScroll,
     expandedItems,
     toggleExpanded,
