@@ -65,6 +65,7 @@ describe("useThreadCodexParams", () => {
       accessMode: null,
       collaborationModeId: null,
       codexArgsOverride: null,
+      modelSelectionMode: null,
       updatedAt: 0,
     });
   });
@@ -133,6 +134,7 @@ describe("useThreadCodexParams", () => {
       accessMode: "current",
       collaborationModeId: "default",
       codexArgsOverride: "--profile ws",
+      modelSelectionMode: null,
       updatedAt: 1,
     });
   });

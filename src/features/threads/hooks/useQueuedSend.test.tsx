@@ -57,7 +57,9 @@ describe("useQueuedSend", () => {
     });
 
     expect(options.sendUserMessage).toHaveBeenCalledTimes(1);
-    expect(options.sendUserMessage).toHaveBeenCalledWith("First", []);
+    expect(options.sendUserMessage).toHaveBeenCalledWith("First", [], undefined, {
+      modelSelectionMode: "manual",
+    });
 
     await act(async () => {
       rerender({ ...options, isProcessing: true });
@@ -73,7 +75,9 @@ describe("useQueuedSend", () => {
     });
 
     expect(options.sendUserMessage).toHaveBeenCalledTimes(2);
-    expect(options.sendUserMessage).toHaveBeenLastCalledWith("Second", []);
+    expect(options.sendUserMessage).toHaveBeenLastCalledWith("Second", [], undefined, {
+      modelSelectionMode: "manual",
+    });
   });
 
   it("waits for processing to start before sending the next queued message", async () => {
@@ -92,7 +96,9 @@ describe("useQueuedSend", () => {
     });
 
     expect(options.sendUserMessage).toHaveBeenCalledTimes(1);
-    expect(options.sendUserMessage).toHaveBeenCalledWith("Alpha", []);
+    expect(options.sendUserMessage).toHaveBeenCalledWith("Alpha", [], undefined, {
+      modelSelectionMode: "manual",
+    });
   });
 
   it("queues send while processing when steer is disabled", async () => {
@@ -129,7 +135,7 @@ describe("useQueuedSend", () => {
       "Steer",
       [],
       undefined,
-      { sendIntent: "steer" },
+      { sendIntent: "steer", modelSelectionMode: "manual" },
     );
     expect(result.current.activeQueue).toHaveLength(0);
   });
@@ -177,7 +183,7 @@ describe("useQueuedSend", () => {
       "Fallback to queue",
       [],
       undefined,
-      { sendIntent: "steer" },
+      { sendIntent: "steer", modelSelectionMode: "manual" },
     );
     expect(result.current.activeQueue).toHaveLength(1);
     expect(result.current.activeQueue[0]?.text).toBe("Fallback to queue");
@@ -198,6 +204,8 @@ describe("useQueuedSend", () => {
     expect(options.sendUserMessage).toHaveBeenLastCalledWith(
       "Fallback to queue",
       [],
+      undefined,
+      { modelSelectionMode: "manual" },
     );
   });
 
@@ -224,7 +232,9 @@ describe("useQueuedSend", () => {
     });
 
     expect(options.sendUserMessage).toHaveBeenCalledTimes(2);
-    expect(options.sendUserMessage).toHaveBeenLastCalledWith("Retry", []);
+    expect(options.sendUserMessage).toHaveBeenLastCalledWith("Retry", [], undefined, {
+      modelSelectionMode: "manual",
+    });
   });
 
   it("queues messages per thread and only flushes the active thread", async () => {
@@ -255,7 +265,9 @@ describe("useQueuedSend", () => {
     });
 
     expect(options.sendUserMessage).toHaveBeenCalledTimes(1);
-    expect(options.sendUserMessage).toHaveBeenCalledWith("Thread-1", []);
+    expect(options.sendUserMessage).toHaveBeenCalledWith("Thread-1", [], undefined, {
+      modelSelectionMode: "manual",
+    });
   });
 
   it("connects workspace before sending when disconnected", async () => {
@@ -280,7 +292,7 @@ describe("useQueuedSend", () => {
       "Connect",
       [],
       undefined,
-      { sendIntent: "default" },
+      { sendIntent: "default", modelSelectionMode: "manual" },
     );
   });
 
@@ -298,7 +310,11 @@ describe("useQueuedSend", () => {
       "Manual",
       [],
       undefined,
-      { sendIntent: "default", autoModelRoutingBypass: true },
+      {
+        sendIntent: "default",
+        autoModelRoutingBypass: true,
+        modelSelectionMode: "manual",
+      },
     );
   });
 
@@ -326,7 +342,7 @@ describe("useQueuedSend", () => {
       "Queued manual",
       [],
       undefined,
-      { autoModelRoutingBypass: true },
+      { autoModelRoutingBypass: true, modelSelectionMode: "manual" },
     );
   });
 
@@ -367,7 +383,12 @@ describe("useQueuedSend", () => {
     });
 
     expect(options.sendUserMessage).toHaveBeenCalledTimes(1);
-    expect(options.sendUserMessage).toHaveBeenCalledWith("After review", []);
+    expect(options.sendUserMessage).toHaveBeenCalledWith(
+      "After review",
+      [],
+      undefined,
+      { modelSelectionMode: "manual" },
+    );
   });
 
   it("starts a new thread for /new and sends the remaining text there", async () => {
@@ -489,7 +510,7 @@ describe("useQueuedSend", () => {
       "/apps now",
       ["img-1"],
       undefined,
-      { sendIntent: "default" },
+      { sendIntent: "default", modelSelectionMode: "manual" },
     );
   });
 
@@ -570,10 +591,12 @@ describe("useQueuedSend", () => {
     });
 
     expect(options.sendUserMessage).toHaveBeenCalledTimes(1);
-    expect(options.sendUserMessage).toHaveBeenCalledWith("Images", [
-      "img-1",
-      "img-2",
-    ]);
+    expect(options.sendUserMessage).toHaveBeenCalledWith(
+      "Images",
+      ["img-1", "img-2"],
+      undefined,
+      { modelSelectionMode: "manual" },
+    );
   });
 
   it("does not flush queued messages while response is required", async () => {
@@ -601,7 +624,9 @@ describe("useQueuedSend", () => {
     });
 
     expect(options.sendUserMessage).toHaveBeenCalledTimes(1);
-    expect(options.sendUserMessage).toHaveBeenCalledWith("Held", []);
+    expect(options.sendUserMessage).toHaveBeenCalledWith("Held", [], undefined, {
+      modelSelectionMode: "manual",
+    });
   });
 
 });
