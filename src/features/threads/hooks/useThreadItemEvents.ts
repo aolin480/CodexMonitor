@@ -55,6 +55,7 @@ export function useThreadItemEvents({
       workspaceId: string,
       threadId: string,
       item: Record<string, unknown>,
+      turnId: string | null,
       shouldMarkProcessing: boolean,
     ) => {
       dispatch({ type: "ensureThread", workspaceId, threadId });
@@ -83,10 +84,13 @@ export function useThreadItemEvents({
       });
       if (converted) {
         dispatch({
-          type: "upsertItem",
+          type: shouldMarkProcessing
+            ? "canonicalItemStarted"
+            : "canonicalItemCompleted",
           workspaceId,
           threadId,
-          item: converted,
+          turnId,
+          item: itemForDisplay,
           hasCustomName: Boolean(getCustomName(workspaceId, threadId)),
         });
       }
@@ -204,15 +208,25 @@ export function useThreadItemEvents({
   );
 
   const onItemStarted = useCallback(
-    (workspaceId: string, threadId: string, item: Record<string, unknown>) => {
-      handleItemUpdate(workspaceId, threadId, item, true);
+    (
+      workspaceId: string,
+      threadId: string,
+      item: Record<string, unknown>,
+      turnId: string | null = null,
+    ) => {
+      handleItemUpdate(workspaceId, threadId, item, turnId, true);
     },
     [handleItemUpdate],
   );
 
   const onItemCompleted = useCallback(
-    (workspaceId: string, threadId: string, item: Record<string, unknown>) => {
-      handleItemUpdate(workspaceId, threadId, item, false);
+    (
+      workspaceId: string,
+      threadId: string,
+      item: Record<string, unknown>,
+      turnId: string | null = null,
+    ) => {
+      handleItemUpdate(workspaceId, threadId, item, turnId, false);
     },
     [handleItemUpdate],
   );

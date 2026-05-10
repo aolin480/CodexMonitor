@@ -205,6 +205,58 @@ function chooseRicherItem(remote: ConversationItem, local: ConversationItem) {
   return remote;
 }
 
+function normalizeDuplicateMessageText(text: string) {
+  return text.trim().replace(/\s+/g, " ");
+}
+
+function normalizeDuplicateMessageImages(images: string[] | undefined) {
+  return (images ?? []).map((image) => image.trim()).filter(Boolean).join("\u0000");
+}
+
+export function getMessageDuplicateKey(item: ConversationItem) {
+  if (item.kind !== "message") {
+    return null;
+  }
+  const text = normalizeDuplicateMessageText(item.text);
+  const images = normalizeDuplicateMessageImages(item.images);
+  if (!text && !images) {
+    return null;
+  }
+  return `${item.role}\u0000${text}\u0000${images}`;
+}
+
+export function countMessageDuplicateKeys(items: ConversationItem[]) {
+  const counts = new Map<string, number>();
+  items.forEach((item) => {
+    const key = getMessageDuplicateKey(item);
+    if (!key) {
+      return;
+    }
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+  return counts;
+}
+
+export function consumeMessageDuplicateKey(
+  counts: Map<string, number>,
+  item: ConversationItem,
+) {
+  const key = getMessageDuplicateKey(item);
+  if (!key) {
+    return false;
+  }
+  const count = counts.get(key) ?? 0;
+  if (count <= 0) {
+    return false;
+  }
+  if (count === 1) {
+    counts.delete(key);
+  } else {
+    counts.set(key, count - 1);
+  }
+  return true;
+}
+
 export function mergeThreadItems(
   remoteItems: ConversationItem[],
   localItems: ConversationItem[],
@@ -214,14 +266,19 @@ export function mergeThreadItems(
   }
   const byId = new Map(remoteItems.map((item) => [item.id, item]));
   const localItemsById = new Map(localItems.map((item) => [item.id, item]));
+  const remainingRemoteMessageMatches = countMessageDuplicateKeys(remoteItems);
   const merged = remoteItems.map((item) => {
     const local = localItemsById.get(item.id);
     return local ? chooseRicherItem(item, local) : item;
   });
   localItems.forEach((item) => {
-    if (!byId.has(item.id)) {
-      merged.push(item);
+    if (byId.has(item.id)) {
+      return;
     }
+    if (consumeMessageDuplicateKey(remainingRemoteMessageMatches, item)) {
+      return;
+    }
+    merged.push(item);
   });
   return merged;
 }

@@ -801,4 +801,319 @@ describe("threadReducer", () => {
     });
   });
 
+  it("keeps live spawned-agent rows when stale snapshot hydration omits them", () => {
+    const withSpawnStarted = threadReducer(initialState, {
+      type: "canonicalItemStarted",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      item: {
+        id: "spawn-1",
+        type: "collabAgentToolCall",
+        tool: "spawn",
+        status: "inProgress",
+        senderThreadId: "thread-1",
+        receiverThreadIds: ["child-1"],
+        prompt: "Review the chart layout",
+        agentsStates: {
+          "child-1": { status: "running", nickname: "Singer", role: "designer" },
+        },
+      },
+    });
+
+    const withSpawnCompleted = threadReducer(withSpawnStarted, {
+      type: "canonicalItemCompleted",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      item: {
+        id: "spawn-1",
+        type: "collabAgentToolCall",
+        tool: "spawn",
+        status: "completed",
+        senderThreadId: "thread-1",
+        receiverThreadIds: ["child-1"],
+        prompt: "Review the chart layout",
+        agentsStates: {
+          "child-1": { status: "completed", nickname: "Singer", role: "designer" },
+        },
+      },
+    });
+
+    const afterStaleSnapshot = threadReducer(withSpawnCompleted, {
+      type: "hydrateCanonicalThread",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      thread: {
+        id: "thread-1",
+        turns: [
+          {
+            id: "turn-1",
+            items: [
+              {
+                id: "assistant-1",
+                type: "agentMessage",
+                text: "Working on it.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const items = afterStaleSnapshot.itemsByThread["thread-1"] ?? [];
+    expect(items.map((item) => item.id)).toContain("spawn-1");
+    expect(items.find((item) => item.id === "spawn-1")).toMatchObject({
+      kind: "tool",
+      toolType: "collabToolCall",
+      status: "completed",
+    });
+  });
+
+  it("keeps streamed command output when completion and snapshot payloads are incomplete", () => {
+    const withCommand = threadReducer(initialState, {
+      type: "canonicalItemStarted",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      item: {
+        id: "cmd-1",
+        type: "commandExecution",
+        command: "npm test",
+        cwd: "/tmp/project",
+        status: "inProgress",
+        aggregatedOutput: null,
+      },
+    });
+
+    const withOutput = threadReducer(withCommand, {
+      type: "appendToolOutput",
+      threadId: "thread-1",
+      itemId: "cmd-1",
+      delta: "running tests\n",
+    });
+
+    const completedWithoutOutput = threadReducer(withOutput, {
+      type: "canonicalItemCompleted",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      item: {
+        id: "cmd-1",
+        type: "commandExecution",
+        command: "npm test",
+        cwd: "/tmp/project",
+        status: "completed",
+        aggregatedOutput: null,
+      },
+    });
+
+    const afterSnapshot = threadReducer(completedWithoutOutput, {
+      type: "hydrateCanonicalThread",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      thread: {
+        id: "thread-1",
+        turns: [
+          {
+            id: "turn-1",
+            items: [
+              {
+                id: "assistant-1",
+                type: "agentMessage",
+                text: "Tests are done.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(afterSnapshot.itemsByThread["thread-1"]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "cmd-1",
+          kind: "tool",
+          toolType: "commandExecution",
+          status: "completed",
+          output: "running tests\n",
+        }),
+      ]),
+    );
+  });
+
+  it("merges equivalent live and snapshot message items when ids differ", () => {
+    const withLiveUser = threadReducer(initialState, {
+      type: "canonicalItemStarted",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      turnId: "turn-1",
+      item: {
+        id: "live-user",
+        type: "userMessage",
+        content: [{ type: "text", text: "Testing this again" }],
+      },
+    });
+
+    const withLiveAssistant = threadReducer(withLiveUser, {
+      type: "appendAgentDelta",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      itemId: "live-assistant",
+      delta: "Ready for the test.",
+      hasCustomName: false,
+    });
+
+    const afterSnapshot = threadReducer(withLiveAssistant, {
+      type: "hydrateCanonicalThread",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      thread: {
+        id: "thread-1",
+        turns: [
+          {
+            id: "turn-1",
+            items: [
+              {
+                id: "snapshot-user",
+                type: "userMessage",
+                content: [{ type: "text", text: "Testing this again" }],
+              },
+              {
+                id: "snapshot-assistant",
+                type: "agentMessage",
+                text: "Ready for the test.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(afterSnapshot.itemsByThread["thread-1"]).toEqual([
+      {
+        id: "live-user",
+        kind: "message",
+        role: "user",
+        text: "Testing this again",
+      },
+      {
+        id: "live-assistant",
+        kind: "message",
+        role: "assistant",
+        text: "Ready for the test.",
+      },
+    ]);
+    expect(
+      afterSnapshot.canonicalItemsByThread["thread-1"]?.itemOrder,
+    ).toEqual(["live-user", "live-assistant"]);
+  });
+
+  it("does not append local fallback messages already represented by canonical rows", () => {
+    const hydrated = threadReducer(initialState, {
+      type: "hydrateCanonicalThread",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      thread: {
+        id: "thread-1",
+        turns: [
+          {
+            id: "turn-1",
+            items: [
+              {
+                id: "server-user",
+                type: "userMessage",
+                content: [{ type: "text", text: "Install the iOS app" }],
+              },
+              {
+                id: "server-assistant",
+                type: "agentMessage",
+                text: "The install is blocked by CoreDevice.",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const merged = threadReducer(hydrated, {
+      type: "setThreadItems",
+      threadId: "thread-1",
+      items: [
+        ...(hydrated.itemsByThread["thread-1"] ?? []),
+        {
+          id: "local-user",
+          kind: "message",
+          role: "user",
+          text: "Install the iOS app",
+        },
+        {
+          id: "local-assistant",
+          kind: "message",
+          role: "assistant",
+          text: "The install is blocked by CoreDevice.",
+        },
+      ],
+    });
+
+    expect(merged.itemsByThread["thread-1"]).toEqual(
+      hydrated.itemsByThread["thread-1"],
+    );
+  });
+
+  it("does not rewrite visible items when a polling resume returns the same canonical snapshot", () => {
+    const snapshot = {
+      id: "thread-1",
+      turns: [
+        {
+          id: "turn-1",
+          items: [
+            {
+              id: "user-1",
+              type: "userMessage",
+              text: "Can you rebuild everything?",
+            },
+            {
+              id: "assistant-1",
+              type: "agentMessage",
+              text: "The full rebuild completed.",
+            },
+            {
+              id: "cmd-1",
+              type: "commandExecution",
+              command: "npm run tauri:build",
+              status: "completed",
+              aggregatedOutput: "build complete\n",
+            },
+          ],
+        },
+      ],
+    };
+
+    const hydrated = threadReducer(initialState, {
+      type: "hydrateCanonicalThread",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      thread: snapshot,
+    });
+    const firstItems = hydrated.itemsByThread["thread-1"];
+
+    const repeatedHydration = threadReducer(hydrated, {
+      type: "hydrateCanonicalThread",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      thread: snapshot,
+    });
+    expect(repeatedHydration).toBe(hydrated);
+    expect(repeatedHydration.itemsByThread["thread-1"]).toBe(firstItems);
+
+    const repeatedSetItems = threadReducer(repeatedHydration, {
+      type: "setThreadItems",
+      threadId: "thread-1",
+      items: repeatedHydration.itemsByThread["thread-1"] ?? [],
+    });
+    expect(repeatedSetItems).toBe(repeatedHydration);
+    expect(repeatedSetItems.itemsByThread["thread-1"]).toBe(firstItems);
+  });
+
 });

@@ -572,6 +572,65 @@ describe("threadItems", () => {
     }
   });
 
+  it("does not append local fallback messages already represented by remote messages", () => {
+    const remoteUser: ConversationItem = {
+      id: "server-user",
+      kind: "message",
+      role: "user",
+      text: "Testing this again",
+    };
+    const remoteAssistant: ConversationItem = {
+      id: "server-assistant",
+      kind: "message",
+      role: "assistant",
+      text: "Ready for the test.",
+    };
+    const localUser: ConversationItem = {
+      id: "local-user",
+      kind: "message",
+      role: "user",
+      text: "Testing this again",
+    };
+    const localAssistant: ConversationItem = {
+      id: "local-assistant",
+      kind: "message",
+      role: "assistant",
+      text: "Ready for the test.",
+    };
+
+    const merged = mergeThreadItems(
+      [remoteUser, remoteAssistant],
+      [localUser, localAssistant],
+    );
+
+    expect(merged).toEqual([remoteUser, remoteAssistant]);
+  });
+
+  it("preserves extra repeated local messages beyond remote duplicate matches", () => {
+    const remote: ConversationItem = {
+      id: "server-user",
+      kind: "message",
+      role: "user",
+      text: "Retry",
+    };
+    const firstLocal: ConversationItem = {
+      id: "local-user-1",
+      kind: "message",
+      role: "user",
+      text: "Retry",
+    };
+    const secondLocal: ConversationItem = {
+      id: "local-user-2",
+      kind: "message",
+      role: "user",
+      text: "Retry",
+    };
+
+    const merged = mergeThreadItems([remote], [firstLocal, secondLocal]);
+
+    expect(merged).toEqual([remote, secondLocal]);
+  });
+
   it("preserves streamed plan output when completion item has empty output", () => {
     const existing: ConversationItem = {
       id: "plan-1",

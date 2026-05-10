@@ -11,6 +11,8 @@ import type {
   TurnPlan,
 } from "@/types";
 import { CHAT_SCROLLBACK_DEFAULT } from "@utils/chatScrollback";
+import type { CanonicalThreadTranscriptById } from "@threads/canonical/threadTranscript";
+import { reduceThreadCanonical } from "./threadReducer/threadCanonicalSlice";
 import { reduceThreadItems } from "./threadReducer/threadItemsSlice";
 import { reduceThreadLifecycle } from "./threadReducer/threadLifecycleSlice";
 import { reduceThreadConfig } from "./threadReducer/threadConfigSlice";
@@ -27,6 +29,7 @@ type ThreadActivityStatus = {
 
 export type ThreadState = {
   activeThreadIdByWorkspace: Record<string, string | null>;
+  canonicalItemsByThread: CanonicalThreadTranscriptById;
   itemsByThread: Record<string, ConversationItem[]>;
   maxItemsPerThread: number | null;
   threadsByWorkspace: Record<string, ThreadSummary[]>;
@@ -99,6 +102,29 @@ export type ThreadAction =
       itemId: string;
       text: string;
       hasCustomName: boolean;
+    }
+  | {
+      type: "canonicalItemStarted";
+      workspaceId: string;
+      threadId: string;
+      turnId: string | null;
+      item: Record<string, unknown>;
+      hasCustomName?: boolean;
+    }
+  | {
+      type: "canonicalItemCompleted";
+      workspaceId: string;
+      threadId: string;
+      turnId: string | null;
+      item: Record<string, unknown>;
+      hasCustomName?: boolean;
+    }
+  | {
+      type: "hydrateCanonicalThread";
+      workspaceId: string;
+      threadId: string;
+      thread: Record<string, unknown>;
+      hasCustomName?: boolean;
     }
   | {
       type: "upsertItem";
@@ -188,6 +214,7 @@ const emptyItems: Record<string, ConversationItem[]> = {};
 
 export const initialState: ThreadState = {
   activeThreadIdByWorkspace: {},
+  canonicalItemsByThread: {},
   itemsByThread: emptyItems,
   maxItemsPerThread: CHAT_SCROLLBACK_DEFAULT,
   threadsByWorkspace: {},
@@ -214,6 +241,7 @@ export const initialState: ThreadState = {
 type ThreadSliceReducer = (state: ThreadState, action: ThreadAction) => ThreadState;
 
 const threadSliceReducers: ThreadSliceReducer[] = [
+  reduceThreadCanonical,
   reduceThreadLifecycle,
   reduceThreadConfig,
   reduceThreadItems,

@@ -86,10 +86,11 @@ describe("useThreadItemEvents", () => {
     expect(markReviewing).toHaveBeenCalledWith("thread-1", true);
     expect(applyCollabThreadLinks).toHaveBeenCalledWith("ws-1", "thread-1", item);
     expect(dispatch).toHaveBeenCalledWith({
-      type: "upsertItem",
+      type: "canonicalItemStarted",
       workspaceId: "ws-1",
       threadId: "thread-1",
-      item: convertedItem,
+      turnId: null,
+      item,
       hasCustomName: true,
     });
     expect(safeMessageActivity).toHaveBeenCalled();
@@ -111,10 +112,11 @@ describe("useThreadItemEvents", () => {
       threadId: "thread-1",
     });
     expect(dispatch).toHaveBeenCalledWith({
-      type: "upsertItem",
+      type: "canonicalItemCompleted",
       workspaceId: "ws-1",
       threadId: "thread-1",
-      item: convertedItem,
+      turnId: null,
+      item,
       hasCustomName: false,
     });
     expect(safeMessageActivity).toHaveBeenCalled();

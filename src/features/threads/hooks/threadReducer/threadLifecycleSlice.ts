@@ -125,6 +125,8 @@ export function reduceThreadLifecycle(
         state.activeThreadIdByWorkspace[action.workspaceId] === action.threadId
           ? filtered[0]?.id ?? null
           : state.activeThreadIdByWorkspace[action.workspaceId] ?? null;
+      const { [action.threadId]: _removedCanonical, ...restCanonical } =
+        state.canonicalItemsByThread;
       const { [action.threadId]: _, ...restItems } = state.itemsByThread;
       const { [action.threadId]: __, ...restStatus } = state.threadStatusById;
       const { [action.threadId]: ___, ...restTurns } = state.activeTurnIdByThread;
@@ -139,6 +141,7 @@ export function reduceThreadLifecycle(
           ...state.threadsByWorkspace,
           [action.workspaceId]: filtered,
         },
+        canonicalItemsByThread: restCanonical,
         itemsByThread: restItems,
         threadStatusById: restStatus,
         activeTurnIdByThread: restTurns,

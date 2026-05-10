@@ -14,7 +14,7 @@ import {
   prefersUpdatedSort,
 } from "./common";
 
-function prepareStateItems(
+export function prepareStateItemsForReducer(
   items: ConversationItem[],
   maxItemsPerThread: ThreadState["maxItemsPerThread"],
 ) {
@@ -22,6 +22,18 @@ function prepareStateItems(
     maxItemsPerThread,
     summarizeExploration: false,
   });
+}
+
+function areConversationItemsEqual(
+  left: ConversationItem[] | undefined,
+  right: ConversationItem[],
+) {
+  if (!left || left.length !== right.length) {
+    return false;
+  }
+  return left.every(
+    (item, index) => JSON.stringify(item) === JSON.stringify(right[index]),
+  );
 }
 
 export function reduceThreadItems(state: ThreadState, action: ThreadAction): ThreadState {
@@ -38,7 +50,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareStateItems(
+          [action.threadId]: prepareStateItemsForReducer(
             [...list, message],
             state.maxItemsPerThread,
           ),
@@ -62,7 +74,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
           text: action.delta,
         });
       }
-      const updatedItems = prepareStateItems(list, state.maxItemsPerThread);
+      const updatedItems = prepareStateItemsForReducer(list, state.maxItemsPerThread);
       const nextThreadsByWorkspace = maybeRenameThreadFromAgent({
         workspaceId: action.workspaceId,
         threadId: action.threadId,
@@ -97,7 +109,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
           text: action.text,
         });
       }
-      const updatedItems = prepareStateItems(list, state.maxItemsPerThread);
+      const updatedItems = prepareStateItemsForReducer(list, state.maxItemsPerThread);
       const nextThreadsByWorkspace = maybeRenameThreadFromAgent({
         workspaceId: action.workspaceId,
         threadId: action.threadId,
@@ -140,7 +152,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         }
       }
       const nextItem = ensureUniqueReviewId(list, item);
-      const updatedItems = prepareStateItems(
+      const updatedItems = prepareStateItemsForReducer(
         upsertItem(list, nextItem),
         state.maxItemsPerThread,
       );
@@ -187,17 +199,22 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         threadsByWorkspace: nextThreadsByWorkspace,
       };
     }
-    case "setThreadItems":
+    case "setThreadItems": {
+      const preparedItems = prepareStateItemsForReducer(
+        action.items,
+        state.maxItemsPerThread,
+      );
+      if (areConversationItemsEqual(state.itemsByThread[action.threadId], preparedItems)) {
+        return state;
+      }
       return {
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareStateItems(
-            action.items,
-            state.maxItemsPerThread,
-          ),
+          [action.threadId]: preparedItems,
         },
       };
+    }
     case "appendReasoningSummary": {
       const list = state.itemsByThread[action.threadId] ?? [];
       const index = list.findIndex((entry) => entry.id === action.itemId);
@@ -225,7 +242,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
+          [action.threadId]: prepareStateItemsForReducer(next, state.maxItemsPerThread),
         },
       };
     }
@@ -253,7 +270,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
+          [action.threadId]: prepareStateItemsForReducer(next, state.maxItemsPerThread),
         },
       };
     }
@@ -284,7 +301,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
+          [action.threadId]: prepareStateItemsForReducer(next, state.maxItemsPerThread),
         },
       };
     }
@@ -321,7 +338,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
+          [action.threadId]: prepareStateItemsForReducer(next, state.maxItemsPerThread),
         },
       };
     }
@@ -342,7 +359,7 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
         ...state,
         itemsByThread: {
           ...state.itemsByThread,
-          [action.threadId]: prepareStateItems(next, state.maxItemsPerThread),
+          [action.threadId]: prepareStateItemsForReducer(next, state.maxItemsPerThread),
         },
       };
     }

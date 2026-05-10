@@ -3,6 +3,9 @@ export { enrichConversationItemsWithThreads } from "./threadItems.collab";
 export { buildConversationItem, buildConversationItemFromThreadItem, buildItemsFromThread, isReviewingFromThread } from "./threadItems.conversion";
 export { normalizeItem, prepareThreadItems } from "./threadItems.explore";
 export {
+  consumeMessageDuplicateKey,
+  countMessageDuplicateKeys,
+  getMessageDuplicateKey,
   getThreadCreatedTimestamp,
   getThreadTimestamp,
   mergeThreadItems,

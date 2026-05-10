@@ -329,11 +329,16 @@ describe("useAppServerEvents", () => {
         },
       });
     });
-    expect(handlers.onItemCompleted).toHaveBeenCalledWith("ws-1", "thread-1", {
-      type: "agentMessage",
-      id: "item-2",
-      text: "Done",
-    });
+    expect(handlers.onItemCompleted).toHaveBeenCalledWith(
+      "ws-1",
+      "thread-1",
+      {
+        type: "agentMessage",
+        id: "item-2",
+        text: "Done",
+      },
+      null,
+    );
     expect(handlers.onAgentMessageCompleted).toHaveBeenCalledWith({
       workspaceId: "ws-1",
       threadId: "thread-1",

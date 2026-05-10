@@ -243,6 +243,13 @@ export function useThreadActions({
             notifySubagent: true,
           });
           applyCollabThreadLinksFromThread(workspaceId, threadId, thread);
+          dispatch({
+            type: "hydrateCanonicalThread",
+            workspaceId,
+            threadId,
+            thread,
+            hasCustomName: Boolean(getCustomName(workspaceId, threadId)),
+          });
           const localItems = itemsByThread[threadId] ?? [];
           const shouldReplace =
             replaceLocal || replaceOnResumeRef.current[threadId] === true;

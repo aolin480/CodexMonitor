@@ -41,6 +41,24 @@ function parseUserInputs(inputs: Array<Record<string, unknown>>) {
   return { text: textParts.join(" ").trim(), images };
 }
 
+function stringifyJsonLike(value: unknown) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function normalizeStatus(value: unknown) {
+  return asString(value ?? "").trim();
+}
+
 export function buildConversationItem(
   item: Record<string, unknown>,
 ): ConversationItem | null {
@@ -76,8 +94,8 @@ export function buildConversationItem(
       kind: "tool",
       toolType: "plan",
       title: "Plan",
-      detail: asString(item.status ?? ""),
-      status: asString(item.status ?? ""),
+      detail: normalizeStatus(item.status ?? ""),
+      status: normalizeStatus(item.status ?? ""),
       output: asString(item.text ?? ""),
     };
   }
@@ -92,7 +110,7 @@ export function buildConversationItem(
       toolType: type,
       title: command ? `Command: ${command}` : "Command",
       detail: asString(item.cwd ?? ""),
-      status: asString(item.status ?? ""),
+      status: normalizeStatus(item.status ?? ""),
       output: asString(item.aggregatedOutput ?? ""),
       durationMs,
     };
@@ -138,7 +156,7 @@ export function buildConversationItem(
       toolType: type,
       title: "File changes",
       detail: paths || "Pending changes",
-      status: asString(item.status ?? ""),
+      status: normalizeStatus(item.status ?? ""),
       output: diffOutput,
       changes: normalizedChanges,
     };
@@ -153,8 +171,24 @@ export function buildConversationItem(
       toolType: type,
       title: `Tool: ${server}${tool ? ` / ${tool}` : ""}`,
       detail: args,
-      status: asString(item.status ?? ""),
-      output: asString(item.result ?? item.error ?? ""),
+      status: normalizeStatus(item.status ?? ""),
+      output: stringifyJsonLike(item.result ?? item.error ?? ""),
+      durationMs: asNumber(item.durationMs ?? item.duration_ms),
+    };
+  }
+  if (type === "dynamicToolCall") {
+    const namespace = asString(item.namespace ?? "");
+    const tool = asString(item.tool ?? "");
+    const label = [namespace, tool].filter(Boolean).join(" / ");
+    return {
+      id,
+      kind: "tool",
+      toolType: type,
+      title: label ? `Tool: ${label}` : "Dynamic tool",
+      detail: stringifyJsonLike(item.arguments ?? ""),
+      status: normalizeStatus(item.status ?? ""),
+      output: stringifyJsonLike(item.contentItems ?? ""),
+      durationMs: asNumber(item.durationMs ?? item.duration_ms),
     };
   }
   if (type === "collabToolCall" || type === "collabAgentToolCall") {
@@ -168,7 +202,7 @@ export function buildConversationItem(
       toolType: type,
       title: "Web search",
       detail: asString(item.query ?? ""),
-      status: status || "completed",
+      status: normalizeStatus(status || "completed"),
       output: "",
     };
   }
@@ -183,6 +217,32 @@ export function buildConversationItem(
       output: "",
     };
   }
+  if (type === "imageGeneration") {
+    const savedPath = asString(item.savedPath ?? item.saved_path ?? "");
+    const result = asString(item.result ?? "");
+    const revisedPrompt = asString(item.revisedPrompt ?? item.revised_prompt ?? "");
+    return {
+      id,
+      kind: "tool",
+      toolType: type,
+      title: "Image generation",
+      detail: savedPath || revisedPrompt || "Generated image",
+      status: normalizeStatus(item.status ?? ""),
+      output: result,
+    };
+  }
+  if (type === "hookPrompt") {
+    const fragments = Array.isArray(item.fragments) ? item.fragments : [];
+    return {
+      id,
+      kind: "tool",
+      toolType: type,
+      title: "Hook prompt",
+      detail: "",
+      status: "completed",
+      output: stringifyJsonLike(fragments),
+    };
+  }
   if (type === "contextCompaction") {
     const status = asString(item.status ?? "").trim();
     return {
@@ -191,7 +251,7 @@ export function buildConversationItem(
       toolType: type,
       title: "Context compaction",
       detail: "Compacting conversation context to fit token limits.",
-      status: status || "completed",
+      status: normalizeStatus(status || "completed"),
       output: "",
     };
   }

@@ -76,8 +76,18 @@ type AppServerEventHandlers = {
   ) => void;
   onHookStarted?: (event: HookEvent) => void;
   onHookCompleted?: (event: HookEvent) => void;
-  onItemStarted?: (workspaceId: string, threadId: string, item: Record<string, unknown>) => void;
-  onItemCompleted?: (workspaceId: string, threadId: string, item: Record<string, unknown>) => void;
+  onItemStarted?: (
+    workspaceId: string,
+    threadId: string,
+    item: Record<string, unknown>,
+    turnId?: string | null,
+  ) => void;
+  onItemCompleted?: (
+    workspaceId: string,
+    threadId: string,
+    item: Record<string, unknown>,
+    turnId?: string | null,
+  ) => void;
   onReasoningSummaryDelta?: (workspaceId: string, threadId: string, itemId: string, delta: string) => void;
   onReasoningSummaryBoundary?: (workspaceId: string, threadId: string, itemId: string) => void;
   onReasoningTextDelta?: (workspaceId: string, threadId: string, itemId: string, delta: string) => void;
@@ -466,9 +476,14 @@ export function useAppServerEvents(handlers: AppServerEventHandlers) {
 
       if (method === "item/completed") {
         const threadId = String(params.threadId ?? params.thread_id ?? "");
+        const turnIdRaw = params.turnId ?? params.turn_id ?? null;
+        const turnId =
+          typeof turnIdRaw === "string" && turnIdRaw.trim().length > 0
+            ? turnIdRaw.trim()
+            : null;
         const item = params.item as Record<string, unknown> | undefined;
         if (threadId && item) {
-          currentHandlers.onItemCompleted?.(workspace_id, threadId, item);
+          currentHandlers.onItemCompleted?.(workspace_id, threadId, item, turnId);
         }
         if (threadId && item?.type === "agentMessage") {
           const itemId = String(item.id ?? "");
@@ -487,9 +502,14 @@ export function useAppServerEvents(handlers: AppServerEventHandlers) {
 
       if (method === "item/started") {
         const threadId = String(params.threadId ?? params.thread_id ?? "");
+        const turnIdRaw = params.turnId ?? params.turn_id ?? null;
+        const turnId =
+          typeof turnIdRaw === "string" && turnIdRaw.trim().length > 0
+            ? turnIdRaw.trim()
+            : null;
         const item = params.item as Record<string, unknown> | undefined;
         if (threadId && item) {
-          currentHandlers.onItemStarted?.(workspace_id, threadId, item);
+          currentHandlers.onItemStarted?.(workspace_id, threadId, item, turnId);
         }
         return;
       }
